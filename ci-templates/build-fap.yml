@@ -1,0 +1,44 @@
+name: Build FAP (mntm-012)
+
+# Baut die App per ufbt gegen das Momentum-SDK (mntm-012, API 87.1) und laedt
+# die .fap als Artefakt hoch. Der ufbt-Build fuehrt intern APPCHK aus und schlaegt
+# fehl, wenn Target/API nicht passen.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ufbt
+        run: pip install --upgrade ufbt
+
+      - name: Fetch Momentum mntm SDK
+        # Fuer exakte Paritaet zur lokalen Firmware (mntm-012). Ohne Momentum-Index
+        # wuerde ufbt gegen die offizielle Firmware bauen (andere API).
+        run: ufbt update --index-url=https://up.momentum-fw.dev/firmware/directory.json --channel=release
+
+      - name: Build FAP (inkl. APPCHK)
+        run: ufbt
+
+      - name: List build output
+        run: ls -la dist/
+
+      - name: Upload FAP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-fap
+          path: dist/*.fap
+          if-no-files-found: error
