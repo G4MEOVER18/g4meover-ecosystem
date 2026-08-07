@@ -13,7 +13,10 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
-- [ ] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork übernehmen), Track-3-Encode. Siehe dortige ROADMAP.md.
+- [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
+      `zacharyweiss/magspoof_flipper`) geprüft — Track-2/3-Start-Sentinel-Bug in
+      `mag_device_parse_card_string` gefunden und gefixt: Patch in
+      `app-improvements/g4meover-magspoof/track2-3-start-sentinel-fix.md`.
 - [ ] Eigene Apps (RollForge/ProtoPirate/RollJam/RollLab/FlipperJammer/lora-ukfe): Encode/Parse/State-Refactors, Tests.
 
 ## Ideen-Recherche
