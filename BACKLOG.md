@@ -3,7 +3,11 @@
 Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/geflasht.
 
 ## Firmware-Feature-Mining
-- [ ] Unleashed **unlshd-090** (2026-07-30) vs. mntm-012: neue/erweiterte **SubGHz-Protokolle** listen → Port-Vorschläge.
+- [x] Unleashed **unlshd-090** vs. mntm-012: **Telcoma/Cardin EDGE**-SubGHz-Protokoll fehlt mir —
+      Port-Vorschlag in `firmware-mining/telcoma-cardin-edge-subghz.md`.
+- [ ] Unleashed **unlshd-090+** vs. mntm-012: weitere neue/erweiterte **SubGHz-Protokolle** prüfen
+      (unlshd-090 selbst brachte darüber hinaus primär Stabilitätsfixes, kein zweites neues
+      Protokoll — bei künftigen unlshd-Releases erneut gegenprüfen).
 - [ ] RogueMaster App-Bündel durchsehen: welche nützlichen Apps fehlen uns, sind API-87-kompatibel?
 - [ ] Official-dev seit mntm-012 (2025-12-31): Bugfixes/Sicherheits-/Stabilitäts-Commits, die wir übernehmen sollten.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
