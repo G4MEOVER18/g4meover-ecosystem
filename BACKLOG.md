@@ -8,7 +8,11 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 - [ ] Unleashed **unlshd-090+** vs. mntm-012: weitere neue/erweiterte **SubGHz-Protokolle** prüfen
       (unlshd-090 selbst brachte darüber hinaus primär Stabilitätsfixes, kein zweites neues
       Protokoll — bei künftigen unlshd-Releases erneut gegenprüfen).
-- [ ] RogueMaster App-Bündel durchsehen: welche nützlichen Apps fehlen uns, sind API-87-kompatibel?
+- [x] RogueMaster App-Bündel (`applications/external/`, ~700 Apps) durchgesehen: erster
+      konkreter Fund ist die **Wiegand Reader**-App (Physical-Access-Audit, mir bislang komplett
+      fehlende Kategorie) — Port-Vorschlag in `firmware-mining/wiegand-reader-app.md`. Bündel ist
+      groß genug, dass weitere Kategorien (CAN-Bus, PicoPass/iClass, Seader/SEOS) in künftigen
+      Sitzungen einzeln geprüft werden.
 - [ ] Official-dev seit mntm-012 (2025-12-31): Bugfixes/Sicherheits-/Stabilitäts-Commits, die wir übernehmen sollten.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
