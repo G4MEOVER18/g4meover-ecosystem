@@ -31,8 +31,15 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       überzähligen Zeichen nach der 16. Ziffer klaglos an (Rest wird stillschweigend
       ignoriert statt die Datei abzulehnen) — Fix in
       `app-improvements/ProtoPirate/hex-key-strict-trailing-garbage-fix.md`. Betrifft alle
-      Key-lesenden Protokoll-Decoder gemeinsam (KIA/Ford/PSA/Fiat/Honda/Star Line). Restliche
-      eigene Apps (RollForge/RollJam/RollLab/FlipperJammer/lora-ukfe) weiterhin offen.
+      Key-lesenden Protokoll-Decoder gemeinsam (KIA/Ford/PSA/Fiat/Honda/Star Line).
+- [x] **RollJam**: interlaced Jam+RX-Aufnahme (`rj_run_jam_capture_phase()`) geprüft —
+      `rolljam_capture_start()` setzt bei *jedem* RX-Fenster-Wechsel `sig->count = 0`, statt
+      nur beim ersten Eintritt der Phase, wodurch über mehrere Zyklen akkumulierte Flanken
+      verworfen werden und Signale, die länger als ein einzelnes 80-ms-RX-Fenster sind, kaum
+      je vollständig erfasst werden — Fix in
+      `app-improvements/RollJam/interlaced-capture-buffer-reset-fix.md` (neue
+      Pause-/Resume-Funktionen statt Reset bei jedem Zyklus). Restliche eigene Apps
+      (RollForge/RollLab/FlipperJammer/lora-ukfe) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
