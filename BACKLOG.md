@@ -26,10 +26,18 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `zacharyweiss/magspoof_flipper`) geprüft — Track-2/3-Start-Sentinel-Bug in
       `mag_device_parse_card_string` gefunden und gefixt: Patch in
       `app-improvements/g4meover-magspoof/track2-3-start-sentinel-fix.md`.
-- [ ] Eigene Apps (RollForge/ProtoPirate/RollJam/RollLab/FlipperJammer/lora-ukfe): Encode/Parse/State-Refactors, Tests.
+- [x] **ProtoPirate**: zentrale Key-Parser-Hilfsfunktion `pp_parse_hex_u64_strict()`
+      (`protocols/protocols_common.c`) geprüft — nimmt trotz `_strict`-Namen Hex-Strings mit
+      überzähligen Zeichen nach der 16. Ziffer klaglos an (Rest wird stillschweigend
+      ignoriert statt die Datei abzulehnen) — Fix in
+      `app-improvements/ProtoPirate/hex-key-strict-trailing-garbage-fix.md`. Betrifft alle
+      Key-lesenden Protokoll-Decoder gemeinsam (KIA/Ford/PSA/Fiat/Honda/Star Line). Restliche
+      eigene Apps (RollForge/RollJam/RollLab/FlipperJammer/lora-ukfe) weiterhin offen.
 
 ## Ideen-Recherche
-- [ ] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status.
+- [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
+      `ideas/pentest-app-katalog.md` (dieser Backlog-Eintrag war bereits erledigt, aber hier
+      nie abgehakt worden — nachgetragen).
 - [ ] Nützliche `.sub`-/NFC-/RFID-**Konzepte** (keine echten Captures) + eigene App-Ideen.
 - [ ] Companion-Tool-Ideen: PC-Helfer für Flipper-Apps, danach Raspberry-Pi-Deck.
 
