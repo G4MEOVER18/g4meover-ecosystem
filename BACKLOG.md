@@ -39,7 +39,10 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ideas/pentest-app-katalog.md` (dieser Backlog-Eintrag war bereits erledigt, aber hier
       nie abgehakt worden — nachgetragen).
 - [ ] Nützliche `.sub`-/NFC-/RFID-**Konzepte** (keine echten Captures) + eigene App-Ideen.
-- [ ] Companion-Tool-Ideen: PC-Helfer für Flipper-Apps, danach Raspberry-Pi-Deck.
+- [x] Companion-Tool-Ideen: PC-Helfer für Flipper-Apps — Grundbaustein gefunden (SD Card Mounter,
+      USB-MSC-Durchreichung der SD-Karte ohne Kartenausbau, Basis für `Vault`/
+      `Capture-Dedup-Indexer`): `ideas/companion-tool-recherche.md`. Raspberry-Pi-Deck-Stufe
+      weiterhin offen — baut direkt auf diesem Fund auf (Pi dockt Flipper per USB an).
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
