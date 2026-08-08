@@ -18,7 +18,12 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       um die Medienseite — Port-Vorschlag in `firmware-mining/access-audit-app.md`. Verbleibende
       RogueMaster-Kandidaten (CAN-Bus-Apps, PicoPass/Seader) weiterhin offen — größerer
       Portaufwand wegen Hardware-Modul- bzw. ASN.1/mbedTLS-Abhängigkeiten.
-- [ ] Official-dev seit mntm-012 (2025-12-31): Bugfixes/Sicherheits-/Stabilitäts-Commits, die wir übernehmen sollten.
+- [x] Official-dev seit mntm-012 (2025-12-31): erster konkreter Fund sind zwei zusammengehörige
+      NFC-Stack-Buffer-Overflow-Fixes aus PR #4369 (DESFire-Dateisettings-Parser,
+      MFUL-`FAST_READ`-Handler bei Emulation) — Port-Vorschlag in
+      `firmware-mining/nfc-desfire-mful-stack-overflow-fixes.md`. Weitere Sicherheits-/
+      Stabilitäts-Commits seit mntm-012 in künftigen Sitzungen einzeln weiter durchsehen (großer
+      Zeitraum, ~7 Monate Commits).
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
