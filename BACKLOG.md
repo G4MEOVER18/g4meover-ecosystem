@@ -62,8 +62,12 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 - [ ] Nützliche `.sub`-/NFC-/RFID-**Konzepte** (keine echten Captures) + eigene App-Ideen.
 - [x] Companion-Tool-Ideen: PC-Helfer für Flipper-Apps — Grundbaustein gefunden (SD Card Mounter,
       USB-MSC-Durchreichung der SD-Karte ohne Kartenausbau, Basis für `Vault`/
-      `Capture-Dedup-Indexer`): `ideas/companion-tool-recherche.md`. Raspberry-Pi-Deck-Stufe
-      weiterhin offen — baut direkt auf diesem Fund auf (Pi dockt Flipper per USB an).
+      `Capture-Dedup-Indexer`): `ideas/companion-tool-recherche.md`.
+- [x] Raspberry-Pi-Deck-Stufe (baut auf obigem Fund auf): Pi-seitiger Gegenbaustein gefunden
+      (**pi-usb-automount**, headless Auto-Mount/-Unmount ohne Hook) plus eigener Sync-Auslöser-
+      Entwurf (systemd-Path-Unit + rsync-Skript, kopieren-only, Marker-Datei-Absicherung gegen
+      die von SD Card Mounter bereits bekannte Korruptionsgefahr bei zu frühem Mount-Ende):
+      `ideas/raspberry-pi-deck.md`. Lokale Umsetzung/Test mit Test-SD-Karte weiterhin offen.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
