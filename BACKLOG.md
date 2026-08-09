@@ -43,8 +43,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       verworfen werden und Signale, die länger als ein einzelnes 80-ms-RX-Fenster sind, kaum
       je vollständig erfasst werden — Fix in
       `app-improvements/RollJam/interlaced-capture-buffer-reset-fix.md` (neue
-      Pause-/Resume-Funktionen statt Reset bei jedem Zyklus). Restliche eigene Apps
-      (RollForge/RollLab/FlipperJammer/lora-ukfe) weiterhin offen.
+      Pause-/Resume-Funktionen statt Reset bei jedem Zyklus).
+- [x] **RollLab**: Signalanalyse (`rlab_analyze()`) geprüft — die Stille-Terminator-Flanke,
+      mit der die RX-Callbacks das Ende einer Aufnahme markieren (`>= RLAB_SILENCE_US`,
+      25 ms LOW), wird mit in `sig->buf[]` abgelegt und fließt ungefiltert in Min/Max/Avg/
+      Gesamtdauer sowie die OOK-Bimodalitäts-Heuristik ein — verzerrt die im Analyze-Modus
+      angezeigten Werte massiv (Max/Avg/Total viel zu hoch) und lässt die OOK-Erkennung bei
+      den meisten realen Signalen fälschlich "non-OOK" melden — Fix in
+      `app-improvements/RollLab/analyze-silence-terminator-stats-skew-fix.md` (Terminator-
+      Flanke anhand desselben Kriteriums wie die RX-Callback-Bereitschaftsprüfung aus den
+      Statistikschleifen ausschließen). Restliche eigene Apps (RollForge/FlipperJammer/
+      lora-ukfe) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
