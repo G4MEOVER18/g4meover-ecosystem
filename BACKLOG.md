@@ -62,6 +62,16 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `cap_started`-Zustand plus Pause-/Resume-Helfer, analog zur RollJam-Lösung, für die
       RollForge-eigene Tick-Architektur portiert). RollForges RollLab-/Jammer-Module und
       restliche eigene Apps (FlipperJammer/lora-ukfe) weiterhin offen.
+- [x] **RollForge** (`module_rolllab.c`, gebündeltes RollLab-Modul): trägt denselben
+      Silence-Terminator-Stats-Skew-Bug wie die eigenständige RollLab-App vor ihrem Fix
+      (`rl_analyze()` iteriert über die volle `sig->count` inkl. der ≥25-ms-Stille-Terminator-
+      Flanke) — Fix in
+      `app-improvements/RollForge/analyze-silence-terminator-stats-skew-fix.md`. Wegen
+      RollForges einfacherer, verhältnisbasierter OOK-Heuristik (`max_us/min_us >= 2`, keine
+      obere Schranke) kippt die Fehlerrichtung hier ins Gegenteil der eigenständigen App:
+      statt falschem "non-OOK" meldet RollForge fälschlich "OOK" für Signale mit eng
+      beieinanderliegenden (nicht-bimodalen) Pulsbreiten, mit Testprogramm verifiziert.
+      RollForges Jammer-Modul sowie FlipperJammer/lora-ukfe weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
