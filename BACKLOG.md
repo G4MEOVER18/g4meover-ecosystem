@@ -52,8 +52,16 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       den meisten realen Signalen fälschlich "non-OOK" melden — Fix in
       `app-improvements/RollLab/analyze-silence-terminator-stats-skew-fix.md` (Terminator-
       Flanke anhand desselben Kriteriums wie die RX-Callback-Bereitschaftsprüfung aus den
-      Statistikschleifen ausschließen). Restliche eigene Apps (RollForge/FlipperJammer/
-      lora-ukfe) weiterhin offen.
+      Statistikschleifen ausschließen).
+- [x] **RollForge**: gebündeltes RollJam-Tick-Modul (`module_rolljam.c`, nicht-blockierende
+      `RJ_P1_JAM/RX`-`RJ_P2_JAM/RX`-Zustandsmaschine) geprüft — trägt denselben
+      Puffer-Reset-Bug wie die eigenständige RollJam-App vor ihrem Fix (unabhängige
+      Neuimplementierung, Fix wurde nicht mitgezogen): `rj_cap_start()` setzt bei jedem
+      JAM→RX-Übergang `sig->count = 0`, statt nur beim ersten Eintritt der Phase — Fix in
+      `app-improvements/RollForge/interlaced-capture-buffer-reset-fix.md` (neue
+      `cap_started`-Zustand plus Pause-/Resume-Helfer, analog zur RollJam-Lösung, für die
+      RollForge-eigene Tick-Architektur portiert). RollForges RollLab-/Jammer-Module und
+      restliche eigene Apps (FlipperJammer/lora-ukfe) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
