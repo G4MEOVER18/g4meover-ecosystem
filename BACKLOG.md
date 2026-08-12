@@ -24,6 +24,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/nfc-desfire-mful-stack-overflow-fixes.md`. Weitere Sicherheits-/
       Stabilitäts-Commits seit mntm-012 in künftigen Sitzungen einzeln weiter durchsehen (großer
       Zeitraum, ~7 Monate Commits).
+- [x] Official-dev seit mntm-012, weiterverfolgt ab PR #4369 (`0dd3681f`) bis `9148d50c`
+      (2026-08-04, 21 Commits): Fund ist PR #4427, LFRFID-PAC/Stanley-Decoder ohne
+      NUL-Terminator (Stack-Über-/Unterlesen bei `hex_chars_to_uint8()`, tritt bei jeder
+      erfolgreichen Kartenlesung potenziell auf) — Port-Vorschlag in
+      `firmware-mining/lfrfid-pac-stanley-nul-terminator-fix.md`. Aus demselben Durchlauf für
+      künftige Sitzungen vorgemerkt (noch nicht einzeln geprüft/portiert): `2fe56050` (NFC
+      iso15693-Emulation, Read-Multiple-Blocks bei Tags >64 Blöcke — analog zum
+      MFUL-FAST_READ-Muster), `c9c77f66` (NFC FeliCa Poller-Fehlerprüfung), `5dc71870`
+      (Infrared `timings_cnt`-Init/Bounds-Fix), `8713d1c4` (`bit_lib`-Lese-Bounds-Fix),
+      `9c173b46` (LFRFID Pyramid-Parity-Bit-Fix). Danach weiter ab `9148d50c` gegenprüfen
+      (Datum der jeweiligen Sitzung als neuer Startpunkt).
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
