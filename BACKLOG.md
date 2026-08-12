@@ -107,7 +107,15 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
       `ideas/pentest-app-katalog.md` (dieser Backlog-Eintrag war bereits erledigt, aber hier
       nie abgehakt worden — nachgetragen).
-- [ ] Nützliche `.sub`-/NFC-/RFID-**Konzepte** (keine echten Captures) + eigene App-Ideen.
+- [x] Nützliche `.sub`-/NFC-/RFID-**Konzepte** (keine echten Captures) + eigene App-Ideen: erster
+      konkreter Fund ist das SubGHz-**Fixed-Code-Bruteforce**-Konzept (Coderaum-Erschöpfung mit
+      Binärsuch-Ansatz statt naiver De-Bruijn-Kompression, die bei den meisten realen Protokollen
+      wegen Stop-/Pilot-Bits nicht greift) — deckt Fixed-Code-Sender ab, eine Geräteklasse, die
+      RollJam/RollForge/Telcoma-Cardin (alle auf Rolling Code ausgelegt) bewusst nicht abdecken;
+      kein Firmware-Patch nötig, nutzt die vorhandene Stock-Sub-GHz-Sendefunktion:
+      `ideas/subghz-fixed-code-bruteforce-konzept.md`. NFC-/RFID-seitige Konzepte (analog, z. B.
+      Mifare-Classic-Nested-Attack-Automatisierung, in dieser Sitzung recherchiert aber noch nicht
+      kuratiert) sowie weitere `.sub`-Konzepte bleiben für künftige Sitzungen offen.
 - [x] Companion-Tool-Ideen: PC-Helfer für Flipper-Apps — Grundbaustein gefunden (SD Card Mounter,
       USB-MSC-Durchreichung der SD-Karte ohne Kartenausbau, Basis für `Vault`/
       `Capture-Dedup-Indexer`): `ideas/companion-tool-recherche.md`.
