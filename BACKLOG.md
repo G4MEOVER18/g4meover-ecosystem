@@ -81,6 +81,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `cap_started`-Zustand plus Pause-/Resume-Helfer, analog zur RollJam-Lösung, für die
       RollForge-eigene Tick-Architektur portiert). RollForges RollLab-/Jammer-Module und
       restliche eigene Apps (FlipperJammer/lora-ukfe) weiterhin offen.
+- [x] **RollForge** Jammer-Modul (`module_jammer.c`) Tiefenaudit: `jm_input()` löst bei
+      laufendem Jamming (`JM_JAMMING`) beim Frequenzwechsel (Hoch/Runter) einen
+      verbotenen Doppel-Stop der CC1101-Treiber-Zustandsmaschine aus (direkter
+      `subghz_devices_stop_async_tx()`-Aufruf im Input-Handler plus ein zweiter,
+      interner Stop-Aufruf in `rollforge_rf_start_tx()`, da `app->rf_op` zu diesem
+      Zeitpunkt noch auf `RF_JAMMING` steht) — reproduzierbarer Geräteabsturz bei
+      jedem Frequenzwechsel während des Jammings, mit `assert()`-Modell der
+      Treiber-Zustandsmaschine host-verifiziert — Fix in
+      `app-improvements/RollForge/jammer-freq-switch-double-stop-crash-fix.md`.
+      Restlicher Jammer-Modul-Code (Frequenzliste, Trägersignal-Erzeugung, Zeichnen)
+      mitgeprüft, keine weiteren Probleme gefunden.
 - [x] **RollForge** (`module_rolllab.c`, gebündeltes RollLab-Modul): trägt denselben
       Silence-Terminator-Stats-Skew-Bug wie die eigenständige RollLab-App vor ihrem Fix
       (`rl_analyze()` iteriert über die volle `sig->count` inkl. der ≥25-ms-Stille-Terminator-
