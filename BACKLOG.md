@@ -29,12 +29,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       NUL-Terminator (Stack-Über-/Unterlesen bei `hex_chars_to_uint8()`, tritt bei jeder
       erfolgreichen Kartenlesung potenziell auf) — Port-Vorschlag in
       `firmware-mining/lfrfid-pac-stanley-nul-terminator-fix.md`. Aus demselben Durchlauf für
-      künftige Sitzungen vorgemerkt (noch nicht einzeln geprüft/portiert): `2fe56050` (NFC
-      iso15693-Emulation, Read-Multiple-Blocks bei Tags >64 Blöcke — analog zum
-      MFUL-FAST_READ-Muster), `c9c77f66` (NFC FeliCa Poller-Fehlerprüfung), `5dc71870`
-      (Infrared `timings_cnt`-Init/Bounds-Fix), `8713d1c4` (`bit_lib`-Lese-Bounds-Fix),
-      `9c173b46` (LFRFID Pyramid-Parity-Bit-Fix). Danach weiter ab `9148d50c` gegenprüfen
-      (Datum der jeweiligen Sitzung als neuer Startpunkt).
+      künftige Sitzungen vorgemerkt (noch nicht einzeln geprüft/portiert): `c9c77f66` (NFC
+      FeliCa Poller-Fehlerprüfung), `5dc71870` (Infrared `timings_cnt`-Init/Bounds-Fix),
+      `8713d1c4` (`bit_lib`-Lese-Bounds-Fix), `9c173b46` (LFRFID Pyramid-Parity-Bit-Fix).
+      Danach weiter ab `9148d50c` gegenprüfen (Datum der jeweiligen Sitzung als neuer
+      Startpunkt).
+- [x] Aus demselben Durchlauf weiterverfolgt: `2fe56050` (NFC ISO15693) geprüft — deckt zwei
+      getrennte Bugs ab: `READ_MULTI_BLOCKS` ignoriert bei mir (mntm-012,
+      `ISO15693_3_LISTENER_BUFFER_SIZE = 256U`) Anfragen nach mehr als 63 Blöcken komplett
+      (Emulations-Korrektheitsbug, kein Overflow möglich), und der ISO15693-Signal-Parser
+      (`iso15693_parser.c`, Software-Bitbang-Empfangspfad, läuft bei jedem
+      ISO15693/Vicinity-Lesevorgang) kann bei RF-Rauschen einen harten `furi_check`-Abbruch
+      auslösen (echter DoS/Geräteneustart, mit Host-Repro unter ASan/UBSan verifiziert) — Port-
+      Vorschlag in
+      `firmware-mining/nfc-iso15693-read-multi-blocks-and-parser-overrun-fix.md`.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
