@@ -113,6 +113,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       statt falschem "non-OOK" meldet RollForge fälschlich "OOK" für Signale mit eng
       beieinanderliegenden (nicht-bimodalen) Pulsbreiten, mit Testprogramm verifiziert.
       RollForges Jammer-Modul sowie FlipperJammer/lora-ukfe weiterhin offen.
+- [x] **FlipperJammer** (eigenständige App, bislang komplett ungeprüft): Tiefenaudit aller
+      Module (`ble_jam.c`, `fuzzer.c`, `ir_jam.c`, `jammer_storage.c`, `nfc_jam.c`,
+      `nrf24_jam.c`, `nrf24_spi.c`, `rfid_jam.c`, `spoofer.c`, `subghz_jam.c`, `usb_fuzz.c`,
+      `wifi_jam.c`, `jammer_app.c`) — Fund im RFID-Spoofer-Teil von `spoofer.c`:
+      `em4100_encode()` schreibt in beiden Zweigen ihrer Bitfall-Unterscheidung denselben
+      Literalwert, wodurch die erzeugte Manchester-Zeitdauer-Sequenz komplett unabhängig von
+      `facility`/`card_id` ist (zwei verschiedene Karten-IDs erzeugen byte-identische Puffer);
+      zusätzlich fehlen die im Funktionskommentar selbst angekündigten 14 Zeilen-/
+      Spaltenparitätsbits eines echten 64-Bit-EM4100-Frames komplett (nur 50 statt 64 Bit) —
+      Fix in `app-improvements/FlipperJammer/em4100-encoder-data-independent-output-fix.md`
+      (LevelDuration-basierte Neufassung mit explizitem Level pro Bit plus vollständigem
+      Paritäts-Frame, mit Rundtrip-Decoder-Testprogramm verifiziert). `subghz_jam.c` bereits
+      mit sauberer State-Machine ohne den in RollForges Jammer-Modul gefundenen
+      Doppel-Stop-Bug; restliche Module ohne weitere Logikfehler dieser Kategorie. `lora-ukfe`
+      weiterhin ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
