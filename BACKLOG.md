@@ -54,6 +54,19 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       demselben Durchlauf: `c9c77f66` (NFC FeliCa), `5dc71870` (Infrared `timings_cnt`),
       `9c173b46` (LFRFID Pyramid-Parity-Bit). Danach weiter ab `9148d50c` (2026-08-04)
       gegenprüfen.
+- [x] Aus demselben Durchlauf weiterverfolgt: `9c173b46` (LFRFID Pyramid-Trailing-Wiegand-
+      Parity-Bit) geprüft — `protocol_pyramid_add_wiegand_parity()` berechnet das odd-
+      Paritätsbit über `protocol_pyramid_get_parity(source + length / 2, ...)`; `length / 2`
+      ist als Bit-Offset gemeint, wirkt auf dem `uint8_t*` aber als Byte-Offset (12 Byte statt
+      12 Bit) und liest damit 9+ Byte hinter dem nur 3 Byte großen `wiegand[]`-Puffer aus
+      `protocol_pyramid_encode()` — Speicherzugriffsfehler (mit Host-Repro unter ASan als
+      `heap-buffer-overflow ... 10 bytes after 3-byte region` verifiziert) UND falsches
+      Paritätsbit für reale Kartendaten (50,0 % Falschrate über vollen FC- x CardNum-Raum bei
+      fester Speicherfüllung verifiziert), das von jedem paritätsprüfenden Reader abgelehnt
+      wird, ohne dass der eigene Decoder (prüft nur CRC-8) es bemerkt — Port-Vorschlag in
+      `firmware-mining/lfrfid-pyramid-wiegand-parity-oob-read-fix.md`. Weiterhin offen aus
+      demselben Durchlauf: `c9c77f66` (NFC FeliCa), `5dc71870` (Infrared `timings_cnt`). Danach
+      weiter ab `9148d50c` (2026-08-04) gegenprüfen.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
