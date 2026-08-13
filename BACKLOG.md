@@ -152,9 +152,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       wegen Stop-/Pilot-Bits nicht greift) — deckt Fixed-Code-Sender ab, eine Geräteklasse, die
       RollJam/RollForge/Telcoma-Cardin (alle auf Rolling Code ausgelegt) bewusst nicht abdecken;
       kein Firmware-Patch nötig, nutzt die vorhandene Stock-Sub-GHz-Sendefunktion:
-      `ideas/subghz-fixed-code-bruteforce-konzept.md`. NFC-/RFID-seitige Konzepte (analog, z. B.
-      Mifare-Classic-Nested-Attack-Automatisierung, in dieser Sitzung recherchiert aber noch nicht
-      kuratiert) sowie weitere `.sub`-Konzepte bleiben für künftige Sitzungen offen.
+      `ideas/subghz-fixed-code-bruteforce-konzept.md`. Weitere `.sub`-Konzepte bleiben für
+      künftige Sitzungen offen.
+- [x] NFC-seitiges Konzept (aus vorheriger Sitzung vorgemerkt): **Mifare-Classic-Nested-Attack-
+      Automatisierung** — `AloneLiberty/FlipperNested` (card-only Nested/Static-Nested/Hard-
+      Nested-Angriff, portiert aus Proxmark3 Iceman-Fork) schließt die Lücke zwischen Stock-
+      Dictionary-/Darkside-Angriff (findet i. d. R. nur einen Sektorschlüssel) und einer
+      vollständigen Sektorschlüssel-Prüfung ohne erneute Reader-Interaktion; benötigt zwingend
+      mindestens einen bereits bekannten Schlüssel als Startpunkt, Schlüsselberechnung läuft
+      PC-seitig über das Begleit-Skript `FlipperNestedRecovery` — kuratiert in
+      `ideas/mifare-classic-nested-attack-konzept.md`. Weitere NFC-/RFID-Konzepte bleiben für
+      künftige Sitzungen offen.
 - [x] Companion-Tool-Ideen: PC-Helfer für Flipper-Apps — Grundbaustein gefunden (SD Card Mounter,
       USB-MSC-Durchreichung der SD-Karte ohne Kartenausbau, Basis für `Vault`/
       `Capture-Dedup-Indexer`): `ideas/companion-tool-recherche.md`.
