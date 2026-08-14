@@ -67,6 +67,18 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/lfrfid-pyramid-wiegand-parity-oob-read-fix.md`. Weiterhin offen aus
       demselben Durchlauf: `c9c77f66` (NFC FeliCa), `5dc71870` (Infrared `timings_cnt`). Danach
       weiter ab `9148d50c` (2026-08-04) gegenprüfen.
+- [x] Aus demselben Durchlauf weiterverfolgt: `c9c77f66` (NFC FeliCa) geprüft —
+      `felica_poller_state_handler_list_system()` dereferenziert den Response-Pointer von
+      `felica_poller_list_system_code()` unbedingt, bevor der Fehlerstatus geprüft wird; die
+      Funktion schreibt den Pointer nur im Erfolgsfall, sodass jeder Timeout/CRC-Fehler oder
+      eine zu kurze Antwort eine uninitialisierte Pointer-Variable dereferenziert — betrifft den
+      Standard-Lesepfad jeder FeliCa-Karte (Auth ist per Default übersprungen), mit
+      Host-Repro (isolierte `fork()`-Kindprozesse, ungültige Sentinel-Adresse) als
+      reproduzierbarer Absturz auf jedem der beiden Fehlerpfade verifiziert — Port-Vorschlag in
+      `firmware-mining/nfc-felica-list-system-uninitialized-response-fix.md`. Weiterhin offen
+      aus demselben Durchlauf: `5dc71870` (Infrared `timings_cnt`-Init/Bounds-Fix — geprüft,
+      ebenfalls bei mir vorhanden, noch nicht als eigener Port-Vorschlag dokumentiert). Danach
+      weiter ab `9148d50c` (2026-08-04) gegenprüfen.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
