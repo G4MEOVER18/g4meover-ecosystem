@@ -75,10 +75,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Standard-Lesepfad jeder FeliCa-Karte (Auth ist per Default übersprungen), mit
       Host-Repro (isolierte `fork()`-Kindprozesse, ungültige Sentinel-Adresse) als
       reproduzierbarer Absturz auf jedem der beiden Fehlerpfade verifiziert — Port-Vorschlag in
-      `firmware-mining/nfc-felica-list-system-uninitialized-response-fix.md`. Weiterhin offen
-      aus demselben Durchlauf: `5dc71870` (Infrared `timings_cnt`-Init/Bounds-Fix — geprüft,
-      ebenfalls bei mir vorhanden, noch nicht als eigener Port-Vorschlag dokumentiert). Danach
-      weiter ab `9148d50c` (2026-08-04) gegenprüfen.
+      `firmware-mining/nfc-felica-list-system-uninitialized-response-fix.md`.
+- [x] Aus demselben Durchlauf weiterverfolgt (letzter noch offener Kandidat): `5dc71870`
+      (Infrared `timings_cnt`) geprüft und ausgearbeitet — zwei zusammengehörige Bugs in
+      `infrared_common_decoder.c`: `infrared_common_decoder_alloc()` initialisiert
+      `timings_cnt` nicht, wodurch der allererste Reset nach Alloc bei RC5 (einziges Protokoll
+      mit `preamble_mark == 0`) einen Heap-Müllwert als Länge an `consume_samples()` reicht
+      (OOB Lesen UND Schreiben über das 6-Element-`timings[]`-Array hinaus, mit
+      fork-isoliertem Host-Repro unter ASan als `heap-buffer-overflow`-Lesezugriff verifiziert);
+      unabhängig davon vergleicht die Bounds-Prüfung in `infrared_common_decode()`
+      `timings_cnt` gegen `sizeof(decoder->timings)` (24 Byte) statt `COUNT_OF(...)`
+      (6 Elemente) und toleriert dadurch 19 statt höchstens 1 Element Overrun, bevor
+      `furi_check()` greift (mit Repro numerisch bestätigt: 25 vs. 7) — Port-Vorschlag in
+      `firmware-mining/infrared-timings-cnt-init-bounds-fix.md`. Damit ist der seit PR #4369
+      verfolgte `dev`-Durchlauf (`0dd3681f` bis `9148d50c`, 2026-08-04) vollständig
+      abgearbeitet — alle sechs vorgemerkten Kandidaten sind jeweils als eigener
+      Port-Vorschlag dokumentiert.
+- [ ] `dev` weiter ab `9148d50c` (2026-08-04) gegenprüfen (neuer Startpunkt für den nächsten
+      Firmware-Mining-Durchlauf gegen Official-dev).
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
