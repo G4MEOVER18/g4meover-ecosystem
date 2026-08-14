@@ -167,6 +167,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       mit sauberer State-Machine ohne den in RollForges Jammer-Modul gefundenen
       Doppel-Stop-Bug; restliche Module ohne weitere Logikfehler dieser Kategorie. `lora-ukfe`
       weiterhin ungeprüft.
+- [x] **lora-ukfe** (eigenständige App, Quelle identifiziert: `G4MEOVER18/lora-ukfe`,
+      Flipper-Gegenstück zum Heltec-ESP32-LoRa-Agenten): neue RF-Console
+      (`rf/rf_comm.c`, `rf/ukfe_rf.c`, CC1101-Funkkanal als Ersatz für die
+      UART/JSON-Bridge) geprüft — der monoton steigende Anti-Replay-Rolling-Counter
+      (`s_rf.counter`) lebt nur in einer statischen RAM-Variable und beginnt bei jedem
+      App-Neustart wieder bei 0, während der Heltec-Agent seinen zuletzt akzeptierten
+      Counter-Stand behält; da `ukfe_rf_parse_frame()` strikt `counter <= last_counter`
+      ablehnt, verwirft der Heltec nach *jedem* Neustart so viele Kommandos, wie in der
+      vorherigen Sitzung gesendet wurden — die Konsole sperrt sich bei jedem Neustart
+      selbst aus, ohne sichtbare Fehlermeldung. `rf_comm_counter()` war laut eigenem
+      Kommentar bereits "für Anzeige/Persistenz" vorgesehen, aber nirgends aufgerufen —
+      Persistenz war offensichtlich geplant, nie angeschlossen. Fix in
+      `app-improvements/lora-ukfe/rf-counter-restart-lockout-fix.md` (Counter-Reserve
+      mit Sicherheitsspanne, auf SD persistiert, crash-sicher; reine Reserve-Logik mit
+      Testprogramm gegen ein Modell der Heltec-seitigen Prüfung verifiziert). Restliche
+      App (`json_parse.c`/UART-Fallback-Pfad, Szenen, LoRa/WiFi-Scan-Befehle)
+      mitgeprüft, keine weiteren Logikfehler dieser Kategorie gefunden; die
+      Heltec-Firmware selbst liegt außerhalb dieses Repos und wurde nicht geprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
