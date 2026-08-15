@@ -91,8 +91,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       verfolgte `dev`-Durchlauf (`0dd3681f` bis `9148d50c`, 2026-08-04) vollständig
       abgearbeitet — alle sechs vorgemerkten Kandidaten sind jeweils als eigener
       Port-Vorschlag dokumentiert.
-- [ ] `dev` weiter ab `9148d50c` (2026-08-04) gegenprüfen (neuer Startpunkt für den nächsten
-      Firmware-Mining-Durchlauf gegen Official-dev).
+- [ ] `dev` weiter ab `9148d50c` (2026-08-04) gegenprüfen: bei diesem Durchlauf geprüft, `dev`
+      steht weiterhin exakt auf `9148d50c` (keine neuen Commits), `unlshd-090` weiterhin
+      neuester Unleashed-Tag — erneut gegenprüfen, sobald neue Commits/Releases vorliegen.
+- [x] RogueMaster CAN-Bus-Kandidaten (`can_bus_attack`, `can_commander`, `can_tools`,
+      `can_transceiver`, `canbus`, `canonivm`) geprüft: `can_bus_attack` (MCP2515-GPIO-Modul,
+      Sniffer/UDS/OBD-II-PID/Replay/Modify/DoS-Test) deckt als erster Fund eine mir komplett
+      fehlende Kategorie ab — Automotive-/CAN-Bus-Pentest — Port-Vorschlag in
+      `firmware-mining/canbus-attack-app-port.md`. Restliche CAN-Kandidaten sowie
+      PicoPass/Seader/SEOS weiterhin offen (größerer Portaufwand wegen ASN.1/mbedTLS bzw.
+      weiterer CAN-Tools, die teils Überschneidungen zu `can_bus_attack` haben dürften — bei
+      Bedarf in künftiger Sitzung einzeln gegenprüfen).
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
