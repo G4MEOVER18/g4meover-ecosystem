@@ -12,3 +12,32 @@ Die eigentliche Firmware (G4MEOVER-FW v2, Momentum-mntm-012-Fork) und die Hardwa
 - `ideas/` — recherchierte App-/Tool-/File-Ideen, kuratiert.
 - `app-improvements/` — Code-Verbesserungen für eigene Apps (als Patches/PRs).
 - `reports/` — Arbeits-Logs (was geprüft, was geliefert, was offen).
+
+---
+
+## Ökosystem-Karte — alle Repos, gruppiert (Index)
+*Dach-Übersicht des konvergierten G4MEOVER-Ökosystems. Einzel-Repos bleiben eigenständig; hier ist die Karte.*
+
+### 🎛️ Flipper Zero — Master-Controller
+- [`lora-ukfe`](https://github.com/G4MEOVER18/lora-ukfe) — USB Army Penetrator App: hierarchisches Katalog-Menü, steuert den Heltec-Hub über GPIO-UART
+- [`G4MEOVER-FW`](https://github.com/G4MEOVER18/G4MEOVER-FW) — Flipper-Firmware (Momentum-mntm-012-Fork)
+- [`RollForge`](https://github.com/G4MEOVER18/RollForge) · [`RollJam`](https://github.com/G4MEOVER18/RollJam) · [`RollLab`](https://github.com/G4MEOVER18/RollLab) · [`ProtoPirate`](https://github.com/G4MEOVER18/ProtoPirate) · [`FlipperJammer`](https://github.com/G4MEOVER18/FlipperJammer) — SubGHz-Power-Apps
+- [`usb-army-penetrator`](https://github.com/G4MEOVER18/usb-army-penetrator) — USB Army Knife Fork
+
+### 📡 ESP32 — Hub & Satelliten
+- [`heltec-v4-hub`](https://github.com/G4MEOVER18/heltec-v4-hub) — **Heltec V4 Flipper-Hub** (UART→ESP-NOW, LoRa-Terminal, GPS, interaktives Menü) — das „Masterpiece"
+- [`heltec-ukfe-rx`](https://github.com/G4MEOVER18/heltec-ukfe-rx) — Heltec V3 (868-FSK + ESP-NOW)
+- [`lilygo-ukfe-rx`](https://github.com/G4MEOVER18/lilygo-ukfe-rx) — LilyGo T-Dongle S3 (ESP-NOW + USB-HID + TFT)
+- [`g4meover-wifi-relay`](https://github.com/G4MEOVER18/g4meover-wifi-relay) — ESP32-WROOM ESP-NOW-Koordinator
+
+### 🧠 Deck & Koordination
+- [`g4meover-deck`](https://github.com/G4MEOVER18/g4meover-deck) — Raspberry-Pi-4-Ökosystem-OS (Gehirn) + **[ROADMAP.md](https://github.com/G4MEOVER18/g4meover-deck/blob/main/ROADMAP.md)** (Master-Handoff)
+- [`g4meover-companion`](https://github.com/G4MEOVER18/g4meover-companion) — flipperbridge & Deck-Tools
+- [`g4meover-payloads`](https://github.com/G4MEOVER18/g4meover-payloads) — Payloads
+- `g4meover-ecosystem` — **dieses Repo** (Planung/Koordination/Index)
+
+### 🛡️ Pentest-Tools
+[`g4meover-pentest-cockpit`](https://github.com/G4MEOVER18/g4meover-pentest-cockpit) · [`g4meover-security-suite`](https://github.com/G4MEOVER18/g4meover-security-suite) · hashpwn · netmap · xss-hunter · sqli-hunter · jwt-pwn · cors-scanner · http-header-auditor · subdomain-takeover-scanner · web-recon-toolkit
+
+**Ein Vokabular:** Alle Geräte sprechen dasselbe signierte `ukfe_rf`-Protokoll über 868-FSK / ESP-NOW / UART.
+Filterbar über GitHub-Topics: `g4meover-ecosystem`, `flipper-zero`, `esp32`, `lora`, `pentesting`.
