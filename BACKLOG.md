@@ -194,6 +194,25 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       App (`json_parse.c`/UART-Fallback-Pfad, Szenen, LoRa/WiFi-Scan-Befehle)
       mitgeprüft, keine weiteren Logikfehler dieser Kategorie gefunden; die
       Heltec-Firmware selbst liegt außerhalb dieses Repos und wurde nicht geprüft.
+- [x] **usb-army-penetrator** (eigenständiges ESP32/RP2040-"USB Army Knife"-Repo, bislang
+      ungeprüft; laut Ökosystem-Karte die Heltec/ESP32-seitige Gegenstelle zur
+      `lora-ukfe`-RF-Console): `UkfeRfControl` (`src/Comms/Radio/UkfeRfControl.cpp`/`.h`),
+      die Empfängerseite desselben `ukfe_rf`-Protokolls, geprüft — schließt genau die in
+      der vorherigen `lora-ukfe`-Sitzung offen gelassene Lücke ("Heltec-Firmware liegt
+      außerhalb dieses Repos"). Fund: `_lastCounter` (RX-seitiges Anti-Replay-Fenster) ist
+      ein reines RAM-Feld, das bei jedem ESP32-Neustart auf 0 zurückfällt, obwohl
+      `begin()`/`loop()` bereits einen `Preferences&`-Parameter für genau diesen Zweck
+      durchgereicht bekommen, ihn aber mit `(void)prefs;` verwerfen — im Unterschied zum
+      TX-seitigen Fund (Verfügbarkeits-Bug/Selbstaussperrung) öffnet das hier das
+      Anti-Replay-Fenster wieder: ein mitgeschnittenes, gültig signiertes Funkframe kann
+      nach jedem Neustart erneut akzeptiert werden (Replay-Schwachstelle im eigenen
+      Sicherheitsmechanismus), mit Host-Repro (echte `ukfe_rf_build_frame`/
+      `ukfe_rf_parse_frame`-Funktionen, ASan/UBSan) verifiziert — Fix in
+      `app-improvements/usb-army-penetrator/rf-counter-replay-window-reset-on-reboot-fix.md`
+      (dieselbe bereits verifizierte Reserve-mit-Sicherheitsspanne-Logik wie beim
+      TX-seitigen Fix, hier auf den RX-seitigen Counter angewendet, über den bereits
+      vorhandenen `Preferences`-Kanal persistiert). Restlicher `usb-army-penetrator`-Code
+      (WiFi/BLE/USB-HID/Marauder-Module, Web-UI) weiterhin ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
