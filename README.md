@@ -5,6 +5,8 @@ Sammelstelle für die kontinuierliche Weiterentwicklung des **G4MEOVER Flipper-Z
 Die eigentliche Firmware (G4MEOVER-FW v2, Momentum-mntm-012-Fork) und die Hardware-Arbeit bleiben lokal — hier landen **Recherche, Feature-Port-Vorschläge, Ideen und reine Code-Verbesserungen**, die lokal gebaut/geflasht/getestet werden.
 
 ## Struktur
+- **[`FLEET-COMMANDS.md`](FLEET-COMMANDS.md)** — Befehls- & Fähigkeits-Matrix: jeder `ukfe_rf`-Befehl × Gerät × Status.
+- **[`TEST-PLAN.md`](TEST-PLAN.md)** — Flash-Test-Aufträge für die offenen Firmware-PRs.
 - `WORKFLOW.md` — Arbeitsweise & Kontext (vor jeder Sitzung lesen).
 - `CONSTRAINTS.md` — **verbindliche** Regeln (Sicherheit, Nichts-Pushen-Listen, Commit-Stil).
 - `BACKLOG.md` — offene Aufgaben, priorisiert.
