@@ -91,9 +91,14 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       verfolgte `dev`-Durchlauf (`0dd3681f` bis `9148d50c`, 2026-08-04) vollständig
       abgearbeitet — alle sechs vorgemerkten Kandidaten sind jeweils als eigener
       Port-Vorschlag dokumentiert.
-- [ ] `dev` weiter ab `9148d50c` (2026-08-04) gegenprüfen: bei diesem Durchlauf geprüft, `dev`
-      steht weiterhin exakt auf `9148d50c` (keine neuen Commits), `unlshd-090` weiterhin
-      neuester Unleashed-Tag — erneut gegenprüfen, sobald neue Commits/Releases vorliegen.
+- [x] `dev` weiter ab `9148d50c` (2026-08-04) gegenprüft: genau ein neuer Commit, `a55e3939`
+      (PR #4439, "Fix crash when reading card with a zero-key application", Issue #3835) —
+      DESFire-`furi_check`-Absturz bei Applikation/PICC mit `MaxKeys == 0`
+      (`mf_desfire_poller_read_key_versions()` sowie `mf_desfire_load()`), tritt bei jedem
+      normalen Lesevorgang einer betroffenen Karte auf, kein präparierter Dump nötig —
+      Port-Vorschlag in `firmware-mining/nfc-desfire-zero-key-furi-check-crash-fix.md`. `dev`
+      steht danach weiterhin exakt auf `a55e3939` — erneut gegenprüfen, sobald neue Commits
+      vorliegen.
 - [x] RogueMaster CAN-Bus-Kandidaten (`can_bus_attack`, `can_commander`, `can_tools`,
       `can_transceiver`, `canbus`, `canonivm`) geprüft: `can_bus_attack` (MCP2515-GPIO-Modul,
       Sniffer/UDS/OBD-II-PID/Replay/Modify/DoS-Test) deckt als erster Fund eine mir komplett
