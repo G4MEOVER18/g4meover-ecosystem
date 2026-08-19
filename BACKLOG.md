@@ -218,6 +218,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       TX-seitigen Fix, hier auf den RX-seitigen Counter angewendet, über den bereits
       vorhandenen `Preferences`-Kanal persistiert). Restlicher `usb-army-penetrator`-Code
       (WiFi/BLE/USB-HID/Marauder-Module, Web-UI) weiterhin ungeprüft.
+- [x] **usb-army-penetrator** Web-UI (`src/Comms/Web/WebServer.cpp`) geprüft: fünf
+      Handler (`/runfile`, `/showimage`, `/download`, `/delete`, `handleUpload`/
+      `/uploadFile`) nehmen einen client-gelieferten `filename` (Query-Parameter bzw.
+      Multipart-`Content-Disposition`) komplett ungeprüft entgegen und reichen ihn direkt
+      an die Storage-Schicht durch — kein `..`/Backslash/Steuerzeichen-Filter irgendwo im
+      Repo (Storage-Abstraktion prüft ebenfalls nicht). Bei meiner flachen Root-Ablage
+      (alle `.ds`-Payloads direkt unter `/`, Kategorisierung nur über Dateinamens-Präfix)
+      ist ein `/`/`..` im Filename nie legitim — Path-Traversal-Lücke im eigenen
+      Web-Control-Interface (Lesen/Löschen/Überschreiben beliebiger Dateien außerhalb des
+      Payload-Verzeichnisses), relevant weil das Interface bei Einsätzen zwangsläufig
+      zumindest kurzzeitig in fremden Netzsegmenten erreichbar sein kann. Fix (gemeinsame
+      `isFilenameSafe()`-Prüfung vor allen fünf Aufrufstellen) in
+      `app-improvements/usb-army-penetrator/webui-filename-path-traversal-fix.md`.
+      Restlicher `usb-army-penetrator`-Code (WiFi/BLE/USB-HID/Marauder-Module)
+      weiterhin ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
