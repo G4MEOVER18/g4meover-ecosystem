@@ -107,6 +107,18 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PicoPass/Seader/SEOS weiterhin offen (größerer Portaufwand wegen ASN.1/mbedTLS bzw.
       weiterer CAN-Tools, die teils Überschneidungen zu `can_bus_attack` haben dürften — bei
       Bedarf in künftiger Sitzung einzeln gegenprüfen).
+- [x] Aus denselben CAN-Kandidaten weiterverfolgt: `can_tools` geprüft (Einzeldatei-App,
+      keine Hardware-/Treiberanbindung, DBC-Signal-Erstellung + manuelle Frame-Dekodierung) —
+      überschneidet sich nicht mit `can_bus_attack` (dort Live-Sniffing/Injection über
+      MCP2515, hier Hardware-unabhängige Offline-Auswertung), ergänzt es als Decoder für
+      gesniffte Frames; Bit-Extraktion (Intel- und Motorola-Pfad, Vorzeichenerweiterung)
+      am Code gegen die DBC-Spezifikation geprüft, kein Fehler gefunden — Port-Vorschlag in
+      `firmware-mining/can-tools-dbc-decoder-app-port.md`. `canonivm` ist trotz CAN-ähnlichem
+      Namen ein reiner Kamera-Intervalometer, kein Pentest-Kandidat. Verbleibend offen:
+      `can_commander` (großer Funktionsumfang, deutliche Überschneidung mit `can_bus_attack`
+      zu erwarten), `can_transceiver`, `canbus` (beide ebenfalls MCP2515-Sniff/Inject,
+      vermutlich funktional redundant zu `can_bus_attack`) sowie weiterhin PicoPass/Seader/
+      SEOS.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
