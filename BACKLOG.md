@@ -276,6 +276,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/usb-army-penetrator/marauder-command-mailbox-race-and-loss-fix.md`.
       Restlicher `usb-army-penetrator`-Code (WiFi/BLE/USB-HID) weiterhin
       ungeprüft.
+- [x] **usb-army-penetrator** Serial-Agent-Modul (`src/Attacks/Agent/Agent.cpp`)
+      geprüft: das Poll-Intervall für die `RequestAgentStatus`-Sonde
+      (`agentPollingIntervalInSec`) ist als **`bool`** deklariert statt als
+      Sekunden-Ganzzahl, obwohl das zugehörige Setting als `Int16` registriert,
+      per `getInt()` gelesen (Default 15) und in `loop()` mit `* 1000` zu einem
+      Millisekunden-Fenster verrechnet wird. Die `bool`-Zuweisung faltet jeden
+      Sekundenwert auf 0/1: Default und alle Nutzerwerte ≠ 0 (30/60/5 …)
+      kollabieren einheitlich auf 1000 ms (Poll alle 1 s statt N s, Setting
+      wirkungslos), der Wert 0 ergibt ein 0-ms-Fenster (Dauerpoll in jedem
+      `loop()`-Durchlauf) — mit Host-Repro (Modell aus Deklaration, `getInt()`
+      und `Intervall*1000`, Assertions) verifiziert. Fix (Typkorrektur der
+      einen Deklaration auf `int16_t`) in
+      `app-improvements/usb-army-penetrator/agent-polling-interval-bool-type-fix.md`.
+      Restlicher `usb-army-penetrator`-Code (WiFi/BLE/USB-HID) weiterhin
+      ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
