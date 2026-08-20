@@ -119,6 +119,18 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       zu erwarten), `can_transceiver`, `canbus` (beide ebenfalls MCP2515-Sniff/Inject,
       vermutlich funktional redundant zu `can_bus_attack`) sowie weiterhin PicoPass/Seader/
       SEOS.
+- [x] Restliche RogueMaster-CAN-Kandidaten (`can_commander`, `can_transceiver`, `canbus`)
+      geprüft: `can_transceiver` laut eigenem README/`notes.txt` unvollständig (durchweg
+      `TODO`-Menüpunkte) — reine Teilmenge von `can_bus_attack`, kein Portkandidat.
+      `can_commander` hängt an einem eigenständigen kommerziellen ESP32-Board mit eigener,
+      externer Firmware (kein reiner MCP2515-Softwareport) — für künftige Sitzung als größerer,
+      separater Prüfpunkt vorgemerkt. `canbus` (Quelle `ElectronicCats/flipper-MCP2515-CANBUS`,
+      MIT, aktiv gepflegt, gleiches MCP2515-Pinout wie `can_bus_attack`) ist ein echter Fund —
+      bringt SLCAN2CAN-PC-Tool-Bridge, Auto-Baudrate-Erkennung, CSV-Log-Export/-Replay und
+      gestufte DTC-Ansicht mit, die `can_bus_attack` fehlen — Port-Vorschlag in
+      `firmware-mining/canbus-electroniccats-app-port.md`. Damit ist der seit der
+      `can_bus_attack`-Sitzung offene CAN-Bus-Kandidatenthread abgeschlossen; weiterhin offen:
+      PicoPass/Seader/SEOS (ASN.1/mbedTLS-Aufwand), `can_commander` (Fremdgerät).
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
