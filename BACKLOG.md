@@ -245,6 +245,25 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/usb-army-penetrator/webui-filename-path-traversal-fix.md`.
       Restlicher `usb-army-penetrator`-Code (WiFi/BLE/USB-HID/Marauder-Module)
       weiterhin ungeprüft.
+- [x] **usb-army-penetrator** Marauder-Modul (`src/Attacks/Marauder/Marauder.cpp`)
+      geprüft: das Ein-Slot-Kommando-Postfach (`nextMarauderCommandToRun`/
+      `marauderActivated`) zwischen `ESP32Marauder::run()` und `::loop()` hat
+      zwei Probleme — überschreibt kommentarlos einen noch nicht verarbeiteten
+      Befehl, wenn vor dem nächsten `loop()`-Durchlauf ein zweiter `run()`-
+      Aufruf eintrifft (betrifft konkret den Übertemperatur-Notstopp
+      `run("stopscan")` aus `EvilCrowWind::loop()`, der so gegen einen
+      zeitgleichen Web-UI-/Ducky-`MARAUDER`-Befehl verlieren kann), UND wird
+      ohne jede Synchronisierung sowohl aus dem Arduino-`loop()`-Task als auch
+      aus dem eigenständigen AsyncTCP-Task (`/marauder`-Webhandler, siehe
+      `platformio.ini` `CONFIG_ASYNC_TCP_RUNNING_CORE=1`) gelesen/geschrieben —
+      unsynchronisierter `std::string`-Zugriff über zwei FreeRTOS-Tasks hinweg,
+      mit Host-Repro unter ThreadSanitizer als Data-Race auf beiden Statics
+      bestätigt (Kommandoverlust zusätzlich deterministisch ohne Threading
+      demonstriert). Fix (kritischer Abschnitt via `portMUX_TYPE` um alle drei
+      Zugriffsstellen) in
+      `app-improvements/usb-army-penetrator/marauder-command-mailbox-race-and-loss-fix.md`.
+      Restlicher `usb-army-penetrator`-Code (WiFi/BLE/USB-HID) weiterhin
+      ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
