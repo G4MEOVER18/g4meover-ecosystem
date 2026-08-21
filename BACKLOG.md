@@ -368,6 +368,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       eigenes host-skriptbasiertes Bruteforce-Konzept aus einer früheren Sitzung — kuratiert in
       `ideas/subghz-bruteforcer-app-status.md`, Katalog-Status in `ideas/pentest-app-katalog.md`
       von ❓ auf ✅ korrigiert.
+- [x] Katalog-Zeile **nRF24 Sniffer/Mousejack** (bislang vage "🔧 | Modul") geprüft: Original-
+      Upstream `mothball187/flipperzero-nrf24` seit 2022 unverändert und ohne `application.fam`,
+      relevante Quelle ist die von `xMasterX` weitergepflegte, manifest-aktuelle Fassung im
+      RogueMaster-Baum (`nrf24sniff`/`nrf24mousejacker`); dabei vier zusätzliche, bislang nicht
+      erfasste nRF24-Apps gefunden (`nrf24channelscanner` — Upstream inzwischen gelöscht,
+      `nrf24scan`, `nrf24batch`, `nrf24monitor`). Alle nutzen denselben stabilen
+      `furi_hal_spi_bus_handle_external`-Mechanismus, den ich beim CAN-Bus-Port bereits gegen
+      mntm-012 verifiziert habe; ein GitHub-Issue im `Next-Flip/Momentum-Firmware`-Repo belegt
+      reale Installation von `nrf24sniff.fap` auf Momentum via App-Katalog — kuratiert in
+      `ideas/nrf24-sniffer-mousejack-api-status.md`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` präzisiert und um die vier Zusatz-Apps ergänzt.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
