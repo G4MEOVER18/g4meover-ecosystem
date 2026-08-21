@@ -291,6 +291,28 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/usb-army-penetrator/agent-polling-interval-bool-type-fix.md`.
       Restlicher `usb-army-penetrator`-Code (WiFi/BLE/USB-HID) weiterhin
       ungeprüft.
+- [x] **usb-army-penetrator** WiFi-Modul (`src/Devices/WiFi/HardwareWiFi.cpp`)
+      und dessen Aufrufer (`EvilCrowWind::loop()`, `Extensions.h`
+      `WIFI_OFF`/`WIFI_ON`) geprüft: Zustandsmaschine und
+      `desiredWiFiState`-Zugriffe laufen ausschließlich im Arduino-Haupt-`loop()`
+      (`main.cpp`: `Board.loop()` vor `WiFi.loop()` vor `Ducky.loop()`), keine
+      der Marauder-Race-Kategorie entsprechende Cross-Task-Schreibstelle
+      gefunden. Beim Weiterverfolgen des davon genutzten Pcap-Capture-Pfads
+      (`src/Utilities/PcapBuffer.cpp`, aufgerufen aus
+      `src/Devices/USB/USBNCM.cpp`, naheliegender Wiederverwendungspunkt für
+      eine künftige WiFi-/BLE-Aufzeichnung) Fund: `PcapBuffer::append()`
+      übernimmt jede Paketlänge ungeprüft, obwohl der im Konstruktor
+      geschriebene Pcap-Header `MAX_PACKET_LEN` (2324) als Snaplen zusagt —
+      ein Paket `len > MAX_PACKET_LEN` erzeugt einen `incl_len`, der die
+      eigene Snaplen-Zusage verletzt (Format-Verstoß, kein Speicherfehler),
+      und `orig_len` trägt bei Kappung fälschlich denselben Wert wie
+      `incl_len` statt der echten Ursprungslänge — mit Host-Repro (Nachbau
+      von Header-/Record-Schreiblogik plus Rückparser) für `len = 5000`
+      verifiziert. Fix (Clamp auf `MAX_PACKET_LEN` plus separates
+      `origLength`-Feld) in
+      `app-improvements/usb-army-penetrator/pcapbuffer-snaplen-truncation-fix.md`.
+      Restlicher `usb-army-penetrator`-Code (Ethernet CH9120/W5500, TFT/Touch,
+      USB-HID-Detailpfade) weiterhin ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
