@@ -325,6 +325,26 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/usb-army-penetrator/pcapbuffer-snaplen-truncation-fix.md`.
       Restlicher `usb-army-penetrator`-Code (Ethernet CH9120/W5500, TFT/Touch,
       USB-HID-Detailpfade) weiterhin ungeprüft.
+- [x] **usb-army-penetrator** USB-HID-Detailpfad (`src/Devices/USB/USBHID.cpp`,
+      `src/Attacks/Ducky/DuckyPayload.cpp`) geprüft: `USBHID::IsQueueEmpty()`
+      prüft nur die Tastatur-Queue (`eventsToProcess`), nicht die beiden
+      anderen HID-Queues (`cdcEventsToProcess` für Medientasten,
+      `mouseEventsToProcess` für Maus) derselben Klasse. Einziger Aufrufer
+      ist das Yield-Gate in `DuckyPayload::loop()` ("warte, bis alle HID-
+      Events verarbeitet sind, bevor die nächste Skriptzeile läuft") — für
+      Skripte, die nur `MOUSE_JIGGLE`/`MOUSE_MOVE` oder Medientasten-Zeilen
+      nutzen (Extensions.h), bleibt das Gate dauerhaft blind, der Interpreter
+      rückt pro Tick eine Zeile vor unabhängig vom Rückstand, während
+      `USBHID::loop()` nur 1 Report/Tick sendet — bei einer Folge von
+      `MOUSE_JIGGLE`-Zeilen ohne `DELAY` (typisches Anti-Idle-Jiggler-Muster,
+      auch über `REPEAT` erzeugbar) wächst der Rückstand in
+      `mouseEventsToProcess` linear mit der Skriptlänge, ohne Schranke —
+      mit Host-Repro (Modell beider `loop()`-Gates) als linear wachsenden
+      vs. auf ≤2 begrenzten Rückstand verifiziert. Fix (eine Zeile,
+      `IsQueueEmpty()` prüft alle drei Queues) in
+      `app-improvements/usb-army-penetrator/hid-queue-empty-mouse-cdc-blindspot-fix.md`.
+      Restlicher `usb-army-penetrator`-Code (Ethernet CH9120/W5500,
+      TFT/Touch, WiFi/BLE-Detailpfade) weiterhin ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
