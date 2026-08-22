@@ -143,6 +143,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       demselben Unleashed-Umfeld). `unlshd-091` selbst ist bei künftigen Sitzungen erneut gegen
       spätere Releases zu prüfen (weitere OFW-Merge-Commits in diesem Fenster bereits über die
       eigene Official-dev-Mining-Reihe bis `a55e3939` abgedeckt, siehe oben).
+- [x] Aus demselben `unlshd-091`-Fenster weiterverfolgt: `38ba133f` (0x88-vs-SAK-
+      Korrektheitsfrage, bewusst nicht mit dem Kaskadenstufen-Fix mitportiert) geprüft —
+      die Kollisionsauflösung entscheidet bei mir über `nfcid[0] == 0x88`
+      (Kaskadierungs-Tag-Byte), ob eine weitere Kaskadenstufe folgt, statt über das dafür
+      vorgesehene SAK-Kaskadenbit (`sak & 0x04`); eine echte, finale 4-Byte-UID, die
+      zufällig mit `0x88` beginnt (nicht spezifikationskonform, aber laut Unleashed-Issue
+      #1074 auf manchen MIFARE-Classic-/Magic-Karten real vorhanden, hardware-verifiziert
+      von @mishamyte), wird dadurch fälschlich als unvollständig behandelt und schlägt
+      fehl bzw. liefert eine falsche UID. Reiner Korrektheitsbug, kein Speicherfehler —
+      unabhängig vom bereits portierten Kaskadenstufen-Limit anwendbar (das bleibt
+      notwendig, da SAK genauso tag-kontrolliert ist wie `nfcid[0]`) — Port-Vorschlag in
+      `firmware-mining/iso14443-3a-sak-cascade-bit-fix.md`, inkl. kombinierter Fassung
+      beider Fixes. `26318954`/`15e208c0` (EMV-TLV-Längenprüfungen) aus demselben Fenster
+      bleiben für eine künftige Sitzung offen.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
