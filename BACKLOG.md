@@ -425,6 +425,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       reale Installation von `nrf24sniff.fap` auf Momentum via App-Katalog — kuratiert in
       `ideas/nrf24-sniffer-mousejack-api-status.md`, Katalog-Zeile in
       `ideas/pentest-app-katalog.md` präzisiert und um die vier Zusatz-Apps ergänzt.
+- [x] Seit der ersten RogueMaster-CAN-Bus-Sitzung mitgeschleppter Rückstellpunkt **PicoPass/
+      Seader** ("größerer Portaufwand wegen ASN.1/mbedTLS-Abhängigkeiten") endlich konkret
+      geprüft statt weiter zurückgestellt: `applications/external` in
+      `Next-Flip/Momentum-Firmware` ist ein Submodul auf `Next-Flip/Momentum-Apps.git`, beim Tag
+      `mntm-012` exakt auf denselben Commit (`85b0cdb4e7dec…`) gepinnt, den ich bereits für den
+      Subbrute-Fund verifiziert hatte — `picopass/` (App-ID `picopass`, v1.22, Autor `bettse`,
+      Ziel `f7`, `asn1`/`loclass` als private Libs im eigenen App-Ordner mitgebaut, kein
+      Firmware-Patch nötig) und `seader/` (eigenständige App, GPLv3, ebenfalls `bettse`) liegen
+      dort bereits vollständig vor. `mntm-012`-Changelog belegt zusätzlich aktive
+      Momentum-spezifische Pflege durch `bettse` selbst ("Removed wiegand plugin, support for
+      changing CN during emulation"). PicoPass liest/schreibt/emuliert HID-iClass ohne
+      Zusatzhardware über die eingebaute NFC-Antenne; Seader deckt zusätzlich iClass SE/
+      Desfire EV1-EV2/Seos ab, benötigt dafür aber zwingend einen externen HID-SAM-Adapter
+      (Fremdhardware, analog zum bereits zurückgestellten `can_commander`). Damit ist der
+      unterstellte große Eigenportaufwand hinfällig — kuratiert in
+      `ideas/picopass-seader-api-status.md`, Katalog in `ideas/pentest-app-katalog.md` um eigene
+      PicoPass-/Seader-Zeilen ergänzt und Access-Audit-Zeile entsprechend verknüpft.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
