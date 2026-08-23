@@ -396,6 +396,30 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Restlicher `usb-army-penetrator`-Code (WiFi/BLE-Detailpfade, restlicher Ducky-Extensions-
       Parsing-Code) sowie die beiden identifizierten, aber bewusst zurückgestellten Stubs
       (Ethernet CH9120/W5500 unverdrahtet, TFT-Hex-Farbparser unerreicht) weiterhin offen.
+- [x] **ProtoPirate** Storage-Schicht (`helpers/protopirate_storage.c`,
+      `protopirate_storage_copy_key_2()`) geprüft, nachdem die letzte Sitzung den
+      `pp_parse_hex_u64_strict`-Fix in derselben Datei geliefert hatte. Fund: das Feld
+      `"Key_2"` wird bei mir protokollabhängig in vier verschiedenen Formen geschrieben
+      (Ford V1: Hex/8 Byte, PSA: String, Kia V6/Honda V1: u32, Chrysler V0: Hex/2 Byte), die
+      Kopierfunktion beim Speichern eines Captures (Verlauf UND manuelles Save, beide über
+      `protopirate_storage_write_capture_data()`) probiert davon aber nur drei Formen durch
+      (Hex/8, String, u32) — der Chrysler-V0-Fall (Hex/2) fällt durch alle drei Versuche,
+      ohne dass das als Fehler erkannt wird (jeder Versuch behandelt "Feld nicht in dieser
+      Form vorhanden" korrekt als fehlerfreien Fall für ein optionales Feld), und `"Key_2"`
+      fehlt danach komplett in der gespeicherten Datei. Trifft direkt
+      `subghz_protocol_encoder_chrysler_v0_deserialize()` (`protocols/chrysler_v0.c:370-373`),
+      die `"Key_2"` beim Laden zwingend verlangt und ohne das Feld sofort mit
+      `SubGhzProtocolStatusError` abbricht — jedes über mich gespeicherte Chrysler-V0-Capture
+      ist danach nicht mehr ladbar/emulierbar, obwohl der Empfang selbst korrekt war. Mit
+      Host-Repro (getyptes Feld-Modell für alle vier real vorkommenden `"Key_2"`-Formen)
+      verifiziert: ALT verliert `Key_2` ausschließlich im Chrysler-V0-Fall, die anderen drei
+      Formate sind bereits heute korrekt. Fix (ein zusätzlicher Hex/2-Fallback-Versuch, nach
+      demselben Muster wie der bereits vorhandene `"Key_3"`-Hex-oder-u32-Fallback in
+      derselben Datei) in `app-improvements/ProtoPirate/key2-hex2-lost-on-save-fix.md`.
+      Restlicher `ProtoPirate`-Code (übrige Protokoll-Decoder/-Encoder, PSA-Bruteforce-Kernel
+      in `protocols/psa_crypto_bf.c`/`psa_bf_core.c` — reverse-engineerte Krypto-Konstanten,
+      ohne verifizierte Referenzimplementierung nicht risikofrei zu bewerten) weiterhin
+      ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
