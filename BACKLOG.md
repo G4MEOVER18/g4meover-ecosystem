@@ -479,6 +479,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       unterstellte große Eigenportaufwand hinfällig — kuratiert in
       `ideas/picopass-seader-api-status.md`, Katalog in `ideas/pentest-app-katalog.md` um eigene
       PicoPass-/Seader-Zeilen ergänzt und Access-Audit-Zeile entsprechend verknüpft.
+- [x] RogueMaster-Bündel-Durchsicht fortgesetzt: vollständige Verzeichnisliste von
+      `applications/external` diesmal per Sparse-Checkout direkt gegen den echten Baum geprüft
+      (762 App-Ordner, statt aus Sekundärquellen zu zitieren). Kandidat `badge_audit`
+      (ViperDroid, NFC-Zutrittsmedien-Auditor mit Clone-Resistance-Score) geprüft, weil er stark
+      an den bereits vorliegenden `access_audit`-Port-Vorschlag erinnert — Feature-für-Feature-
+      Vergleich ergab vollständige Überschneidung (Access Audit deckt zusätzlich LF-RFID und
+      HID-iCLASS ab, Badge Audit nur NFC), kein eigener Portaufwand gerechtfertigt — kuratiert in
+      `ideas/badge-audit-app-status.md`, Katalog-Zeile Access Audit entsprechend ergänzt. Beim
+      Durchsehen zusätzlich `keeloq_decryptor` (Sub-GHz-Keystore-Decryptor, entschlüsselt die
+      firmwareeigene, verschlüsselte KeeLoq-Hersteller-Schlüsseldatenbank per Secure-Enclave-
+      Schlüssel) bewusst **nicht** aufgenommen: extrahiert fremde Hersteller-Rolling-Code-
+      Masterschlüssel statt eigene Geräte zu testen, passt nicht in den defensiven/autorisierten
+      Rahmen aus CONSTRAINTS Punkt 5 — als Ablehnungsgrund hier dokumentiert, damit er bei
+      künftigen Durchsichten nicht erneut aufgegriffen wird.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
