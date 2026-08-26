@@ -1,0 +1,48 @@
+{
+  "updated": "2026-08-26T13:20:51",
+  "focus": "Phase 0 → **P0.1** (Pi-Flash-Workflow für V4 über SSH).",
+  "next_todo": "P0.2 Stabiles Geräte-/Port-/MAC-Mapping als JSON (`ecosystem/devices.json`) — Basis für alle Tools.",
+  "progress": "2 erledigt / 47 offen",
+  "pc_devices": [
+    {
+      "port": "COM26",
+      "id": "USB VID:PID=10C4:EA60",
+      "guess": "Heltec-V3"
+    },
+    {
+      "port": "COM13",
+      "id": "USB VID:PID=303A:1001",
+      "guess": "ESP32-S3 (LilyGo/DogyTag/V4)"
+    },
+    {
+      "port": "COM8",
+      "id": "USB VID:PID=1A86:55D4",
+      "guess": "WROOM"
+    },
+    {
+      "port": "COM3",
+      "id": "USB VID:PID=0483:5740",
+      "guess": "Flipper"
+    },
+    {
+      "port": "COM16",
+      "id": "USB VID:PID=303A:1001",
+      "guess": "ESP32-S3 (LilyGo/DogyTag/V4)"
+    },
+    {
+      "port": "COM4",
+      "id": "USB VID:PID=1A86:5722",
+      "guess": ""
+    },
+    {
+      "port": "COM17",
+      "id": "USB VID:PID=04E8:6860",
+      "guess": ""
+    }
+  ],
+  "pi": {
+    "online": true,
+    "usb": "Bus 001 Device 006: ID 0451:16a8 Texas Instruments, Inc. CC2531 ZigBee\nBus 001 Device 010: ID 303a:1001 Espressif USB JTAG/serial debug unit\n--\n/dev/ttyACM0\n/dev/ttyACM1"
+  },
+  "plan": "G4MEOVER-ECOSYSTEM-MASTERPLAN.md"
+}
