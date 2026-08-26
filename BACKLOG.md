@@ -177,6 +177,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Fund aus demselben Fenster: `26318954` (PR #1056, dateikontrollierte statt
       kartenkontrollierte Längen beim Laden einer `.nfc`-Datei) — eigenständiger Angriffsvektor,
       für eine künftige Sitzung vorgemerkt.
+- [x] Aus demselben `unlshd-091`-Fenster den zuletzt offenen Restfund aufgegriffen: `26318954`/
+      `2631895419075d7df8d71be7e3d93465fcc6a491` (PR #1056, "[NFC] Bound file-controlled lengths
+      in the EMV .nfc loader") geprüft und ausgearbeitet — `emv_load()` (Datei-Laden, nicht der
+      Poller) verwendet drei unbegrenzte `strcpy()`s in Namensfelder fester Breite sowie
+      `PAN length`/`AID length` als datei-kontrollierten `uint32_t`-Wert ungeprüft als
+      `read_hex()`-Schreiblänge in `pan[10]`/`aid[16]` — eine präparierte `.nfc`-Datei
+      überschreibt beim bloßen Öffnen Heap-Speicher, kein Kartenkontakt nötig (eigenständiger
+      Angriffsvektor gegenüber dem bereits portierten kartenkontrollierten Poller-Fix). Bei mir
+      gegen `mntm-012` als vollständig vorhanden verifiziert (`emv.c` byteidentisch zum
+      Unleashed-Vorher-Stand). Mit Host-Repro (ASan, fork-isolierte Testfälle, heap-allokiertes
+      Zielfeld wie in `emv_alloc()`) für alle drei Fälle als `heap-buffer-overflow` bei
+      dateikontrolliertem Überlängen-Wert verifiziert, identisches Verhalten für reguläre, selbst
+      gespeicherte Dateien bestätigt — Port-Vorschlag in
+      `firmware-mining/emv-nfc-file-loader-length-bounds-fix.md`. Damit ist das gesamte
+      `unlshd-091`-EMV-Absicherungsfenster (Poller + Loader) abgeschlossen.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
