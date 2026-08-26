@@ -4,6 +4,16 @@ Sammelstelle für die kontinuierliche Weiterentwicklung des **G4MEOVER Flipper-Z
 
 Die eigentliche Firmware (G4MEOVER-FW v2, Momentum-mntm-012-Fork) und die Hardware-Arbeit bleiben lokal — hier landen **Recherche, Feature-Port-Vorschläge, Ideen und reine Code-Verbesserungen**, die lokal gebaut/geflasht/getestet werden.
 
+## 🛰️ Ökosystem-Visualisierung
+
+Interaktive Kontroll-Karte: alle Geräte, **farbcodierte Transporte** (UART · USB · ESP-NOW · BLE · LoRaWAN · Zigbee · SubGHz) und anklickbare **Szenario-Datenflüsse** — zeigt genau, wo Befehl, Daten und Antwort entlanglaufen und an welchem Gerät das Ergebnis erscheint. Vollständiger Ausbauplan (12 Phasen, TODO, Auto-Fortsetzung): **[`G4MEOVER-ECOSYSTEM-MASTERPLAN.md`](G4MEOVER-ECOSYSTEM-MASTERPLAN.md)**.
+
+| Szenario „Lokal" — Flipper → V4 → Flotte | Szenario „WAN-Downlink" — TTN → V4 → Flotte |
+|:---:|:---:|
+| ![Ökosystem-Karte (hell)](docs/img/ecosystem-map-light.png) | ![Ökosystem-Karte (dunkel)](docs/img/ecosystem-map-dark.png) |
+
+---
+
 ## Struktur
 - **[`FLEET-COMMANDS.md`](FLEET-COMMANDS.md)** — Befehls- & Fähigkeits-Matrix: jeder `ukfe_rf`-Befehl × Gerät × Status.
 - **[`TEST-PLAN.md`](TEST-PLAN.md)** — Flash-Test-Aufträge für die offenen Firmware-PRs.
