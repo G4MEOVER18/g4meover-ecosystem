@@ -532,6 +532,19 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Masterschlüssel statt eigene Geräte zu testen, passt nicht in den defensiven/autorisierten
       Rahmen aus CONSTRAINTS Punkt 5 — als Ablehnungsgrund hier dokumentiert, damit er bei
       künftigen Durchsichten nicht erneut aufgegriffen wird.
+- [x] Mitgeschleppter Rückstellpunkt aus der RogueMaster-Bündel-Durchsicht (`subghz_jammer_detect`)
+      konkret geprüft: eigentliche Quelle ist das eigenständige Repo `barkandbite/flipper_suite`
+      (MIT, aktiv gepflegt, letzter Commit an diesem Pfad 2026-05-04). Die App nutzt durchgehend
+      dieselbe SubGHz-Devices-Abstraktionsschicht (`subghz_devices_init/get_by_name(
+      SUBGHZ_DEVICE_CC1101_INT_NAME)/begin/reset/idle/load_preset/set_frequency/set_rx/get_rssi/
+      sleep/end/deinit`), die ich bei RollJam/RollForge bereits gegen mntm-012 verifiziert habe —
+      erste **defensive** Gegenkategorie zu meinen bisher rein offensiven Jammern (RollForge/
+      FlipperJammer): RSSI-Dauerträger-Erkennung über vier Standardbänder, ausschließlich
+      eingebaute CC1101-Antenne, kein Firmware-Patch nötig — kuratiert in
+      `ideas/subghz-jammer-detector-app-status.md`, Katalog-Zeile in `ideas/pentest-app-katalog.md`
+      ergänzt. Geschwisterfund `rogue_ap_detector` (WiFi-Evil-Twin-Erkennung, zwingend externes
+      ESP32-Devboard) sowie `h10301_writer` und der restliche NFC-Werkzeug-Cluster bleiben aus
+      demselben Rückstellpunkt weiterhin offen.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
