@@ -31,8 +31,8 @@
 | **LilyGo** T-Display | ESP32-S3 | PC | COM13 (303a:1001) | Satellit **mit Display** |
 | **DogyTag** | XIAO ESP32-S3 + SX1262 | PC | COM16 (MAC 1C:DB:D4:A7:03:34) | LoRaWAN-Tracker + GPS |
 | **CC2531** Zigbee | CC2531 | **Pi** | 0451:16a8 | Zigbee-Sniffer (whsniff/wireshark) |
-| Raspberry Pi 4 | — | LAN 192.168.0.18 | kali@…/kali | Deck/Cockpit-Host, LORIX-LAN, Zigbee, Build/Flash-Host |
-| LORIX One GW | SX1301 | LAN 192.168.0.130 | admin/Core2Quad | LoRaWAN-Gateway → TTN |
+| Raspberry Pi 4 | — | LAN, lokal notiert | Zugangsdaten lokal, nicht im Repo | Deck/Cockpit-Host, LORIX-LAN, Zigbee, Build/Flash-Host |
+| LORIX One GW | SX1301 | LAN, lokal notiert | Zugangsdaten lokal, nicht im Repo | LoRaWAN-Gateway → TTN |
 | *später* ESP32-CAM | ESP32 | — | — | Kamera/Streaming |
 | *später* RA08 (ASR6601) | ASR6601 | — | — | 433-MHz-LoRa |
 | *später* CubeCell HTCC-AB01 | ASR6501 | — | — | 433-MHz-LoRa (LowPower) |
