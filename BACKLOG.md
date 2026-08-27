@@ -474,6 +474,19 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Zeilenlänge gekoppelt, per neuem Peek-Helfer auf der bereits vorhandenen
       Zeilen-Zähl-Funktion) liest alle vier Fälle vollständig — Fix in
       `app-improvements/ProtoPirate/raw-file-reader-chunk-line-boundary-fix.md`.
+- [x] **FlipperJammer** (bislang als "restliche eigene Apps offen" vorgemerkt):
+      `jammer_hw_detect()` (`jammer_app.c`) geprüft — der 5V-OTG-Boost bleibt in den
+      beiden vom Code selbst benannten Standardfällen (externer CC1101 gefunden;
+      NRF24-Multiboard braucht 5V) dauerhaft an, auch nach dem Beenden der App: die
+      vier Modul-eigenen OTG-Ownership-Flags (`nrf24_jam.c`/`ble_jam.c`/
+      `subghz_jam.c`/`scene_nrf24_diag.c`) übernehmen kein OTG, das sie bereits
+      eingeschaltet vorfinden, und `jammer_hw_detect()` selbst hinterlässt kein
+      App-weites Flag dafür — `jammer_app_free()` hat gar keinen OTG-Aufräumcode.
+      Batterie-Drain-Bug, mit Host-Repro (Ownership-Zustandsmodell) verifiziert —
+      Fix (neues `hw_detect_left_otg_on`-Flag + Cleanup in `jammer_app_free()`) in
+      `app-improvements/FlipperJammer/hw-detect-otg-leak-after-exit-fix.md`.
+      `lora-ukfe` (eigene App, bislang nur `rf-counter-restart-lockout-fix.md`)
+      weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
