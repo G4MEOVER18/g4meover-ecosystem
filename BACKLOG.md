@@ -192,7 +192,29 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       gespeicherte Dateien bestätigt — Port-Vorschlag in
       `firmware-mining/emv-nfc-file-loader-length-bounds-fix.md`. Damit ist das gesamte
       `unlshd-091`-EMV-Absicherungsfenster (Poller + Loader) abgeschlossen.
-- [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support).
+- [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support). Dictionary-Teilaspekt
+      (Classic/Ultralight-C) unten separat abgehakt; Parser/Magic-Support weiterhin offen.
+- [ ] MIFARE Plus / Ultralight AES: schlüsselbasierte Authentifizierung (`MfPlusKey`,
+      `MfUltralightAesKey`, Auth-Poller-Zustände) fehlt mir komplett — nur beim
+      `nfc-unified-key-dictionary.md`-Vorschlag als Lücke entdeckt, noch nicht selbst als
+      Firmware-Mining-Fund bearbeitet. Eigenes, größeres Portierungsvorhaben (neue Datenfelder in
+      `MfPlusData`/`MfUltralightData`, neue Poller-Logik), vermutlich über mehrere
+      Unleashed-Versionen gewachsen statt in einem Commit — Quellsuche noch offen.
+- [x] Unleashed `unlshd-092` vs. `unlshd-091` (letzter zuvor geprüfter Stand): großer,
+      gesquashter RAM-Reduktions-Commit `2b4411f23` (PR #1073) geprüft. Daraus den in sich
+      abgeschlossenen Teilschritt "ein gemeinsamer Schlüssel-Dictionary-Manager statt Duplikat je
+      Kartentyp" herausgelöst und geprüft: zehn fast identische MIFARE-Classic-/Ultralight-C-
+      Schlüsselverwaltungsszenen lassen sich durch fünf generische Szenen plus eine kleine
+      Tabelle (`nfc_key_dict.c/.h`) ersetzen — Korrektheits-Fix beim Löschen (Classic las bisher
+      aus einem veralteten Snapshot statt den Schlüssel frisch aus der Datei) und ein
+      App-weites Byte-Input-Datenleck zwischen den beiden Dictionaries (zuvor eingetippter
+      Schlüssel schimmert im nächsten Dictionary durch) inklusive. Beim Abgleich gegen mntm-012
+      festgestellt: die Plus-/Ultralight-AES-Hälfte des Original-Features ist bei mir nicht
+      portierbar, da `MfPlusKey`/`MfUltralightAesKey` und die zugehörige schlüsselbasierte
+      Authentifizierung in meiner Basis komplett fehlen (nur UID/Version/Security-Level für
+      Plus, keine Auth-Poller-Logik) — eigenständiges, größeres Firmware-Feature, separat
+      vorgemerkt. Port-Vorschlag bewusst auf die bei mir vorhandene Classic-/Ultralight-C-Hälfte
+      beschränkt: `firmware-mining/nfc-unified-key-dictionary.md`.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
