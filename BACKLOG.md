@@ -435,6 +435,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       in `protocols/psa_crypto_bf.c`/`psa_bf_core.c` — reverse-engineerte Krypto-Konstanten,
       ohne verifizierte Referenzimplementierung nicht risikofrei zu bewerten) weiterhin
       ungeprüft.
+- [x] **ProtoPirate** `helpers/raw_file_reader.c` (RAW-Decode-Feature, aus einer früheren Sitzung
+      als offener `raw_file_reader.c`-Rückstellpunkt vorgemerkt) geprüft: `raw_file_reader_load_chunk()`
+      fordert pro Chunk pauschal `RAW_READER_BUFFER_SIZE` (512) Werte an, ohne zu wissen, wie
+      viele Werte die aktuelle `RAW_Data:`-Zeile tatsächlich enthält — `flipper_format_read_int32()`
+      liest aber strikt zeilengebunden und scheitert komplett, sobald eine Zeile vor Erreichen der
+      angeforderten Menge endet. Dass `RAW_READER_BUFFER_SIZE` zufällig exakt
+      `SUBGHZ_DOWNLOAD_MAX_SIZE` (512) der Stock-Firmware entspricht, verdeckt den Bug nur für
+      Aufnahmen aus der eigenen "Read RAW"-Funktion; jede andere, laut Formatdoku ebenso gültige
+      Zeilenaufteilung (kleinere Zeilen, z. B. eine gezielt gebaute Testdatei oder eine Aufnahme
+      eines anderen Tools) lässt "Sub Decode" bereits beim allerersten Chunk abbrechen und
+      fälschlich "No ProtoPirate protocol detected" melden, ohne dass auch nur ein Sample
+      verarbeitet wurde. Mit Host-Repro (Modell des zeilengebundenen Lese-/Skip-Verhaltens von
+      `flipper_format_read_int32()`, vier Zeilenaufteilungen) verifiziert: ALT liest nur die
+      Stock-kompatible Aufteilung vollständig, NEU (Chunk-Größe an die tatsächliche nächste
+      Zeilenlänge gekoppelt, per neuem Peek-Helfer auf der bereits vorhandenen
+      Zeilen-Zähl-Funktion) liest alle vier Fälle vollständig — Fix in
+      `app-improvements/ProtoPirate/raw-file-reader-chunk-line-boundary-fix.md`.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
