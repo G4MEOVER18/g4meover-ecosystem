@@ -597,6 +597,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       ergänzt. Geschwisterfund `rogue_ap_detector` (WiFi-Evil-Twin-Erkennung, zwingend externes
       ESP32-Devboard) sowie `h10301_writer` und der restliche NFC-Werkzeug-Cluster bleiben aus
       demselben Rückstellpunkt weiterhin offen.
+- [x] Beide aus der SubGHz-Jammer-Detector-Sitzung zurückgestellten Rückstellpunkte aufgegriffen:
+      **Rogue AP Detector** (dieselbe Quelle `barkandbite/flipper_suite`, WiFi-Evil-Twin-/
+      Rogue-AP-Erkennung über externes ESP32-Marauder-Board) und **H10301 Writer**
+      (`Zacvr/h10301_writer`, Serien-/Auto-Inkrement-Schreiben von HID-Prox-H10301-Credentials
+      auf T5577). Beide gegen den eigenen `mntm-012`-Header-Stand (Momentum-Firmware-Tag lokal
+      sparse ausgecheckt) verifiziert statt nur am Quelltext geschätzt: Rogue AP Detector nutzt
+      exakt die vorhandenen `expansion_enable/disable`-, `furi_hal_serial_control_acquire/
+      release`- und `furi_hal_serial_*`-Signaturen (Erweiterungsport-UART, wie vom eigenen
+      README als API-87.1-Ziel angegeben); H10301 Writer nutzt exakt die vorhandene
+      `lfrfid_worker_*`-/`protocol_dict_*`-API inkl. `LFRFIDProtocolH10301`-Enum-Eintrag — beide
+      ✅ ohne Anpassungsbedarf. Kuratiert in
+      `ideas/rogue-ap-detector-h10301-writer-api-status.md`, Katalogzeilen in
+      `ideas/pentest-app-katalog.md` ergänzt (Rogue AP Detector unter WiFi, H10301 Writer unter
+      Physical Access Control). Restlicher NFC-Werkzeug-Cluster aus demselben
+      RogueMaster-Bündel-Rückstellpunkt weiterhin offen.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
