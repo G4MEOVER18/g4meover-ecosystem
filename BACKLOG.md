@@ -500,6 +500,28 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/FlipperJammer/hw-detect-otg-leak-after-exit-fix.md`.
       `lora-ukfe` (eigene App, bislang nur `rf-counter-restart-lockout-fix.md`)
       weiterhin offen.
+- [x] **usb-army-penetrator** Ducky-Extensions-Restcode (`src/Attacks/Ducky/Extensions.h`,
+      bislang als "restlicher Ducky-Extensions-Parsing-Code" vorgemerkt) geprüft: die
+      dynamische Konstante für `#_FILE_INDEX_FILE_NAME_` prüft vor dem Indizieren von
+      `curListOfFiles[curFileIndexVariable]` nur, ob die Dateiliste nicht leer ist — nicht,
+      ob `curFileIndexVariable` selbst innerhalb der Liste liegt. `curFileIndexVariable`
+      wird aus der frei beschreibbaren Skriptvariable `$FILE_INDEX` gesetzt; erkennt
+      `FILE_INDEX_VALID()` einen außerhalb liegenden Wert (u. a. der reguläre Abbruchfall
+      jeder `LOAD_DS_FILES_FROM_SD()`-Zählschleife, sobald `$FILE_INDEX` die Listengröße
+      erreicht) korrekt als ungültig, bleibt `curFileIndexVariable` trotzdem auf diesem
+      Wert stehen. Da der zugrunde liegende `DuckScriptInterpreter`
+      (`DuckyInterpreter::getLineAndProcess()`) jede registrierte dynamische Konstante bei
+      *jeder* Skriptzeile aufruft, unabhängig davon, ob die Zeile
+      `#_FILE_INDEX_FILE_NAME_` referenziert, greift `operator[]` (undefiniertes
+      Verhalten bei ungültigem Index) ab diesem Punkt bei jeder weiteren Zeile des
+      laufenden Skripts daneben — Absturz oder ein aus Heap-Nachbarspeicher gelesener
+      String, der über die normale Konstantenersetzung in Skriptzeilen landen kann, mit
+      Host-Repro (Nachbau der Closure plus der Interpreter-Aufrufstelle) für den
+      Schleifenende- und den Negativ-Index-Fall verifiziert — Fix (Indexgrenzenprüfung
+      direkt in der Closure) in
+      `app-improvements/usb-army-penetrator/file-index-filename-const-oob-read-fix.md`.
+      Restlicher `usb-army-penetrator`-Code (Ethernet CH9120/W5500 unverdrahteter Stub,
+      TFT-Hex-Farbparser unerreicht, WiFi/BLE-Detailpfade) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
