@@ -632,6 +632,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       ergänzt. Geschwisterfund `rogue_ap_detector` (WiFi-Evil-Twin-Erkennung, zwingend externes
       ESP32-Devboard) sowie `h10301_writer` und der restliche NFC-Werkzeug-Cluster bleiben aus
       demselben Rückstellpunkt weiterhin offen.
+- [x] Letzter aus dem `b8fe671`-Rückstellpunkt noch offene Kandidat (nach Rayhunter Client)
+      geprüft: **UART Sniff** (`barkandbite/flipper_suite`, dieselbe Quelle) — passiver
+      UART-Protokollsniffer über den Erweiterungsport, füllt eine bislang komplett fehlende
+      Kategorie (passive serielle Bus-Analyse). API-87-Kompatibilität per `curl`-Rohquelltext
+      gegen den eigenen `mntm-012`-Header-Stand verifiziert (`furi_hal_serial_control_*`,
+      `furi_hal_serial_*`, `expansion_enable/disable` inkl. korrekter Aufrufreihenfolge) —
+      identisch zu den bereits geprüften Geschwister-Apps, keine Abweichung. Quelltext-Review
+      ohne Speicherzugriffsfehler; gefunden wurde stattdessen ein Zustandsfehler ohne
+      Speicherbezug: die Zurück-Taste aus der Sniff-Ansicht ins Menü beendet die laufende
+      Aufnahme nicht (nur vollständiges App-Beenden räumt Worker/ISR auf), wodurch zusätzlich
+      eine zwischenzeitlich in den Settings geänderte Baudrate/Kanalwahl bei erneutem "Start
+      Sniff" stillschweigend ignoriert wird — kuratiert inkl. Fix-Skizze für den eigenen Port in
+      `ideas/uart-sniff-api-status.md`, Katalog um neue Kategorie „GPIO / Serial Bus" ergänzt.
+      Aus demselben Rückstellpunkt weiterhin offen: `ble_scanner`, `evil_ble`.
 - [x] Beide aus der SubGHz-Jammer-Detector-Sitzung zurückgestellten Rückstellpunkte aufgegriffen:
       **Rogue AP Detector** (dieselbe Quelle `barkandbite/flipper_suite`, WiFi-Evil-Twin-/
       Rogue-AP-Erkennung über externes ESP32-Marauder-Board) und **H10301 Writer**
