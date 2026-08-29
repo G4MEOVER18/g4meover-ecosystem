@@ -228,6 +228,22 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       durch einen noch laufenden UART-Callback) — Port-Vorschlag in
       `firmware-mining/rayhunter-client-app-port.md`. Aus derselben Commit-Reihe weiterhin offen:
       `uart_sniff`, `ble_scanner`, `evil_ble`.
+- [x] Aus demselben `b8fe671`-Rückstellpunkt weiterverfolgt (`uart_sniff` inzwischen separat als
+      Ideen-Recherche abgearbeitet): **BLE Scanner** geprüft (Quelle `barkandbite/flipper_suite`,
+      dieselbe wie die vier bereits geprüften Apps) — BLE-Advertisement-Scanner mit
+      AirTag-/Find-My-Heuristik über ESP32/Marauder, vierte defensive Erkennungskategorie
+      (Bluetooth Low Energy) auf derselben ESP32-Hardwarebasis. API-87-Kompatibilität gegen den
+      eigenen `mntm-012`-Header-Stand verifiziert (identisches `expansion_*`/
+      `furi_hal_serial_*`/`furi_stream_buffer_*`-Muster wie die drei vorherigen Funde);
+      Quelltext-Review ohne Speicherzugriffsfehler. Stattdessen ein Zustandsfehler gefunden:
+      `ble_uart_is_connected()` ist ein reines Einweg-Flag, das nach dem ersten empfangenen
+      UART-Byte nie wieder zurückgesetzt wird — fällt das ESP32-Board während eines laufenden
+      Scans aus, zeigt die App dauerhaft „[scanning]" statt „[No ESP32]", ein stiller Ausfall bei
+      einem AirTag-/Skimmer-Sweep vor Ort. Mit Host-Repro (simulierter Tick-Zähler) verifiziert:
+      ALT bleibt nach Erstverbindung dauerhaft „verbunden" hängen, NEU (Staleness-Prüfung gegen
+      den Zeitpunkt der letzten Zeile) erkennt sowohl den Ausfall nach 3 s Stille als auch eine
+      sofortige Rückkehr — Port-Vorschlag in `firmware-mining/ble-scanner-app-port.md`. Aus
+      derselben Commit-Reihe weiterhin offen: `evil_ble`.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
