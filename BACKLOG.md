@@ -538,6 +538,28 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/usb-army-penetrator/file-index-filename-const-oob-read-fix.md`.
       Restlicher `usb-army-penetrator`-Code (Ethernet CH9120/W5500 unverdrahteter Stub,
       TFT-Hex-Farbparser unerreicht, WiFi/BLE-Detailpfade) weiterhin offen.
+- [x] **ProtoPirate** `protocols/protocol_items.c` (Timing-Tuner-Referenztabelle,
+      `protocol_timings[]`/`protopirate_get_protocol_timing()`) geprüft, nachdem der letzte
+      `ProtoPirate`-Fund (RAW-Decode-Chunkgröße) im selben Verzeichnisbaum lag: der
+      Tabelleneintrag für das VAG-Protokoll trägt den Namen `"VW"`, der real registrierte
+      Decoder-Name ist aber `VAG_PROTOCOL_NAME` = `"VAG"` (`protocols/vag.h`/`vag.c`) — weder
+      `strcmp` noch `strstr` noch eine der vier Alias-Regeln stellt die Verbindung her, die
+      Suche liefert für `"VAG"` durchgehend `NULL`, obwohl die korrekten Referenzwerte
+      (500/1000µs Manchester, 80 Bit) bereits unter dem falschen Namen in der Tabelle stehen.
+      `timing_tuner_rx_callback()` (`scenes/protopirate_scene_timing_tuner.c`) schaltet bei
+      `NULL` den gesamten Referenzvergleich (Soll/Ist, Toleranzbewertung, Short/Long/Tolerance-
+      Anzeige) für den gematchten Capture ab — für VAG-Signale ist damit die Kernfunktion des
+      Timing Tuners unbenutzbar, alle 23 anderen real registrierten Decoder-Namen lösen bereits
+      korrekt auf. Mit Host-Repro (Tabellensuche 1:1 nachgebaut, alle 24 real registrierten
+      Namen einzeln gegen ALT- und NEU-Tabelle geprüft) verifiziert — Fix (Namenskorrektur des
+      einen Tabelleneintrags auf `VAG_PROTOCOL_NAME`) in
+      `app-improvements/ProtoPirate/timing-tuner-vag-name-mismatch-fix.md`. Dabei auch
+      festgestellt: `"Mitsubishi V0"` hat gar keinen Tabelleneintrag (fehlende Zeile statt
+      Namens-Divergenz) — bewusst nicht mitgefixt, für künftige Sitzung vorgemerkt, sobald
+      verifizierte Referenz-Timings für Mitsubishi V0 vorliegen. Restlicher `ProtoPirate`-Code
+      (einzelne Protokoll-Decoder/-Encoder unter `protocols/` außer den bereits geprüften
+      Dateien, `scenes/`, `views/`, PSA-Bruteforce-Kernel weiterhin bewusst zurückgestellt)
+      weiterhin ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
