@@ -577,6 +577,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (einzelne Protokoll-Decoder/-Encoder unter `protocols/` außer den bereits geprüften
       Dateien, `scenes/`, `views/`, PSA-Bruteforce-Kernel weiterhin bewusst zurückgestellt)
       weiterhin ungeprüft.
+- [x] **lora-ukfe** (bislang kaum geprüft, letzter Fund war der RF-Counter-Persistenz-Bug):
+      nach der Binär-RX-Migration (`0dba410a`, JSON-Zeilenparser → `ukfe_rf`-Frame-Scanner)
+      `handle_rf_response()` in `uart_comm.c` gegen alle in `rf/ukfe_rf.h` definierten
+      Response-Typen abgeglichen — `UkfeRfRespPayload` (0x84, Payload-Listeneinträge) hat
+      keinen eigenen `case`, fällt in den generischen `default`-Log-Zweig. Per `grep -rn
+      ukfe_json_handle` verifiziert: der alte JSON-Handler `handle_payload_list()`
+      (`json_parse.c`), der bisher einzige Ort, der `app->payloads[]`/`app->payload_count`
+      befüllt und Custom-Event `0x12` sendet, hat keinen Aufrufer mehr im Baum — die
+      Payload-Liste-Szene (`scenes/scene_payload_list.c`) bleibt dadurch dauerhaft leer
+      (`"(keine — Liste laden)"`), unabhängig von der Hub-Antwort. Mit Host-Repro (ALT/NEU
+      1:1 aus `handle_rf_response()`, vier Szenarien inkl. Randfall größter gültiger Index
+      und kartenkontrolliertem Index außerhalb `UKFE_MAX_PAYLOADS`) unter ASan/UBSan
+      verifiziert — Fix (ergänzter `case UkfeRfRespPayload:`, bounds-geprüft) in
+      `app-improvements/lora-ukfe/payload-list-response-dispatch-fix.md`.
+      `UkfeRfRespScanHit` (0x90) bleibt aus demselben Grund unbehandelt, für künftige
+      Sitzung vorgemerkt. Restlicher `lora-ukfe`-Code (`command_catalog.h`, restliche
+      `scenes/`) weiterhin fast ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
