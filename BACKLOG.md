@@ -244,6 +244,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       den Zeitpunkt der letzten Zeile) erkennt sowohl den Ausfall nach 3 s Stille als auch eine
       sofortige Rückkehr — Port-Vorschlag in `firmware-mining/ble-scanner-app-port.md`. Aus
       derselben Commit-Reihe weiterhin offen: `evil_ble`.
+- [x] Letzter aus dem `b8fe671`-Rückstellpunkt noch offene Kandidat geprüft: **Evil BLE**
+      (Quelle `barkandbite/flipper_suite`, dieselbe wie die fünf bereits geprüften Apps) —
+      BLE-Device-Cloning-Gegenstück zu BLE Scanner: Ziel per ESP32/Marauder-Scan auswählen,
+      MAC+Advertisement-Payload über die native `furi_hal_bt_extra_beacon_*`-API klonen. UART-Layer
+      identisch robust zu BLE Scanner (durchgängig `strncpy`/`snprintf` mit expliziter
+      Zielgröße, Geräteliste fest auf 32 begrenzt). Gefunden wurde ein Logikfehler in der
+      Klon-Payload-Erzeugung: `evil_ble_start_clone()` behandelt für Zielgeräte ohne echten Namen
+      den vom Scanner selbst erzeugten Anzeige-Platzhalter `"(AA:BB:CC:DD:EE:FF)"` ungeprüft als
+      echten, sendefertigen Namen und broadcastet ihn als „Complete Local Name"-Feld — obwohl der
+      Scanner-Code exakt dieselbe Prüfung (`name[0] != '\0' && name[0] != '('`) an zwei anderen
+      Stellen bereits selbst verwendet, nur an dieser dritten Stelle fehlt sie. Für den
+      Testzweck der App (Identitätsvalidierung über Name/MAC hinaus prüfen) macht das
+      namenlose Zielgeräte-Klone sofort als Fälschung erkennbar. Mit Host-Repro (exakter
+      Byte-Konstruktionscode des Fallback-Zweigs, vier Fälle inkl. Regression für den
+      Normalfall mit echtem Namen) verifiziert — Port-Vorschlag inkl. Fix in
+      `firmware-mining/evil-ble-app-port.md`. Damit ist die gesamte `b8fe671`-Commit-Reihe
+      („Add 6 new security tools") jetzt vollständig abgearbeitet.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
