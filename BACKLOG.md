@@ -594,6 +594,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `UkfeRfRespScanHit` (0x90) bleibt aus demselben Grund unbehandelt, für künftige
       Sitzung vorgemerkt. Restlicher `lora-ukfe`-Code (`command_catalog.h`, restliche
       `scenes/`) weiterhin fast ungeprüft.
+- [x] **lora-ukfe** weiterverfolgt: den aus der vorigen Sitzung vorgemerkten
+      `UkfeRfRespScanHit`-Fund (0x90, "args: uint32 freq_or_ch, uint8 rssi") geprüft —
+      fällt wie zuvor `UkfeRfRespPayload` in den generischen `default`-Log-Zweig von
+      `handle_rf_response()`. Anders als bei der Payload-Liste gibt es dafür (noch)
+      keine eigene Konsumenten-Scene (per `grep -rn "ScanHit\|0x90"` verifiziert: kommt
+      nur in der Enum-Definition vor) — kein Zustandsverlust, aber die Nutzlast
+      (Frequenz/Kanal, RSSI) aller fünf Scan-Trefferantworten (LoRa/SubGHz/WiFi/BLE/
+      RemoteID) bleibt im Log unlesbar. Mit Host-Repro (ALT/NEU 1:1 aus
+      `handle_rf_response()`, fünf Szenarien inkl. Randfall `UINT32_MAX`/`INT8_MIN` und
+      zu kurzem Frame `arg_len < 5`) unter ASan/UBSan verifiziert — Fix (ergänzter
+      `case UkfeRfRespScanHit:`, bounds-geprüft gegen unbelegte `args[]`-Restbytes) in
+      `app-improvements/lora-ukfe/scanhit-response-decode-fix.md`. Restlicher
+      `lora-ukfe`-Code (`command_catalog.h`, restliche `scenes/`) weiterhin fast
+      ungeprüft; eine dedizierte Scan-Ergebnis-Ansicht (analog
+      `scene_payload_list.c`) wäre ein eigenständiger, größerer Folgebeitrag.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
