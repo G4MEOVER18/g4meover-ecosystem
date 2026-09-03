@@ -665,6 +665,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `lora-ukfe`-Code (`command_catalog.h`, restliche `scenes/`) weiterhin fast
       ungeprüft; eine dedizierte Scan-Ergebnis-Ansicht (analog
       `scene_payload_list.c`) wäre ein eigenständiger, größerer Folgebeitrag.
+- [x] **ProtoPirate** `protopirate_history.c` (bislang nicht Teil der bereits geprüften
+      Storage-/Parser-Funde) geprüft: `protopirate_history_add_to_history()` prüft
+      Verlaufsgröße/Auto-Purge-Eviction vor statt nach der Duplikat-Entprellung
+      (`code_last_hash_data`/`< 500 ms`-Fenster) — bei vollem Verlauf mit aktiviertem
+      Auto-Purge verdrängt ein einzelner Tastendruck einer Fernbedienung (die dieselbe
+      Bitfolge über die Druckdauer mehrfach sendet, jede Dekodierung ein eigener
+      Aufruf) zwei echte, unabhängige Verlaufseinträge statt nur des einen, der für den
+      einen tatsächlich neuen Eintrag nötig wäre — stiller, dauerhafter Datenverlust
+      (samt zugehöriger Capture-Datei auf der SD-Karte) ohne Fehlermeldung. Mit
+      Host-Repro (Kontrollfluss-Nachbau, Größen-/Reihenfolge-Buchhaltung) verifiziert —
+      Fix (Entprellung vor die Limit-Prüfung gezogen) in
+      `app-improvements/ProtoPirate/history-purge-before-debounce-item-loss-fix.md`.
+      Restlicher `ProtoPirate`-Code (einzelne Protokoll-Decoder/-Encoder, `scenes/`,
+      `views/`) sowie PSA-Bruteforce-Kernel weiterhin größtenteils ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
