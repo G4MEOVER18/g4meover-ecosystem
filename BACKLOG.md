@@ -261,6 +261,22 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Normalfall mit echtem Namen) verifiziert — Port-Vorschlag inkl. Fix in
       `firmware-mining/evil-ble-app-port.md`. Damit ist die gesamte `b8fe671`-Commit-Reihe
       („Add 6 new security tools") jetzt vollständig abgearbeitet.
+- [x] Restlichen NFC-Werkzeug-Cluster weiterverfolgt (Rückstellpunkt aus der
+      `mfdesfire_auth`-Sitzung): **NFC Sniffer** (`applications/external/nfc_sniffer`, Quelle
+      `kdiller713/public-FlipperApps`) geprüft — echte, funktionierende App (passiver
+      NFC-Kommando-Logger im Listener-Modus, ISO14443-3A/ISO15693-3/FeliCa, Log auf SD).
+      Gefunden: `nfc_sniffer_callback()` in `ui/log_scene.c` schreibt vor der eigentlichen
+      Hex-Umwandlung einen zusätzlichen NUL-Terminator ein Byte hinter das korrekt bemessene
+      Stack-Array — ein Ein-Byte-Stack-Overwrite bei jedem einzelnen, nicht-leeren erfassten
+      Kommando (Normalbetrieb, kein Sonderfall), mit Host-Repro unter ASan als
+      `dynamic-stack-buffer-overflow` verifiziert; die vorab geschriebene Zeile ist zugleich
+      überflüssig, da der letzte Schleifendurchlauf den Terminator ohnehin korrekt setzt —
+      Fix ist die ersatzlose Streichung dieser einen Zeile. API-87-Kompatibilität gegen den
+      eigenen `mntm-012`-Header-Stand verifiziert (`lib/nfc/nfc.h`, `lib/toolbox/bit_buffer.h`)
+      — Port-Vorschlag inkl. Fix in `firmware-mining/nfc-sniffer-app-port.md`. Restlicher
+      Cluster weiterhin offen: `chameleon`, `nfc_relay`, `mifare_fuzzer`, `nfc_rfid_detector`,
+      `nfctools`, `uhf_rfid`, `nfc_fuzzer`, `nfc_canary`, `nfc_comparator`,
+      `simultaneous_rfid_reader`.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
