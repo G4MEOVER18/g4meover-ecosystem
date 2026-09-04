@@ -317,6 +317,27 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/nfc-rfid-detector-app-port.md`. Restlicher Cluster weiterhin offen:
       `chameleon`, `nfc_relay`, `mifare_fuzzer`, `nfctools`, `uhf_rfid`, `nfc_canary`,
       `nfc_comparator`, `simultaneous_rfid_reader`.
+- [x] Restlichen NFC-Werkzeug-Cluster weiterverfolgt: **NFC Canary**
+      (`applications/external/nfc_canary`, Quelle `antitree`) geprüft — mit 1608 Zeilen
+      vollständig gelesen, reiner passiver Skimming-/Interrogations-Detektor über das
+      ST25R3916-Feld-Detektor-Bit (Vibration/Ton/LED-Alarm, Event-Log auf SD). Architektur
+      sauber (asymmetrisches Flanken-Latch statt symmetrischer Entprellung, geprüfter
+      `furi_hal_nfc_acquire()`-Rückgabewert, sauberer Feld-Teardown beim Beenden); der geplante
+      "Decoy"-Listener-Modus (Protokoll-/Kommando-Erfassung) ist im Quelltext vorbereitet, aber
+      selbst korrekt aus dem Einstellungsmenü entfernt, solange er nicht verdrahtet ist — kein
+      Fund. Fund liegt im Standardwert der Ton-Alarmschwelle (`settings.c`,
+      `min_tier_sound = TierAlarm`): der ausgelieferte Sentinel-only-Build (v0.2) erreicht bei
+      einer echten Erkennung nie `TierAlarm` (nur bis `TierWarn`), wodurch der Ton-Kanal mit
+      Standardeinstellung dauerhaft stumm bleibt — die Test-Audition im Menü (`alert_test()`)
+      injiziert `TierAlarm` jedoch direkt und täuscht dabei Funktionsfähigkeit vor. Mit
+      Host-Repro (`gcc -O1 -Wall -Wextra -fsanitize=address,undefined`) bestätigt: ALT 0/2 echte
+      Erkennungsstufen lösen Ton aus, NEU (Fix auf `TierWarn`, zusammen mit Vibration) 1/2 —
+      Port-Vorschlag inkl. Fix in `firmware-mining/nfc-canary-app-port.md`. Dabei zwei weitere
+      Kandidaten geprüft und zurückgestellt: `chameleon` (reiner Fernsteuerungsclient für
+      externes Chameleon-Ultra-Gerät, Fremdhardware wie `can_commander`) und `nfc_relay`
+      (benötigt zwei eigene Flipper-Geräte). Restlicher Cluster weiterhin offen: `mifare_fuzzer`,
+      `nfctools`, `uhf_rfid`, `nfc_comparator`, `simultaneous_rfid_reader` (letztere zwei
+      vermutlich ebenfalls Fremdhardware-Fall, externes UHF-Lesegerät nötig).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
