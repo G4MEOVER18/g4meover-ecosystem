@@ -717,6 +717,17 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/ProtoPirate/history-purge-before-debounce-item-loss-fix.md`.
       Restlicher `ProtoPirate`-Code (einzelne Protokoll-Decoder/-Encoder, `scenes/`,
       `views/`) sowie PSA-Bruteforce-Kernel weiterhin größtenteils ungeprüft.
+- [x] **g4meover-magspoof** `mag_state.c::mag_state_load()` geprüft: `MagState state;` ist beim
+      Deklarieren uninitialisiert; wenn `MAG_STATE_PATH` fehlt (erster App-Start, frische
+      SD-Karte) oder die Zustandsdatei einen ungültigen/veralteten Header hat, wird der komplette
+      feldsetzende Block übersprungen, und `mag_state_gpio_is_valid(&state)` liest
+      `pin_input`/`pin_output`/`pin_enable` unbedingt vor jeder Initialisierung — mit
+      eigenständigem Host-Repro unter Valgrind Memcheck als „uninitialised value(s)"-Fund
+      verifiziert. Aktuelle Auswirkung eingegrenzt: der nachfolgende `if(!loaded_from_file)`-Block
+      überschreibt die Pins in jedem geprüften Fall ohnehin wieder mit den korrekten Defaults,
+      reine UB ohne derzeit beobachtbaren Effekt, aber fragil bei künftigen Refactors — Fix
+      (`MagState state = {0};`) in
+      `app-improvements/g4meover-magspoof/state-load-uninitialized-gpio-validity-check-fix.md`.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
