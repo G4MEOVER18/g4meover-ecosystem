@@ -355,6 +355,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       künftige Sitzung zurückgestellt, um den gelieferten Patch auf eine Änderung zu begrenzen.
       Restlicher Cluster weiterhin offen: `nfctools`, `uhf_rfid`, `nfc_comparator`,
       `simultaneous_rfid_reader`.
+- [x] Restlichen NFC-Werkzeug-Cluster weiterverfolgt: **NFC Comparator**
+      (`applications/external/nfc_comparator`, Quelle `acegoal07`) geprüft — mit rund 3400
+      Zeilen über gut 60 Dateien vollständig gelesen, Karte-vs-Karte-/Karte-vs-Datei-Vergleich
+      (UID/Protokoll/Byte-Diff über zehn Protokolle) plus Ordner-Suche nach der besten
+      Übereinstimmung unter `/ext/nfc`, über die eingebaute Antenne. Alle zehn
+      protokollspezifischen Diff-Implementierungen fehlerfrei. Fund in
+      `nfc_comparator_finder_searcher_worker_task()`: `dir_walk_read()` schreibt den aktuellen
+      Verzeichniseintrag unbedingt in das geteilte `nfc_card_path`-Feld, noch bevor geprüft ist,
+      ob der Eintrag überhaupt eine `.nfc`-Datei ist bzw. lädt — folgt auf einen echten
+      Teiltreffer ein solcher irrelevanter/nicht ladbarer Eintrag, zeigt die Digital-Finder-
+      Suche am Ende dessen Dateinamen bei gleichzeitig korrektem Diff-Wert des tatsächlichen
+      Treffers an (Fehlzuordnung Anzeigepfad↔Diffdaten). Mit Host-Repro (zwei Fehlerfälle plus
+      Regressionsfall: bester Treffer ist der letzte untersuchte Eintrag) verifiziert — Port-
+      Vorschlag inkl. Fix in `firmware-mining/nfc-comparator-app-port.md`. `uhf_rfid` und
+      `simultaneous_rfid_reader` dabei endgültig als Fremdhardware-Fall (externes
+      YRM100-/M6E-/M7E-UHF-Lesegerät) bestätigt und abgeschlossen. Restlicher Cluster nur noch
+      `nfctools` (~11 200 Zeilen, größter verbleibender Kandidat).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
