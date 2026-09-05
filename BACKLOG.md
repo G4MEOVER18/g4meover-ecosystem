@@ -193,7 +193,13 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/emv-nfc-file-loader-length-bounds-fix.md`. Damit ist das gesamte
       `unlshd-091`-EMV-Absicherungsfenster (Poller + Loader) abgeschlossen.
 - [ ] NFC/RFID-Tooling-Deltas (Dictionaries, Parser, Magic-Support). Dictionary-Teilaspekt
-      (Classic/Ultralight-C) unten separat abgehakt; Parser/Magic-Support weiterhin offen.
+      (Classic/Ultralight-C) unten separat abgehakt; Magic-Support-Teilaspekt geprüft: App
+      `nfc_magic` (Gen1A/1B/Gen2/Gen4 GTU) ist bereits im `mntm-012`-Firmware-Baum enthalten
+      (identischer Submodul-Commit wie Subbrute/PicoPass/Seader), kein Portaufwand, von der
+      eigenen Haupt-NFC-App selbst referenziert — Details in `ideas/nfc-magic-app-status.md`,
+      Katalog-Zeile ergänzt. Gen3-(APDU)/Gen4-GDM-Blanks bleiben unabgedeckt (neuere
+      Community-Version könnte das nachrüsten, noch nicht geprüft). Parser-Teilaspekt weiterhin
+      offen (unklar spezifiziert, in künftiger Sitzung zu konkretisieren).
 - [ ] MIFARE Plus / Ultralight AES: schlüsselbasierte Authentifizierung (`MfPlusKey`,
       `MfUltralightAesKey`, Auth-Poller-Zustände) fehlt mir komplett — nur beim
       `nfc-unified-key-dictionary.md`-Vorschlag als Lücke entdeckt, noch nicht selbst als
