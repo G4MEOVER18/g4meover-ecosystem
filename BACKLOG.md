@@ -378,6 +378,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `simultaneous_rfid_reader` dabei endgültig als Fremdhardware-Fall (externes
       YRM100-/M6E-/M7E-UHF-Lesegerät) bestätigt und abgeschlossen. Restlicher Cluster nur noch
       `nfctools` (~11 200 Zeilen, größter verbleibender Kandidat).
+- [ ] Restlichen NFC-Werkzeug-Cluster begonnen: **NFC Tools** (`applications/external/nfctools`,
+      Autor `wakdev`, ~11 200 Zeilen) — in dieser Sitzung nur den NDEF-Kern
+      (`core/nfc_tools_ndef.c`, 1080 Zeilen) vollständig geprüft. Fund: `ndef_fill_record()`
+      extrahiert das vCard-Namensfeld im strukturierten Anzeigepfad mit unbegrenztem
+      `strstr((const char*)payload, "FN:")` auf einem nicht NUL-terminierten, exakt auf die
+      Tag-Datenlänge allozierten Heap-Puffer — bei fehlendem `"FN:"` liest die Funktion über das
+      Allokationsende hinaus (Absturz-/Leak-Risiko), bei außerhalb gefundenem Muster unterläuft
+      zusätzlich die Längenberechnung. Die Nachbarfunktion `ndef_decode_vcard()` in derselben
+      Datei löst dasselbe Problem bereits korrekt mit einer auf `len` begrenzten Suche. Mit
+      Host-Repro (ASan: `heap-buffer-overflow` exakt am Allokationsende) bestätigt — Port-
+      Vorschlag inkl. Fix in `firmware-mining/nfctools-app-port.md`. Restlicher Umfang der App
+      (Mifare-Classic-/DESFire-/ICODE-/NTAG-Lesepfade, ~35 Schreib-Szenen, Sektor-Analyse,
+      Passwort-Entfernung, Tag-Formatierung/-Sperre — ~10 100 Zeilen) für künftige Sitzungen
+      offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
