@@ -84,9 +84,43 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
 
 ### Phase 0 — Fundament & Tooling
 - [x] P0.1 Pi-Flash-Workflow ✅ (2026-08-26): esptool v5.3.1 am Pi (`--break-system-packages`); V4=`/dev/ttyACM1` (per MAC, CC2531 auf ttyACM0 übersprungen). Tool `ecosystem/tools/pi_flash_v4.py` (Build am PC → SFTP → esptool write_flash am Pi) — E2E validiert, Hash verifiziert.
-- [ ] P0.2 Stabiles Geräte-/Port-/MAC-Mapping als JSON (`ecosystem/devices.json`) — Basis für alle Tools.
+- [~] P0.2 Stabiles Geräte-/Port-/MAC-Mapping als JSON (`ecosystem/devices.json`) — Basis für alle Tools.
+  - [x] P0.2a Schema festgelegt + [x] P0.2b `ecosystem/devices.json` mit den 12 aus Abschnitt 1
+    bekannten Geräten vorbefüllt ✅ (2026-09-05, Cloud, nur nicht-sensible Felder — keine
+    Zugangsdaten/LAN-IPs, siehe CONSTRAINTS.md Regel 3).
+  - [ ] P0.2c **Lokal:** pro Gerät Port/MAC frisch verifizieren (`esptool.py --port <x> chip_id`,
+    Windows-Gerätemanager bzw. `ls /dev/serial/by-id` am Pi), `verified_at` je Eintrag setzen,
+    Abweichungen (v. a. `last_known_port`, kann sich nach Neustart/Replug ändern) korrigieren.
+  - [ ] P0.2d **Lokal:** `pi_flash_v4.py`/`flipper_ctl.py` auf `ecosystem/devices.json` als
+    Port-Quelle umstellen statt hartkodierter Werte; Regressionstest: bestehender
+    Flash-Workflow (P0.1) läuft unverändert.
+  - Verifikation: `python -c "import json;json.load(open('ecosystem/devices.json'))"` ✅ (Cloud,
+    Syntax geprüft) + Soll/Ist-Abgleich gegen Abschnitt-1-Tabelle (lokal, nach Replug, noch offen).
 - [ ] P0.3 CC2531-Zigbee-Pipeline am Pi: Sniffer-FW-Status prüfen, `whsniff`/`tshark`-Capture → pcap.
-- [ ] P0.4 ukfe_rf-v2-Spec entwerfen (Doku): BLE-Transport-Frame, Ergebnis-Envelope mit Quell-ID, neue Cmds.
+  - [ ] P0.3a **Lokal (Pi-SSH):** `lsusb` gegen erwartete ID `0451:16a8` prüfen, aktuellen
+    Firmware-Stand des CC2531 feststellen (Sniffer- vs. Z-Stack-Coordinator-Image).
+  - [ ] P0.3b **Lokal:** falls kein Sniffer-Image drauf: mit am Pi verfügbarem Tool (z. B.
+    `cc-tool`/SmartRF Flash Programmer) whsniff-kompatibles Firmware-Image flashen.
+  - [ ] P0.3c **Lokal:** Testaufnahme `whsniff -c <Kanal> | tshark -i - -w capture.pcap` für
+    30–60 s, Kanal aus eigener Zigbee-Umgebung wählen.
+  - [ ] P0.3d **Lokal:** pcap in Wireshark sichten — nur Meta-Ergebnis (Kanal, Paketzahl,
+    erkannte Gerätetypen) dokumentieren, **keine** pcap mit echten Fremd-Zigbee-Nutzdaten pushen
+    (analog CONSTRAINTS.md Regel 2/3).
+  - Verifikation: pcap lokal vorhanden, Wireshark zeigt gültige 802.15.4/Zigbee-Frame-Header.
+  - Kein Cloud-Anteil möglich außer dieser Verfeinerung — Pi-SSH und USB-Dongle sind aus der
+    Cloud nicht erreichbar.
+- [~] P0.4 ukfe_rf-v2-Spec entwerfen (Doku): BLE-Transport-Frame, Ergebnis-Envelope mit Quell-ID, neue Cmds.
+  - [x] P0.4a–d Entwurf geliefert ✅ (2026-09-05, Cloud, rein dokumentarisch): siehe
+    [`UKFE-RF-V2-SPEC.md`](UKFE-RF-V2-SPEC.md) — v2-Frame mit Source-ID, Ergebnis-Envelope mit
+    Origin-ID, BLE-GATT-/MTU-Mapping, neue Commands (`0x60`–`0x70`) gegen `FLEET-COMMANDS.md`
+    kollisionsgeprüft.
+  - [ ] P0.4e **Lokal:** Entwurf mit Firmware-Owner-Hut gegenlesen — SRC_ID/ORIGIN_ID-Enum final
+    festlegen, BLE-GATT-UUIDs final vergeben, Rückwärtskompatibilitäts-Strategie entscheiden
+    (siehe Spec Abschnitt 7).
+  - [ ] P0.4f **Lokal:** nach Freigabe erster Firmware-Patch (vermutlich `heltec-v4-hub` zuerst)
+    gegen Spec umsetzen, kompilieren, flashen, Funktest.
+  - Verifikation (Cloud-Teil): Diff gegen `FLEET-COMMANDS.md` zeigt nur Erweiterungen, keine
+    Command-Code-Kollision ✅ geprüft.
 
 ### Phase 1 — Unified Control GUI (Win + Kali) [Kern]
 - [x] P1.1 Projekt-Skelett ✅ (2026-08-26): `ecosystem/g4meover-control/g4meover_control.py` (Tkinter ttk.Notebook — läuft
@@ -178,6 +212,55 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Basis vorhanden aus dieser Session: SF9-LoRaWAN-Join (V3+V4) ✅, WAN-Downlink-Kanal + RespAck ✅, WAN→Flotte ✅,
   Kali-Cockpit (Tkinter, ukfe_rf, Auto-Port, WAN-Tab) ✅, Flipper-Katalog voll ausgebaut ✅.
   → Diese werden in die Unified GUI (Phase 1) überführt/erweitert.
+- 2026-09-05 (Cloud-Heartbeat): P0.2/P0.3/P0.4 in Abschnitt 4 in konkrete Unterschritte zerlegt.
+  P0.2 (Teil): `ecosystem/devices.json` (Schema + 12 Geräte aus Abschnitt 1, nur nicht-sensible
+  Felder) neu angelegt und Syntax geprüft. P0.4 (Teil): vollständiger Protokoll-Entwurf
+  `UKFE-RF-V2-SPEC.md` geliefert (Frame v2, Ergebnis-Envelope, BLE-Mapping, neue Commands,
+  gegen `FLEET-COMMANDS.md` kollisionsgeprüft). P0.3 bleibt reine Lokal-Arbeit (Pi-SSH/USB
+  aus der Cloud nicht erreichbar), nur die TODO-Verfeinerung erledigt. Neuer Abschnitt „PREP
+  für nächste lokale Session" unten ergänzt. Kein Hardware-Zugriff versucht, nichts geflasht.
+
+## PREP für nächste lokale Session
+
+**Nächster konkreter Schritt:**
+1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — Replug-Check nach
+   Neustart nicht vergessen — und `pi_flash_v4.py`/`flipper_ctl.py` darauf umstellen (P0.2d).
+2. CC2531 am Pi: Sniffer-FW-Status prüfen (`lsusb` → `0451:16a8`), ggf. Sniffer-Image flashen,
+   Testaufnahme fahren (P0.3a–d).
+3. `UKFE-RF-V2-SPEC.md` mit Firmware-Owner-Hut gegenlesen: SRC_ID/ORIGIN_ID-Enum, BLE-GATT-UUIDs,
+   Rückwärtskompatibilitäts-Strategie entscheiden (Spec Abschnitt 7), danach ersten Firmware-Patch
+   (vermutlich `heltec-v4-hub`) umsetzen (P0.4e/f).
+
+**Offene Entscheidungen:**
+- GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
+- APK-Framework: Flutter vs. Kotlin-nativ — siehe Abschnitt 6, weiterhin offen.
+- ukfe_rf-v2: gestaffelter Firmware-Rollout (Vorschlag V4→V3→LilyGo→WROOM) vs. harter Cutover —
+  siehe `UKFE-RF-V2-SPEC.md` Abschnitt 7.
+- SRC_ID/ORIGIN_ID-Werte und BLE-GATT-Service-/Characteristic-UUIDs sind im Spec nur Vorschläge,
+  noch nicht final vergeben.
+
+**Risiken/Blocker:**
+- CC2531-Sniffer-Firmware-Status unbekannt — evtl. muss ein Flash-Tool (SmartRF Flash Programmer
+  o. ä.) am Pi erst besorgt/eingerichtet werden, bisher nicht geprüft.
+- Bekanntes Repo-Risiko, unverändert seit mehreren früheren Sitzungen (hier nur gespiegelt, kein
+  neuer Fund): Pi-SSH-/LORIX-Zugangsdaten sollen nie im Klartext ins Repo — beim Pflegen von
+  `devices.json`/PREP-Notizen weiterhin strikt darauf achten (aktuell eingehalten, keine
+  Zugangsdaten oder LAN-IPs in den neuen Dateien dieser Sitzung).
+- Heltec-V4-Native-USB kann nach esptool-Reset kurz verschwinden → ggf. Replug nötig (bekannt,
+  siehe AUTO-FORTSETZUNG Regel 4).
+
+**Nur lokal möglich (Hardware: flashen/serial/BLE/Pi-SSH):**
+- P0.2c/d: echte Port-/MAC-Verifikation, Tool-Umstellung testen.
+- P0.3 komplett: CC2531 physisch am Pi (Firmware-Check/Flash, Capture, Wireshark-Sichtung).
+- P0.4e/f: Firmware-Owner-Review der Spec-Entscheidungen, jede Firmware-Umsetzung
+  (Compile/Flash/Funktest auf V3/V4/LilyGo/WROOM).
+- Phase 1 GUI-Arbeit, sofern gegen echte Serial-/USB-Geräte getestet wird.
+
+**Cloud hat in dieser Sitzung erledigt (2026-09-05):** `ecosystem/devices.json` (Schema +
+Vorbefüllung, nur nicht-sensible Felder), `UKFE-RF-V2-SPEC.md` (vollständiger Protokoll-Entwurf),
+P0.2/P0.3/P0.4-TODOs oben in konkrete Unterschritte zerlegt. Kein Hardware-Zugriff versucht.
+
+---
 
 ## 6. Architektur-Entscheidungen (offen — beim Erreichen entscheiden)
 - GUI-Framework: **PySide6** (Qt, QWebEngine für Karte/Visualizer) vs. Web (Electron/Tauri). *Vorschlag: PySide6.*
