@@ -392,6 +392,26 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (Mifare-Classic-/DESFire-/ICODE-/NTAG-Lesepfade, ~35 Schreib-Szenen, Sektor-Analyse,
       Passwort-Entfernung, Tag-Formatierung/-Sperre — ~10 100 Zeilen) für künftige Sitzungen
       offen.
+      Fortsetzung: `core/nfc_tools_mfc.c` (687 Zeilen, MAD-NDEF-Lese-/Schreibpfad, Format,
+      Memory-Dump), `core/nfc_tools_ntag.c` (110 Zeilen, Format/Dump), `core/nfc_tools_app.c`
+      (120 Zeilen, App-Lifecycle) sowie zur Kontextprüfung `scenes/read/nfc_tools_scene_read_tag.c`
+      und `scenes/other/nfc_tools_scene_sector_analysis.c` vollständig gelesen — kein
+      Speicherzugriffsfehler in diesen Dateien selbst, aber beim Nachverfolgen des DESFire-NDEF-Pfads
+      (`nfc_tools_desfire_read_ndef()`, aus `nfc_tools_scene_read_tag.c` bei jedem DESFire-Scan
+      automatisch aufgerufen) Fund in `core/nfc_tools_desfire.c` (1060 Zeilen, jetzt vollständig
+      gelesen): `t4t_read_binary()` begrenzt die aus der R-APDU übernommene Antwortlänge (`dlen`)
+      nirgends auf das vom Aufrufer angeforderte `length`/die tatsächliche Puffergröße — eine
+      bösartige oder fehlerhafte ISO14443-4A-Karte (Proxmark3/ChameleonMini/zweiter Flipper mit
+      Testfirmware) kann mit bis zu 256 Nutzdatenbytes antworten und damit sowohl feste
+      Stack-Puffer (`cc[CC_SIZE]`=15 Bytes an vier Aufrufstellen, `old_len_raw`/`len_bytes`=2 Bytes)
+      als auch den Heap-Puffer der NDEF-Nutzdaten (`ndef_buf`) überschreiben; erreichbar bereits beim
+      automatischen NDEF-Lesepfad ohne Extra-Klick. Mit Host-Repro (ASan:
+      `stack-buffer-overflow` exakt am Pufferende bei simulierter 200-Byte-Antwort auf eine
+      15-Byte-Anfrage) bestätigt — Ein-Zeilen-Fix (Klammerung von `dlen` auf `length`) in derselben
+      Funktion behebt alle sechs Aufrufstellen gleichzeitig, siehe
+      `firmware-mining/nfctools-desfire-readbinary-oob-write.md`. Restlicher Umfang
+      (`core/nfc_tools_icode.c`, ~35 Schreib-Szenen, Passwort-Entfernung) für künftige Sitzungen
+      offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
