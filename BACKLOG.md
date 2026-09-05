@@ -745,6 +745,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       reine UB ohne derzeit beobachtbaren Effekt, aber fragil bei künftigen Refactors — Fix
       (`MagState state = {0};`) in
       `app-improvements/g4meover-magspoof/state-load-uninitialized-gpio-validity-check-fix.md`.
+- [x] **RollForge** `module_rolljam.c` (`rj_tick()`, Übergang `RJ_P2_RX` → `RJ_REPLAY`)
+      geprüft: die Statuszeile `"Replaying A... (B saved)"` wird gesetzt, bevor
+      `rollforge_save_sig()` für Signal B je aufgerufen wurde — B wird laut `grep` im
+      gesamten Modul ausschließlich manuell über `[v]` in `RJ_DONE` gespeichert. Da
+      `[Back]` während des anschließenden Replays jederzeit bedienbar ist und
+      `rj_exit()`/`rj_rf_clean()` keinerlei Speicheraufruf enthalten, führt der
+      plausibelste Bedienschritt ("B ist ja schon gespeichert") zu unwiderruflichem
+      Verlust von Signal B — genau dem Wert, den der RollJam-Angriff eigentlich liefern
+      soll. Mit Host-Repro (Kontrollfluss-Nachbau inkl. Abbruchpfad, vier Szenarien:
+      sofortiger Abbruch ALT/NEU, Regressionsfall ohne Abbruch, simulierter SD-Fehler)
+      verifiziert — Fix (Speicherung von B an den `RJ_P2_RX`→`RJ_REPLAY`-Übergang
+      vorgezogen, Statuszeile spiegelt jetzt den tatsächlichen Rückgabewert) in
+      `app-improvements/RollForge/rj-b-premature-saved-claim-fix.md`. Rest von
+      `module_rolljam.c`/`module_rolllab.c`/`module_jammer.c` bereits in früheren
+      Sitzungen geprüft; `rollforge_rf.c`/`rollforge_storage.c`/`rollforge_app.c`
+      (Lifecycle/Ext-Int-Umschaltung) weiterhin nur überflogen, nicht Zeile für Zeile
+      geprüft — für künftige Sitzung vorgemerkt.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
