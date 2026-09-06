@@ -429,6 +429,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       als nicht erreichbar verworfen. Damit ist `core/nfc_tools_icode.c` vollständig geprüft;
       restlicher Cluster-Umfang (~35 Schreib-Szenen, Passwort-Entfernung) für künftige Sitzungen
       offen.
+- [x] NFC-Werkzeug-Cluster weiterverfolgt: **NFC Tools** — "NFC Commands" (rohe APDU-Befehle an
+      eine erkannte Karte senden, `scenes/other/nfc_tools_scene_nfc_commands_run.c` +
+      `_input.c`, zusammen 363 Zeilen) vollständig gelesen, dazu zum Quervergleich erneut
+      `nfc_tools_scene_set_password_write.c`, `_remove_password_write.c`, `nfc_tools_scene_format_tag.c`
+      und `nfc_tools_scene_lock_tag.c`. Fund: "NFC Commands" prüft `app->detected_protocol` vor
+      dem Poller-Start nirgends — anders als alle vier genannten Geschwister-Funktionen, die
+      unpassende Protokolle explizit mit "Incompatible tag"/"Unsupported tag: %s" abfangen.
+      Stattdessen entscheidet ein einziger Bool-Helfer (`protocol_is_iso4a()`) ohne Fehlerzweig,
+      welcher der beiden Poller (ISO14443-3A/-4A) den Befehl bekommt, und kennt dabei nur 3 der 6
+      echten ISO14443-4A-Familienmitglieder aus dem eigenen Firmware-Protokollbaum
+      (`lib/nfc/protocols/nfc_protocol.c`): `Ntag4xx` (NTAG424 DNA u. ä.), `Type4Tag` und `Emv`
+      (Bankkarten) fehlen und laufen über den falschen (3A-)Poller; echte Fremdprotokolle
+      (Felica/ISO15693/SLIX/ST25TB/ISO14443-3B/-4B) erhalten keine Fehlermeldung statt eines
+      klaren Abbruchs. Mit Host-Repro (Kontrollfluss-Vergleich über alle 15 `NfcProtocol`-Werte
+      gegen die echte, aus `nfc_protocol.c` übernommene Baumstruktur) bestätigt — Port-Vorschlag
+      inkl. Fix (Nutzung der bereits vorhandenen Firmware-API `nfc_protocol_has_parent()`) in
+      `firmware-mining/nfctools-commands-missing-protocol-guard.md`. Restlicher Cluster-Umfang
+      (~35 Schreib-Szenen, Passwort-Entfernungs-Input) für künftige Sitzungen offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
