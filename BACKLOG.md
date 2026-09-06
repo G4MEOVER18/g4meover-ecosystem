@@ -837,6 +837,30 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Sitzungen geprüft; `rollforge_rf.c`/`rollforge_storage.c`/`rollforge_app.c`
       (Lifecycle/Ext-Int-Umschaltung) weiterhin nur überflogen, nicht Zeile für Zeile
       geprüft — für künftige Sitzung vorgemerkt.
+- [x] **RollForge** Lifecycle-/Ext-Int-Umschaltungs-Rückstellpunkt aufgegriffen:
+      `rollforge_rf.c`/`rollforge_storage.c`/`rollforge_app.c` jetzt vollständig Zeile für
+      Zeile geprüft. Fund in `rollforge_rf.c`: `rf_power_on()` beansprucht das Eigentum an
+      der externen CC1101-OTG-5V-Versorgung (`s_otg_by_app = true`) allein danach, ob die
+      Schiene am Ende der Funktion an ist — nicht danach, ob RollForge sie selbst
+      eingeschaltet hat. War "5V on GPIO" bereits im Power-Menü aktiv (oder von einer
+      anderen Erweiterungsplatinen-App), beansprucht RollForge trotzdem Eigentum und
+      schaltet die fremde Versorgung in `rf_power_off()` wieder ab — im ungünstigsten Fall
+      (kein EXT-Board angeschlossen) bereits augenblicklich beim bloßen App-Start, da
+      `rollforge_rf_init()` bei fehlendem EXT-Board sofort `rf_power_off()` aufruft.
+      Gegenstück zum bereits gefundenen FlipperJammer-OTG-Leck (dort: eigene Versorgung
+      bleibt fälschlich an; hier: fremde Versorgung wird fälschlich abgeschaltet). Mit
+      Host-Repro (`furi_hal_power_is_otg_enabled/enable_otg/disable_otg` als einzelner
+      globaler Zustand gemockt, drei Szenarien inkl. zweier Regressionsfälle) verifiziert —
+      Fix (frühzeitige Rückkehr in `rf_power_on()`, wenn die Versorgung bereits an ist) in
+      `app-improvements/RollForge/otg-power-false-ownership-claim-fix.md`. Zusätzlich
+      geprüft, kein Fund: `rollforge_rf_switch()` (OTG bewusst unangetastet),
+      `rollforge_save_sig()` (Grenzen/Vorzeichenumwandlung der RAW-Werte),
+      Hauptschleifen-Geräte-Guard in `rollforge_app.c` (Lücke von einer Iteration beim
+      Fehlen von CC1101 vorhanden, aber alle drei `_enter()`-Funktionen fassen nur
+      Status-Felder an, kein Hardwarezugriff, und der interne CC1101 ist auf echter
+      Hardware ohnehin immer vorhanden — rein theoretischer Pfad, kein Fix nötig). Damit
+      ist die Lifecycle-/Ext-Int-Umschaltungs-Rückstellpunkt-Gruppe für RollForge
+      abgeschlossen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
