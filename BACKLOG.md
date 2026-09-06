@@ -412,6 +412,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/nfctools-desfire-readbinary-oob-write.md`. Restlicher Umfang
       (`core/nfc_tools_icode.c`, ~35 Schreib-Szenen, Passwort-Entfernung) für künftige Sitzungen
       offen.
+- [x] NFC-Werkzeug-Cluster weiterverfolgt: **NFC Tools** — `core/nfc_tools_icode.c` (635 Zeilen,
+      ICODE/ISO15693-Format-/Dump-/NDEF-Schreibpfad) vollständig gelesen. Fund in
+      `iso15693_write_ndef_blocks()`: das CC.MLEN-Feld (Kapazitätsangabe der kurzen NFC-Forum-
+      Type-5-Tag-Capability-Container, ein Byte, max. 2040 Byte darstellbar) wird aus der vollen
+      Tag-Kapazität als 32-Bit-Wert berechnet und danach ungeprüft auf `uint8_t` gecastet — bei
+      Tags, deren Kapazität (`(block_count-1)*block_size`) über 2040 Byte liegt (spec-konform
+      erreichbar, z. B. 256 Blöcke × 9+ Byte), läuft der Wert unbemerkt um und hinterlässt eine
+      falsche CC, unabhängig von der Größe der tatsächlich geschriebenen NDEF-Nachricht selbst;
+      die Funktion meldet dabei weiterhin Erfolg. Mit eigenständigem Arithmetik-Repro (mehrere
+      Fälle inkl. zweier Regressionsfälle an/unter der Grenze) verifiziert — Port-Vorschlag inkl.
+      Fix in `firmware-mining/nfctools-icode-cc-mlen-overflow-fix.md`. Ein zunächst vermuteter
+      zweiter Fund (Blockindex-Umlauf im Dump-Pfad bei `block_count > 256`) wurde beim Gegenprüfen
+      gegen die eigene, nicht-erweiterte ISO15693-3-Blockadressierung (bereits als 256-Block-Limit
+      in `firmware-mining/nfc-iso15693-read-multi-blocks-and-parser-overrun-fix.md` dokumentiert)
+      als nicht erreichbar verworfen. Damit ist `core/nfc_tools_icode.c` vollständig geprüft;
+      restlicher Cluster-Umfang (~35 Schreib-Szenen, Passwort-Entfernung) für künftige Sitzungen
+      offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
