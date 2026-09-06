@@ -447,6 +447,26 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       inkl. Fix (Nutzung der bereits vorhandenen Firmware-API `nfc_protocol_has_parent()`) in
       `firmware-mining/nfctools-commands-missing-protocol-guard.md`. Restlicher Cluster-Umfang
       (~35 Schreib-Szenen, Passwort-Entfernungs-Input) für künftige Sitzungen offen.
+- [x] NFC-Werkzeug-Cluster weiterverfolgt: Rückstellpunkt "Passwort-Entfernungs-Input"
+      aufgegriffen — `nfc_tools_scene_remove_password_input.c`/`_set_password_input.c` (reine
+      Tastatur-Eingabe-Wrapper, kein Fund) sowie beide zugehörigen Write-Szenen vollständig
+      gelesen. Fund in `nfc_tools_remove_password_write_cb()`
+      (`scenes/other/nfc_tools_scene_remove_password_write.c`): die beiden Schreibschritte
+      (CONFIG-Seite deaktiviert den Passwortschutz komplett, PASSWORD-Seite setzt den
+      Standardwert zurück) laufen in dieser Reihenfolge — bricht die RF-Verbindung nach dem
+      CONFIG-, aber vor dem PASSWORD-Schritt ab (Tag zu früh vom Feld genommen), meldet die App
+      "Password error" (Fehlschlag), obwohl der Passwortschutz auf dem Tag zu diesem Zeitpunkt
+      bereits vollständig deaktiviert ist (AUTH0 = 0xFF wirkt unabhängig vom PASSWORD-Inhalt) —
+      derselbe Fundtyp wie die bereits dokumentierten RollForge-OTG-/RollJam-B-Meldungswidersprüche,
+      hier auf ein fremdes App-Feature angewendet. Geschwisterfunktion `set_password_write_cb()`
+      von derselben Zweistufigkeit betroffen, aber unkritisch (Abbruch nach CONFIG lässt PASSWORD
+      auf Standardwert stehen, ein zweiter Versuch mit der dort fest verdrahteten
+      Standard-Authentifizierung bleibt möglich). Mit Host-Repro (Zustandsmodell aller drei
+      Abbruchstellen, ALT vs. vorgeschlagene Reihenfolge) verifiziert: ALT widerspricht sich in
+      1 von 3 Fällen, NEU in keinem — Port-Vorschlag inkl. Fix (Vertauschen der beiden
+      Schreibaufrufe) in `firmware-mining/nfctools-remove-password-order-fix.md`. Restlicher
+      Cluster-Umfang (~35 Schreib-Szenen für Kontakt/Bitcoin/WLAN/Social/etc.,
+      Tag-Info-/QR-Code-/NDEF-Detail-Lesepfade) weiterhin für künftige Sitzungen offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
