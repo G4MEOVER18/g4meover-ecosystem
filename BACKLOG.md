@@ -896,6 +896,27 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Hardware ohnehin immer vorhanden — rein theoretischer Pfad, kein Fix nötig). Damit
       ist die Lifecycle-/Ext-Int-Umschaltungs-Rückstellpunkt-Gruppe für RollForge
       abgeschlossen.
+- [x] **g4meover-magspoof** Hardware-Lesepfad/Sendefunktion aufgegriffen (`mag.c`
+      App-Lifecycle bereits mitgeprüft, kein Fund — die OTG-5V-Ownership-Behandlung in
+      `mag_app()` prüft `otg_was_enabled` korrekt vor dem Aktivieren und respektiert damit
+      fremdes Eigentum, im Gegensatz zum zuvor gefundenen RollForge-Fall).
+      `helpers/mag_helpers.c::mag_encode()` (die zentrale Bit-Pack-Funktion hinter
+      `mag_spoof()`) geprüft: die aufrufenden Sendefunktionen legen für jeden Track feste
+      64/128-Byte-Stack-Puffer an (Kommentar geht von "68 chars max track 1" aus),
+      `mag_encode()` kennt diese Kapazität aber nicht und läuft bis zum Nullterminator der
+      Eingabe durch — ab 73 Zeichen (Track 1, 7 Bit/Zeichen) bzw. 102 Zeichen (Track 2/3,
+      5 Bit/Zeichen) schreibt `add_bit()` bereits hinter die Allokation. Bei mir über drei
+      unabhängige Wege erreichbar: UART-Kartenlesung (bis 4096 Byte Sammelpuffer,
+      `mag_scene_read.c`), geladene `.mag`-Datei (`flipper_format_read_string()` ohne
+      Längenprüfung, `mag_device_load_data()`), manuelle Eingabe ("Enter track data (WIP)",
+      bis 149 Zeichen laut `MAG_TEXT_STORE_SIZE`). `mag_spoof()` wird bei jedem
+      "Emulate"-Vorgang direkt aufgerufen — kein Sonderfall, sondern der reguläre
+      Absturzpfad für jede Eingabe über der stillschweigend angenommenen Zeichengrenze. Mit
+      eigenständigem Host-Repro der reinen Bit-Pack-Logik unter AddressSanitizer verifiziert
+      (100-Zeichen-Track-1 löst zuverlässig `stack-buffer-overflow` in `add_bit()`/
+      `mag_encode()` aus) — Fix (neuer Kapazitätsparameter, Eingabe wird ab der
+      Pufferkapazität sauber gekappt statt zu überlaufen, LRC-Byte bleibt reserviert) in
+      `app-improvements/g4meover-magspoof/mag-encode-fixed-buffer-overflow-fix.md`.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
