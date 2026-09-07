@@ -917,6 +917,27 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `mag_encode()` aus) — Fix (neuer Kapazitätsparameter, Eingabe wird ab der
       Pufferkapazität sauber gekappt statt zu überlaufen, LRC-Byte bleibt reserviert) in
       `app-improvements/g4meover-magspoof/mag-encode-fixed-buffer-overflow-fix.md`.
+- [x] **ProtoPirate** `protocols/porsche_touareg.c` geprüft (bislang unter "restlicher
+      ProtoPirate-Code" vorgemerkt, erster konkreter Fund in diesem Protokoll): der
+      empfangene 16-Bit-Rolling-Zähler steckt verschlüsselt in `pkt[4..7]` und wird beim
+      Empfang durch reines Brute-Force-Ausprobieren zurückgewonnen
+      (`porsche_cayenne_parse_data()`), die Such-Obergrenze ist aber fest auf `256` begrenzt
+      statt auf den vollen `uint16_t`-Wertebereich des Zählerfelds (0–65535), den die
+      Sender-Seite (`subghz_protocol_encoder_porsche_cayenne_get_upload()`, dieselbe Datei)
+      bereits unbegrenzt nutzt — jeder reale Sender überschreitet einen Zählerstand von 256
+      nach spätestens 256 Tastendrücken, danach bleibt `instance->generic.cnt` bei jedem
+      empfangenen Frame stillschweigend auf dem Initialwert `0` stehen (`Cnt:0000`), ohne
+      dass die App das als Fehlschlag erkennbar macht; Serial/Button werden davon unabhängig
+      weiterhin korrekt angezeigt. Mit Host-Repro (`porsche_cayenne_compute_frame()` 1:1
+      übernommen, zwölf realistische Zählerstände beidseits der 256er-Grenze erzeugt und
+      zurückgesucht) verifiziert: ALT liefert für 7 von 12 Fällen (`cnt` > 256) `Cnt:0000`
+      statt des echten Werts, NEU (Suchbereich auf `65535` erweitert, Schleifentyp auf
+      `uint32_t` angepasst, um den sonst bei `try_cnt == 65535` auftretenden
+      `uint16_t`-Überlauf/Endlosschleife zu vermeiden) liefert in allen zwölf Fällen den
+      korrekten Zähler — Fix in
+      `app-improvements/ProtoPirate/porsche-cayenne-counter-bruteforce-range-fix.md`.
+      Restlicher `ProtoPirate`-Code (übrige Protokoll-Decoder/-Encoder unter `protocols/`,
+      `scenes/`, `views/`, PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
