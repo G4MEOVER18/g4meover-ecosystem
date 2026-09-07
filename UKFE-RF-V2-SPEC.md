@@ -65,10 +65,15 @@ Antwort-Frame nutzt denselben v2-Header. `ARGS` beginnt zusätzlich mit:
 
 ## 5. BLE-Transport-Mapping
 
-- GATT-Service-UUID: **TBD** — Vorschlag: eigene 128-Bit-UUID statt Nordic-UART-Service, um
-  Verwechslung mit fremden BLE-UART-Tools zu vermeiden.
-- Zwei Characteristics: `CMD_WRITE` (Write, Kontroll-Ebene→Gerät) und `RESP_NOTIFY` (Notify,
-  Gerät→Kontroll-Ebene).
+- GATT-Service-UUID: **Vorschlag** (zufällig erzeugte 128-Bit-UUID, noch nicht lokal bestätigt):
+  `f47ac9c1-be9d-4c1a-8709-3d84c074e600` — eigene UUID statt Nordic-UART-Service, um Verwechslung
+  mit fremden BLE-UART-Tools zu vermeiden.
+- Zwei Characteristics (Vorschlag, gleiche Herkunft/Status wie Service-UUID):
+  - `CMD_WRITE` (Write, Kontroll-Ebene→Gerät): `f47ac9c1-be9d-4c1a-8709-3d84c074e601`
+  - `RESP_NOTIFY` (Notify, Gerät→Kontroll-Ebene): `f47ac9c1-be9d-4c1a-8709-3d84c074e602`
+  - Herleitung: Basis-UUID `f47ac9c1-be9d-4c1a-8709-3d84c074e6XX` mit `XX` = `00` Service /
+    `01` CMD_WRITE / `02` RESP_NOTIFY — leicht erweiterbar (`03`+) falls P0.4e eine dritte
+    Characteristic ergibt (z. B. getrennte Fragment-Control).
 - MTU: Ohne Negotiation liegt die ATT-MTU bei 23 B (20 B nutzbar). v2-Frames sind mit
   Header+`MAC4`+`CRC16` (≥12 B Overhead) fast immer größer. Fragmentierung nötig, wenn keine
   Negotiation möglich ist:
@@ -94,8 +99,11 @@ belegt (v1 nutzt `0x01`–`0x51`), keine Kollision.
 
 ## 7. Offen — Entscheidung lokal durch Firmware-Owner
 
-- `SRC_ID`/`ORIGIN_ID`-Enum final festlegen (hier nur Vorschlag, siehe Abschnitt 3).
-- BLE-GATT-Service-/Characteristic-UUIDs final vergeben.
+- `SRC_ID`/`ORIGIN_ID`-Enum final festlegen (Vorschlag steht, siehe Abschnitt 3 — lokal nur noch
+  zu bestätigen oder abzuändern, keine Neuerfindung nötig).
+- BLE-GATT-Service-/Characteristic-UUIDs final vergeben (Vorschlag steht, siehe Abschnitt 5 —
+  ebenfalls nur noch zu bestätigen/abzuändern; **vor dem ersten Firmware-Patch (P0.4f) fixieren**,
+  da die UUID sonst nach dem ersten Flash auf einem Gerät erneut geändert werden müsste).
 - Rückwärtskompatibilität: Versionsbyte-Check + gestaffelter Firmware-Rollout
   (Vorschlag-Reihenfolge V4 → V3 → LilyGo → WROOM) vs. harter Cutover — Entscheidung offen.
 - Muss lokal gegen reale Timing-/Payload-Grenzen durchgerechnet werden (LoRa-Airtime bei SF9,
@@ -103,7 +111,10 @@ belegt (v1 nutzt `0x01`–`0x51`), keine Kollision.
   Kapazitätsprüfung.
 - Kein Code hier — Umsetzung ist ein Firmware-Patch in den jeweiligen Geräte-Repos
   (`heltec-v4-hub`, `heltec-ukfe-rx`, `lilygo-ukfe-rx`, `g4meover-wifi-relay`, Flipper-App), lokal
-  zu bauen/flashen/testen.
+  zu bauen/flashen/testen. Empfohlene Reihenfolge für den ersten Patch (P0.4f): nur `SRC_ID`-Feld
+  + Versionsbyte-Umstellung auf `heltec-v4-hub` (kleinste, isolierteste Änderung), BLE-Transport
+  selbst (Service/Characteristics aus Abschnitt 5) erst in einem eigenen zweiten Patch, sobald
+  P8.1 ansteht — vermeidet, UUID-Entscheidung und Frame-Formatänderung im selben Test zu verwechseln.
 
 Quelle: `FLEET-COMMANDS.md` (v1-Frame, Befehls-Matrix), `G4MEOVER-ECOSYSTEM-MASTERPLAN.md`
 (Phase 0/2b/8, Kern-Baustein B).

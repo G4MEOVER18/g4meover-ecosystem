@@ -94,13 +94,32 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
   - [ ] P0.2d **Lokal:** `pi_flash_v4.py`/`flipper_ctl.py` auf `ecosystem/devices.json` als
     Port-Quelle umstellen statt hartkodierter Werte; Regressionstest: bestehender
     Flash-Workflow (P0.1) läuft unverändert.
+    - Vorschlag für den Zugriffs-Contract (spart lokale Entwurfszeit, beide Tools nutzen
+      dieselbe Helper-Funktion statt eigener Parsing-Logik): `get_device_port(device_id: str,
+      devices_path="ecosystem/devices.json") -> str`. Auflösereihenfolge: 1) exakter Treffer im
+      `devices`-Array über `id`, 2) daraus `usb_id` gegen aktuell angeschlossene Geräte matchen
+      (`esptool.py` liest VID:PID ohnehin beim Verbindungsaufbau), 3) nur falls kein Live-Match
+      möglich (Gerät nicht über USB erkennbar, z. B. V4 rein über SSH/ttyACM) Fallback auf
+      `last_known_port`. Kein Live-Match und kein `last_known_port` → klarer Fehler mit
+      Geräte-`id` in der Meldung, kein stiller Fallback auf einen geratenen Port.
+      `verified_at`/`last_known_port` **nicht** von den Tools automatisch aktualisiert (bleibt
+      manueller Schritt aus P0.2c) — vermeidet, dass ein einmaliger Fehl-Match sich in die JSON
+      zurückschreibt.
   - Verifikation: `python -c "import json;json.load(open('ecosystem/devices.json'))"` ✅ (Cloud,
     Syntax geprüft) + Soll/Ist-Abgleich gegen Abschnitt-1-Tabelle (lokal, nach Replug, noch offen).
 - [ ] P0.3 CC2531-Zigbee-Pipeline am Pi: Sniffer-FW-Status prüfen, `whsniff`/`tshark`-Capture → pcap.
   - [ ] P0.3a **Lokal (Pi-SSH):** `lsusb` gegen erwartete ID `0451:16a8` prüfen, aktuellen
     Firmware-Stand des CC2531 feststellen (Sniffer- vs. Z-Stack-Coordinator-Image).
+    - Praxis-Test statt Firmware-Introspektion: `whsniff -c 11 | tshark -i - -c 5` (kurz,
+      unkritisch) versuchen — liefert es innerhalb weniger Sekunden gültige 802.15.4-Frames,
+      ist ein Sniffer-Image bereits drauf (P0.3b entfällt); hängt es oder liefert nur Müll, ist
+      vermutlich ein Coordinator-/Router-Image drauf → P0.3b.
   - [ ] P0.3b **Lokal:** falls kein Sniffer-Image drauf: mit am Pi verfügbarem Tool (z. B.
     `cc-tool`/SmartRF Flash Programmer) whsniff-kompatibles Firmware-Image flashen.
+    - Vorab prüfen, ob am Pi bereits ein CC-Debugger oder ein anderer unterstützter Flash-Weg für
+      den CC2531 vorhanden ist (`cc-tool` braucht i. d. R. einen Debugger/Programmer, nicht nur
+      die USB-Dongle-Verbindung selbst) — falls nicht vorhanden, ist das der eigentliche Blocker
+      dieses Unterschritts, nicht das Firmware-Image selbst.
   - [ ] P0.3c **Lokal:** Testaufnahme `whsniff -c <Kanal> | tshark -i - -w capture.pcap` für
     30–60 s, Kanal aus eigener Zigbee-Umgebung wählen.
   - [ ] P0.3d **Lokal:** pcap in Wireshark sichten — nur Meta-Ergebnis (Kanal, Paketzahl,
@@ -219,46 +238,81 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   gegen `FLEET-COMMANDS.md` kollisionsgeprüft). P0.3 bleibt reine Lokal-Arbeit (Pi-SSH/USB
   aus der Cloud nicht erreichbar), nur die TODO-Verfeinerung erledigt. Neuer Abschnitt „PREP
   für nächste lokale Session" unten ergänzt. Kein Hardware-Zugriff versucht, nichts geflasht.
+- 2026-09-07 (Cloud-Heartbeat): die drei nächsten offenen TODOs (P0.2d, P0.3a/b, P0.4e/f) einen
+  Schritt konkreter gemacht, damit die lokale Session direkt entscheiden/umsetzen kann statt
+  erst zu entwerfen: P0.2d bekam einen fertigen Zugriffs-Contract-Vorschlag
+  (`get_device_port()`-Auflösereihenfolge usb_id-Live-Match → `last_known_port`-Fallback →
+  Fehler, kein stiller Fallback) für `pi_flash_v4.py`/`flipper_ctl.py`. P0.3a/b bekam einen
+  Praxis-Test (`whsniff`-Kurzversuch statt Firmware-Introspektion) und den Hinweis, dass ein
+  fehlender CC-Debugger/Programmer der eigentliche Blocker für P0.3b sein könnte, nicht das
+  Firmware-Image selbst. P0.4e/f (`UKFE-RF-V2-SPEC.md`): BLE-Service-/Characteristic-UUIDs als
+  konkreter Vorschlag ergänzt (Abschnitt 5), inkl. Hinweis, sie vor dem ersten Firmware-Patch zu
+  fixieren, sowie eine empfohlene Patch-Reihenfolge (erst nur `SRC_ID`/Versionsbyte auf
+  `heltec-v4-hub`, BLE-Transport separat erst zu P8.1) — beides jetzt Bestätigen-statt-Entwerfen
+  für die lokale Session. Kein Hardware-Zugriff versucht, nichts geflasht. Wiederkehrender Fund
+  aus den letzten ~30 Firmware-Mining-Reports gegengelesen (siehe PREP unten): Pi-SSH-/
+  LORIX-Zugangsdaten weiterhin im Klartext in der Repo-Historie, seit 2026-08-27 unrotiert.
 
 ## PREP für nächste lokale Session
 
 **Nächster konkreter Schritt:**
 1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — Replug-Check nach
-   Neustart nicht vergessen — und `pi_flash_v4.py`/`flipper_ctl.py` darauf umstellen (P0.2d).
-2. CC2531 am Pi: Sniffer-FW-Status prüfen (`lsusb` → `0451:16a8`), ggf. Sniffer-Image flashen,
-   Testaufnahme fahren (P0.3a–d).
-3. `UKFE-RF-V2-SPEC.md` mit Firmware-Owner-Hut gegenlesen: SRC_ID/ORIGIN_ID-Enum, BLE-GATT-UUIDs,
-   Rückwärtskompatibilitäts-Strategie entscheiden (Spec Abschnitt 7), danach ersten Firmware-Patch
-   (vermutlich `heltec-v4-hub`) umsetzen (P0.4e/f).
+   Neustart nicht vergessen — und `pi_flash_v4.py`/`flipper_ctl.py` auf den in P0.2d vorgeschlagenen
+   `get_device_port()`-Contract umstellen (Vorschlag steht, nur noch zu übernehmen/anzupassen).
+2. CC2531 am Pi: erst den Praxis-Test aus P0.3a (`whsniff -c 11 | tshark -i - -c 5`) versuchen —
+   liefert er Frames, direkt zu P0.3c/d; sonst Flash-Weg klären (P0.3b, siehe Blocker-Hinweis
+   unten) und dann Testaufnahme + Sichtung (P0.3c/d).
+3. `UKFE-RF-V2-SPEC.md` Abschnitt 5/7 gegenlesen: SRC_ID/ORIGIN_ID-Enum und BLE-GATT-UUIDs sind
+   jetzt fertige Vorschläge (nur noch bestätigen oder gezielt abändern, nicht neu entwerfen),
+   Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
+   kleinen Firmware-Patch auf `heltec-v4-hub` umsetzen (P0.4e/f) — nur `SRC_ID`/Versionsbyte,
+   BLE-Transport separat später.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
 - APK-Framework: Flutter vs. Kotlin-nativ — siehe Abschnitt 6, weiterhin offen.
 - ukfe_rf-v2: gestaffelter Firmware-Rollout (Vorschlag V4→V3→LilyGo→WROOM) vs. harter Cutover —
   siehe `UKFE-RF-V2-SPEC.md` Abschnitt 7.
-- SRC_ID/ORIGIN_ID-Werte und BLE-GATT-Service-/Characteristic-UUIDs sind im Spec nur Vorschläge,
-  noch nicht final vergeben.
+- SRC_ID/ORIGIN_ID-Werte und BLE-GATT-Service-/Characteristic-UUIDs stehen jetzt als konkrete
+  Vorschläge im Spec (Abschnitt 3/5) — lokal nur noch zu bestätigen oder gezielt zu ändern, bevor
+  der erste Firmware-Patch sie fixiert.
 
 **Risiken/Blocker:**
 - CC2531-Sniffer-Firmware-Status unbekannt — evtl. muss ein Flash-Tool (SmartRF Flash Programmer
-  o. ä.) am Pi erst besorgt/eingerichtet werden, bisher nicht geprüft.
-- Bekanntes Repo-Risiko, unverändert seit mehreren früheren Sitzungen (hier nur gespiegelt, kein
-  neuer Fund): Pi-SSH-/LORIX-Zugangsdaten sollen nie im Klartext ins Repo — beim Pflegen von
-  `devices.json`/PREP-Notizen weiterhin strikt darauf achten (aktuell eingehalten, keine
-  Zugangsdaten oder LAN-IPs in den neuen Dateien dieser Sitzung).
+  o. ä.) am Pi erst besorgt/eingerichtet werden. Konkretisiert diese Sitzung: der wahrscheinlichere
+  Blocker ist ein fehlender CC-Debugger/Programmer für `cc-tool`, nicht das Firmware-Image selbst
+  — das zuerst klären, bevor nach einem Sniffer-Image gesucht wird.
+- **Sicherheitsrelevant, seit 2026-08-27 unverändert in praktisch jedem Sitzungs-Report
+  eskaliert (Stand des letzten Reports: 29 Sitzungen in Folge unverändert), hier zum ersten Mal
+  in den Masterplan selbst übernommen, damit es nicht nur in `reports/` untergeht:** Pi-SSH- und
+  LORIX-Gateway-Admin-Zugangsdaten stehen im Klartext in mindestens Commit `df0cf3b` der eigenen,
+  bereits auf GitHub gepushten Repo-Historie (aktueller Dateistand ist bereinigt, die Git-Historie
+  selbst nicht). Weder Rotation noch eine Entscheidung über Historie-Bereinigung
+  (`git filter-repo`/BFG + Force-Push) sind bislang bestätigt — beides sind Schritte, die nur
+  lokal mit ausdrücklicher Freigabe passieren können (Force-Push, Zugangsdaten-Rotation). Bis
+  dahin: Repo als kompromittiert für diese beiden Zugangsdaten behandeln.
 - Heltec-V4-Native-USB kann nach esptool-Reset kurz verschwinden → ggf. Replug nötig (bekannt,
   siehe AUTO-FORTSETZUNG Regel 4).
 
 **Nur lokal möglich (Hardware: flashen/serial/BLE/Pi-SSH):**
-- P0.2c/d: echte Port-/MAC-Verifikation, Tool-Umstellung testen.
+- P0.2c/d: echte Port-/MAC-Verifikation, Tool-Umstellung gegen den vorgeschlagenen Contract testen.
 - P0.3 komplett: CC2531 physisch am Pi (Firmware-Check/Flash, Capture, Wireshark-Sichtung).
-- P0.4e/f: Firmware-Owner-Review der Spec-Entscheidungen, jede Firmware-Umsetzung
+- P0.4e/f: Firmware-Owner-Review der jetzt vorliegenden Spec-Vorschläge, jede Firmware-Umsetzung
   (Compile/Flash/Funktest auf V3/V4/LilyGo/WROOM).
 - Phase 1 GUI-Arbeit, sofern gegen echte Serial-/USB-Geräte getestet wird.
+- Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
+  Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-05):** `ecosystem/devices.json` (Schema +
-Vorbefüllung, nur nicht-sensible Felder), `UKFE-RF-V2-SPEC.md` (vollständiger Protokoll-Entwurf),
-P0.2/P0.3/P0.4-TODOs oben in konkrete Unterschritte zerlegt. Kein Hardware-Zugriff versucht.
+**Cloud hat in dieser Sitzung erledigt (2026-09-07):** die drei nächsten offenen TODOs (P0.2d,
+P0.3a/b, P0.4e/f) um konkrete, sofort umsetzbare Unterschritte ergänzt (Zugriffs-Contract-Vorschlag,
+Praxis-Test statt Firmware-Introspektion, fertige BLE-UUID-/Patch-Reihenfolge-Vorschläge in
+`UKFE-RF-V2-SPEC.md`); den seit Wochen in `reports/` wiederholten, aber im Masterplan bislang nicht
+sichtbaren Zugangsdaten-Fund hier als Risiko ergänzt. Kein Hardware-Zugriff versucht, nichts
+geflasht, kein Firmware-/GUI-Code geschrieben.
+
+**Vorherige Cloud-Sitzung (2026-09-05):** `ecosystem/devices.json` (Schema + Vorbefüllung, nur
+nicht-sensible Felder), `UKFE-RF-V2-SPEC.md` (vollständiger Protokoll-Entwurf), P0.2/P0.3/P0.4-TODOs
+in konkrete Unterschritte zerlegt.
 
 ---
 
