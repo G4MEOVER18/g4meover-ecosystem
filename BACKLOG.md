@@ -467,6 +467,21 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Schreibaufrufe) in `firmware-mining/nfctools-remove-password-order-fix.md`. Restlicher
       Cluster-Umfang (~35 Schreib-Szenen für Kontakt/Bitcoin/WLAN/Social/etc.,
       Tag-Info-/QR-Code-/NDEF-Detail-Lesepfade) weiterhin für künftige Sitzungen offen.
+- [x] `uhf_rfid` erneut aufgegriffen: bei der NFC-Comparator-Sitzung nur als Fremdhardware-Fall
+      (externes YRM100-Modul) bestätigt und ohne vollständigen Quelltext-Review abgeschlossen —
+      diesmal alle 15 C-Dateien/beide Header-Verzeichnisse vollständig gelesen. Fund in
+      `uhf_app.c::convertToHexString()` (durchläuft jede EPC-/TID-/USER-Bank-Anzeige): die
+      Allokation reserviert `strlen(furi_str)` Byte ohne Platz für den Nullterminator und
+      `memcpy` kopiert das `\0` nicht mit — ein Heap-Buffer-Overflow-Read bei jedem nachgelagerten
+      Umgang mit dem Rückgabewert als C-String (`widget_add_string_multiline_element()`), tritt
+      bei jedem erfolgreichen Read mit nicht-leerer Bank auf. Zusätzlicher Fund im selben
+      Funktionskörper: bei Bank-Größe 0 gibt die Funktion ein String-Literal zurück, das beide
+      Aufrufstellen anschließend per `free()` freigeben (Freigabe von Nicht-Heap-Speicher). Mit
+      Host-Repro (vier isolierte Szenarien unter AddressSanitizer/UBSan: ALT/NEU × Normalfall/
+      Leerfall) bestätigt: ALT bricht in beiden Fehlerfällen ab, NEU in keinem — Port-Vorschlag
+      inkl. Fix in `firmware-mining/uhfrfid-hexstring-oob-read-fix.md`. Restlicher NFC-Werkzeug-
+      Cluster nach wie vor nur `nfctools` (Fortsetzung laufend) sowie die bestätigten
+      Fremdgerät-Fälle `chameleon`/`nfc_relay`.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
