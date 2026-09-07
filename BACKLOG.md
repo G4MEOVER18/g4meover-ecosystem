@@ -938,6 +938,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/ProtoPirate/porsche-cayenne-counter-bruteforce-range-fix.md`.
       Restlicher `ProtoPirate`-Code (übrige Protokoll-Decoder/-Encoder unter `protocols/`,
       `scenes/`, `views/`, PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
+- [x] **ProtoPirate** `protocols/fiat_v1.c` (Fiat/Lancia, Magneti-Marelli-BSI-Protokoll)
+      vollständig geprüft: der 13-Byte-Rohframe wird beim Live-Empfang durchgehend korrekt in
+      `raw_data[]` gehalten, aber für Speichern/Laden zusätzlich verlustbehaftet über ein
+      `uint32_t extra_data` (40 Bit hineingeschoben, nur 32 passen — die zuerst eingeschobenen
+      8 Bit, Byte 8, gehen dabei unwiderruflich verloren) sowie einen beim Laden zusätzlich auf
+      32 Iterationen gedeckelten Wiederherstellungs-Loop (`i < extra_bits && i < 32`, obwohl
+      `extra_bits` korrekt 40 beträgt — Byte 12, das CRC-Byte, wird dadurch nie
+      wiederhergestellt) geführt — jede gespeicherte Aufnahme verliert beim Neuladen Byte 8 und
+      Byte 12 (beide werden `0x00`), `get_string()` zeigt danach ein falsches erstes
+      Payload-Byte und praktisch immer `CRC:[FAIL]` statt der ursprünglich gültigen Aufnahme.
+      Mit Host-Repro (Bit-Packing/Wiederherstellung 1:1 aus der Datei, 13-Byte-Testframe durch
+      den vollen Empfangen→Speichern→Laden-Zyklus geschickt) verifiziert: ALT verliert 2 von 13
+      Byte, NEU (Speichern/Laden auf ein direktes 5-Byte-Hex-Feld `ExtraRaw` umgestellt, analog
+      zum `TailRaw`-Muster in `ford_v2.c`) liefert einen byte-exakten Rundlauf — Fix in
+      `app-improvements/ProtoPirate/fiat-v1-extra-raw-save-load-corruption-fix.md`.
+      Restlicher `ProtoPirate`-Code (`fiat_v0`, `chrysler_v0`, `honda_static`/`honda_v1`,
+      `kia_v0`–`v7`, `land_rover_v0`, `mazda_v0`, `star_line`, `subaru`, `vag.c`,
+      PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
