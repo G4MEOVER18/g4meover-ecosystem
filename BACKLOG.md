@@ -977,14 +977,31 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       wie im bereits vorhandenen Encoder-Pfad) in
       `app-improvements/ProtoPirate/fiat-v0-decoder-deserialize-missing-field-restore-fix.md`.
       Restlicher `ProtoPirate`-Code (`chrysler_v0`, `honda_static`/`honda_v1`,
-      `kia_v0`–`v7`, `land_rover_v0`, `mazda_v0`, `star_line`, `subaru`, `vag.c`,
-      PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft. Beim Durchsehen der
-      übrigen Decoder außerdem festgestellt: derselbe Ein-Zeilen-Durchreicher-Deserialize
-      ohne Nachbearbeitung findet sich auch in `kia_v2.c` (dessen `get_string()` ebenfalls
-      `generic.serial`/`generic.btn`/`generic.cnt` statt aus `generic.data`
-      rückgerechneter Werte anzeigt) und mutmaßlich weiteren noch ungeprüften Dateien —
-      als eigenständiger, übergreifender Prüfpunkt für eine künftige Sitzung vorgemerkt,
-      Datei für Datei zu bestätigen statt pauschal anzunehmen.
+      `kia_v0`–`v1`, `kia_v3`–`v7`, `land_rover_v0`, `mazda_v0`, `star_line`, `subaru`,
+      `vag.c`, PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft. Beim Durchsehen
+      der übrigen Decoder außerdem festgestellt: derselbe Ein-Zeilen-Durchreicher-
+      Deserialize ohne Nachbearbeitung findet sich mutmaßlich auch in weiteren noch
+      ungeprüften Dateien (`kia_v2.c` diese Sitzung neu bestätigt, siehe eigener Eintrag
+      unten) — als eigenständiger, übergreifender Prüfpunkt für künftige Sitzungen
+      vorgemerkt, Datei für Datei zu bestätigen statt pauschal anzunehmen.
+- [x] **ProtoPirate** `protocols/kia_v2.c` (Kia/Hyundai, 53-Bit-Rolling-Code-Protokoll)
+      vollständig geprüft: derselbe Ein-Zeilen-Durchreicher-Deserialize wie bei
+      `fiat_v0`/`fiat_v1` bestätigt. `kia_protocol_decoder_v2_deserialize()` ruft nur die
+      Stock-Hilfsfunktion `subghz_block_generic_deserialize_check_count_bit()` auf, die
+      ausschließlich `generic.data`/`generic.data_count_bit` aus `"Key"`/`"Bit"` füllt —
+      `generic.serial`/`btn`/`cnt`, die einzige Datenquelle von
+      `kia_protocol_decoder_v2_get_string()` für `Sn:`/`Btn:`/`Cnt:`, bleiben nach dem
+      Laden einer gespeicherten Aufnahme unverändert (Instanz kommt aus `malloc()` ohne
+      Nullinit). Jede über "Saved" geöffnete Kia-V2-Datei zeigt dadurch ausnahmslos
+      `Sn:00000000 Btn:0 Cnt:000` statt der echten Werte, während `Key:`/`CRC:` (direkt
+      aus `generic.data` berechnet) bereits korrekt sind und Senden (eigener
+      Encoder-Deserialize-Pfad) unbetroffen bleibt. Mit Host-Repro (Modell der
+      Stock-Hilfsfunktion, beide Deserialize-Fassungen, drei Testfälle inkl. Randfällen
+      `serial=btn=cnt=0`/Maximalwerten, Zielwerte unabhängig rückwärts in `generic.data`
+      kodiert) unter `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert —
+      Fix (`serial`/`btn`/`cnt` mit derselben Formel wie im Live-Decode-Pfad
+      `kia_protocol_decoder_v2_feed()` aus `generic.data` zurückrechnen) in
+      `app-improvements/ProtoPirate/kia-v2-decoder-deserialize-missing-field-restore-fix.md`.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
