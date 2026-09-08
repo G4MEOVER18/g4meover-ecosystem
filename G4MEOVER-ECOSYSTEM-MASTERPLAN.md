@@ -91,6 +91,31 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
   - [ ] P0.2c **Lokal:** pro Gerät Port/MAC frisch verifizieren (`esptool.py --port <x> chip_id`,
     Windows-Gerätemanager bzw. `ls /dev/serial/by-id` am Pi), `verified_at` je Eintrag setzen,
     Abweichungen (v. a. `last_known_port`, kann sich nach Neustart/Replug ändern) korrigieren.
+    - Konkrete Prüfschritte je aktivem Gerät aus `ecosystem/devices.json` (planned-Geräte
+      esp32-cam/ra08/cubecell entfallen, noch nicht vorhanden):
+      - `flipper` (pc, VID:PID `0483:5740`): Gerätemanager-COM-Port gegen `last_known_port`
+        (`COM3`) abgleichen (kein `esptool` — STM32, kein ESP32).
+      - `heltec-v4-hub` (pi, VID:PID `303a:1001`): `ls -l /dev/serial/by-id/` (persistenter
+        Pfad, überlebt Replug/Neustart, besser als `ttyACMx`-Zählung) + `esptool.py --port
+        <Pfad> read_mac`, Ergebnis gegen `B0:A6:04:C5:73:68` abgleichen.
+      - `heltec-v3` (pc, VID:PID `10C4:EA60`): Gerätemanager-COM-Port + `esptool.py --port
+        COMxx read_mac` gegen `AC:A7:04:06:B1:90`.
+      - `esp32-wroom` (pc, VID:PID `1A86:55D4`): Gerätemanager-COM-Port + `esptool.py --port
+        COMxx chip_id`; `devices.json` hat für dieses Gerät noch keine MAC — beim Verifizieren
+        per `read_mac` ergänzen.
+      - `lilygo-t-display` (pc, VID:PID `303a:1001` — identisch mit `heltec-v4-hub`, aber
+        anderer Host/PC, daher keine reale Verwechslungsgefahr über USB): Gerätemanager-COM-Port
+        + `esptool.py --port COMxx read_mac` (MAC bisher nicht hinterlegt — ergänzen).
+      - `dogytag` (pc, `usb_id` bisher `null`): Gerätemanager-COM-Port, dabei VID:PID nachtragen,
+        + `read_mac` gegen `1C:DB:D4:A7:03:34`.
+      - `cc2531-zigbee` (pi, VID:PID `0451:16a8`): `lsusb` + Portpfad via `ls
+        /dev/serial/by-id/`/`dmesg` — deckt sich mit dem P0.3a-Praxis-Test, kann in einem
+        Rutsch mit erledigt werden.
+      - `raspberry-pi-4`, `lorix-one-gw` (beide `lan`): kein Port zu verifizieren, nur
+        Erreichbarkeit (SSH bzw. Web-UI/SSH) mit den lokal notierten Zugangsdaten prüfen.
+      - Nach jedem Gerät `verified_at` (Datum) im jeweiligen `devices.json`-Eintrag setzen;
+        `notes`/`usb_id`-Lücken (s. o.) gleich mitfüllen, aber **keine** Zugangsdaten/LAN-IPs
+        eintragen (CONSTRAINTS.md Regel 3).
   - [ ] P0.2d **Lokal:** `pi_flash_v4.py`/`flipper_ctl.py` auf `ecosystem/devices.json` als
     Port-Quelle umstellen statt hartkodierter Werte; Regressionstest: bestehender
     Flash-Workflow (P0.1) läuft unverändert.
@@ -252,13 +277,30 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   für die lokale Session. Kein Hardware-Zugriff versucht, nichts geflasht. Wiederkehrender Fund
   aus den letzten ~30 Firmware-Mining-Reports gegengelesen (siehe PREP unten): Pi-SSH-/
   LORIX-Zugangsdaten weiterhin im Klartext in der Repo-Historie, seit 2026-08-27 unrotiert.
+- 2026-09-08 (Cloud-Heartbeat): P0.2c (bisher nur generisch "pro Gerät prüfen") um eine
+  konkrete Prüfschritt-Liste je der 9 aktiven Geräte aus `ecosystem/devices.json` ergänzt
+  (genauer Befehl/VID:PID/MAC-Soll-Wert pro Eintrag, inkl. Hinweis auf die noch fehlenden
+  `usb_id`/MAC-Werte bei `esp32-wroom`/`lilygo-t-display`/`dogytag`). Beim Gegenlesen des
+  Zugangsdaten-Fund-Zitats den bisher überall zitierten Commit **korrigiert**: `df0cf3b` (Aug 26,
+  README+Screenshots) enthält keine Zugangsdaten — der tatsächliche Fund ist der ursprüngliche
+  Masterplan-Commit `7e39b5b` (fügt `192.168.0.18`/`kali@…/kali` sowie `192.168.0.130`/
+  `admin/Core2Quad` im Klartext ein) und dessen Redaktions-Commit `57560bd`, dessen Diff die
+  entfernten Werte weiterhin als `-`-Zeile im Objekt trägt — beide direkt per `git show`
+  gegengeprüft. Damit bestätigt sich der wiederholte Fund als real, nur die Commit-Angabe in den
+  letzten ~30 Reports war falsch (vermutlich einmal falsch zitiert und seither unverändert
+  weitergereicht). Repo-Sichtbarkeit geprüft: `G4MEOVER18/g4meover-ecosystem` ist **privat**
+  (senkt die Dringlichkeit gegenüber "öffentlich exponiert", macht Rotation/Historie-Bereinigung
+  aber nicht überflüssig). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/
+  GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
 **Nächster konkreter Schritt:**
-1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — Replug-Check nach
-   Neustart nicht vergessen — und `pi_flash_v4.py`/`flipper_ctl.py` auf den in P0.2d vorgeschlagenen
-   `get_device_port()`-Contract umstellen (Vorschlag steht, nur noch zu übernehmen/anzupassen).
+1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — die neue Prüfschritt-
+   Liste unter P0.2c oben (Abschnitt 4) ist pro Gerät fertig (Befehl + Soll-MAC/VID:PID), nur noch
+   abzuarbeiten und `verified_at` zu setzen; Replug-Check nach Neustart nicht vergessen. Danach
+   `pi_flash_v4.py`/`flipper_ctl.py` auf den in P0.2d vorgeschlagenen `get_device_port()`-Contract
+   umstellen (Vorschlag steht, nur noch zu übernehmen/anzupassen).
 2. CC2531 am Pi: erst den Praxis-Test aus P0.3a (`whsniff -c 11 | tshark -i - -c 5`) versuchen —
    liefert er Frames, direkt zu P0.3c/d; sonst Flash-Weg klären (P0.3b, siehe Blocker-Hinweis
    unten) und dann Testaufnahme + Sichtung (P0.3c/d).
@@ -267,6 +309,9 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
    kleinen Firmware-Patch auf `heltec-v4-hub` umsetzen (P0.4e/f) — nur `SRC_ID`/Versionsbyte,
    BLE-Transport separat später.
+4. **Sicherheitsrelevant, siehe Risiken unten:** Pi-SSH-Passwort und LORIX-Admin-Passwort rotieren
+   und entscheiden, ob die Git-Historie bereinigt wird (`git filter-repo`/BFG + Force-Push) — die
+   Commit-Angabe dafür ist jetzt korrekt (`7e39b5b`/`57560bd`, nicht mehr `df0cf3b`).
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
@@ -276,43 +321,55 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
 - SRC_ID/ORIGIN_ID-Werte und BLE-GATT-Service-/Characteristic-UUIDs stehen jetzt als konkrete
   Vorschläge im Spec (Abschnitt 3/5) — lokal nur noch zu bestätigen oder gezielt zu ändern, bevor
   der erste Firmware-Patch sie fixiert.
+- Ob Pi-SSH-Passwort/LORIX-Admin-Passwort rotiert **und zusätzlich** die Git-Historie bereinigt
+  wird, oder ob (da Repo privat, siehe Risiken) Rotation allein als ausreichend gilt — Force-Push
+  über bereits gepushte, öffentlich zitierte Commit-SHAs ist eine bewusste Entscheidung, keine
+  Routine-Aktion.
 
 **Risiken/Blocker:**
 - CC2531-Sniffer-Firmware-Status unbekannt — evtl. muss ein Flash-Tool (SmartRF Flash Programmer
   o. ä.) am Pi erst besorgt/eingerichtet werden. Konkretisiert diese Sitzung: der wahrscheinlichere
   Blocker ist ein fehlender CC-Debugger/Programmer für `cc-tool`, nicht das Firmware-Image selbst
   — das zuerst klären, bevor nach einem Sniffer-Image gesucht wird.
-- **Sicherheitsrelevant, seit 2026-08-27 unverändert in praktisch jedem Sitzungs-Report
-  eskaliert (Stand des letzten Reports: 29 Sitzungen in Folge unverändert), hier zum ersten Mal
-  in den Masterplan selbst übernommen, damit es nicht nur in `reports/` untergeht:** Pi-SSH- und
-  LORIX-Gateway-Admin-Zugangsdaten stehen im Klartext in mindestens Commit `df0cf3b` der eigenen,
-  bereits auf GitHub gepushten Repo-Historie (aktueller Dateistand ist bereinigt, die Git-Historie
-  selbst nicht). Weder Rotation noch eine Entscheidung über Historie-Bereinigung
-  (`git filter-repo`/BFG + Force-Push) sind bislang bestätigt — beides sind Schritte, die nur
-  lokal mit ausdrücklicher Freigabe passieren können (Force-Push, Zugangsdaten-Rotation). Bis
-  dahin: Repo als kompromittiert für diese beiden Zugangsdaten behandeln.
+- **Sicherheitsrelevant, seit 2026-08-27 unverändert eskaliert, diese Sitzung gegen die
+  Repo-Historie direkt verifiziert (nicht nur aus `reports/` übernommen) — dabei die bisherige
+  Commit-Angabe korrigiert:** Pi-SSH-Login (`kali@…`, Passwort `kali`) und LORIX-Gateway-Admin
+  (`admin`/`Core2Quad`) stehen im Klartext in Commit `7e39b5b` (fügt sie ein) und sind über den
+  Diff von `57560bd` (entfernt sie aus der aktuellen Datei, der Diff selbst zeigt die Werte aber
+  weiterhin als `-`-Zeile) weiterhin abrufbar — **nicht** `df0cf3b`, wie in allen vorherigen
+  Reports/Log-Einträgen zitiert (dieser Commit enthält nur README-Text + zwei PNG-Screenshots,
+  beide ohne sichtbare Zugangsdaten, per Bildsichtung geprüft). Repo-Sichtbarkeit geprüft: `private`
+  — reduziert die Dringlichkeit gegenüber einer öffentlichen Exposition, macht Rotation aber nicht
+  überflüssig (jeder Collaborator/App mit Repo-Zugriff sieht es; ein versehentliches Public-Setzen
+  würde es sofort breit exponieren). Weder Rotation noch eine Entscheidung über
+  Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
+  möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
+  Zugangsdaten behandeln.
 - Heltec-V4-Native-USB kann nach esptool-Reset kurz verschwinden → ggf. Replug nötig (bekannt,
   siehe AUTO-FORTSETZUNG Regel 4).
 
 **Nur lokal möglich (Hardware: flashen/serial/BLE/Pi-SSH):**
-- P0.2c/d: echte Port-/MAC-Verifikation, Tool-Umstellung gegen den vorgeschlagenen Contract testen.
+- P0.2c/d: echte Port-/MAC-Verifikation (Prüfschritt-Liste steht), Tool-Umstellung gegen den
+  vorgeschlagenen Contract testen.
 - P0.3 komplett: CC2531 physisch am Pi (Firmware-Check/Flash, Capture, Wireshark-Sichtung).
 - P0.4e/f: Firmware-Owner-Review der jetzt vorliegenden Spec-Vorschläge, jede Firmware-Umsetzung
   (Compile/Flash/Funktest auf V3/V4/LilyGo/WROOM).
 - Phase 1 GUI-Arbeit, sofern gegen echte Serial-/USB-Geräte getestet wird.
 - Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
-  Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen.
+  Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen (jetzt mit korrekter
+  Commit-Angabe).
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-07):** die drei nächsten offenen TODOs (P0.2d,
-P0.3a/b, P0.4e/f) um konkrete, sofort umsetzbare Unterschritte ergänzt (Zugriffs-Contract-Vorschlag,
-Praxis-Test statt Firmware-Introspektion, fertige BLE-UUID-/Patch-Reihenfolge-Vorschläge in
-`UKFE-RF-V2-SPEC.md`); den seit Wochen in `reports/` wiederholten, aber im Masterplan bislang nicht
-sichtbaren Zugangsdaten-Fund hier als Risiko ergänzt. Kein Hardware-Zugriff versucht, nichts
-geflasht, kein Firmware-/GUI-Code geschrieben.
+**Cloud hat in dieser Sitzung erledigt (2026-09-08):** P0.2c von einer generischen Anweisung zu
+einer fertigen Prüfschritt-Liste je der 9 aktiven Geräte gemacht (Befehl, VID:PID, Soll-MAC pro
+Eintrag aus `ecosystem/devices.json`). Den seit 2026-08-27 wiederholten Zugangsdaten-Fund direkt
+gegen die Repo-Historie verifiziert (nicht nur aus `reports/` übernommen) und dabei eine seit
+~30 Reports falsch zitierte Commit-Angabe korrigiert (`df0cf3b` → `7e39b5b`/`57560bd`) sowie die
+Repo-Sichtbarkeit (privat) geprüft. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-05):** `ecosystem/devices.json` (Schema + Vorbefüllung, nur
-nicht-sensible Felder), `UKFE-RF-V2-SPEC.md` (vollständiger Protokoll-Entwurf), P0.2/P0.3/P0.4-TODOs
-in konkrete Unterschritte zerlegt.
+**Vorherige Cloud-Sitzung (2026-09-07):** die drei nächsten offenen TODOs (P0.2d, P0.3a/b, P0.4e/f)
+um konkrete, sofort umsetzbare Unterschritte ergänzt (Zugriffs-Contract-Vorschlag, Praxis-Test statt
+Firmware-Introspektion, fertige BLE-UUID-/Patch-Reihenfolge-Vorschläge in `UKFE-RF-V2-SPEC.md`).
 
 ---
 
