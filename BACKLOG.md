@@ -956,6 +956,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Restlicher `ProtoPirate`-Code (`fiat_v0`, `chrysler_v0`, `honda_static`/`honda_v1`,
       `kia_v0`–`v7`, `land_rover_v0`, `mazda_v0`, `star_line`, `subaru`, `vag.c`,
       PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
+- [x] **ProtoPirate** `protocols/fiat_v0.c` (Fiat/Lancia, älteres 71-Bit-Protokoll)
+      vollständig geprüft: `subghz_protocol_decoder_fiat_v0_deserialize()` ist ein reiner
+      Ein-Zeilen-Durchreicher zur Stock-Hilfsfunktion
+      `subghz_block_generic_deserialize_check_count_bit()`, die laut ihrem Vertrag nur
+      `generic.data`/`generic.data_count_bit` aus `"Key"`/`"Bit"` füllt — die drei
+      eigenen Decoder-Felder `hop`/`fix`/`endbyte`, die
+      `subghz_protocol_decoder_fiat_v0_get_string()` als einzige Anzeigequelle für
+      Key/Hop/Sn/EndByte nutzt, bleiben nach dem Laden einer gespeicherten Aufnahme auf
+      ihrem `calloc()`-Nullwert stehen. Jede über "Saved" geöffnete Fiat-V0-Datei zeigt
+      dadurch ausnahmslos Nullen statt der echten Werte, obwohl `generic.data` selbst
+      bereits korrekt geladen ist und Senden (eigener Encoder-Deserialize-Pfad)
+      unbetroffen bleibt. Dieselbe Fehlerklasse wie der zuvor gefundene
+      `fiat_v1`-Speicher/Lade-Bug ("Decoder-`deserialize()` vergisst protokolleigene,
+      von `get_string()` benötigte Felder"), hier erstmals für `fiat_v0` bestätigt. Mit
+      Host-Repro (Modell der Stock-Hilfsfunktion, beide Deserialize-Fassungen, drei
+      Testfälle inkl. Randfällen `0x00000000`/`0xFFFFFFFF`) unter
+      `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert — Fix (Hop/Fix aus
+      `generic.data` zurückrechnen, EndByte per selbem `"EndByte"`/`"Btn"`-Fallback lesen
+      wie im bereits vorhandenen Encoder-Pfad) in
+      `app-improvements/ProtoPirate/fiat-v0-decoder-deserialize-missing-field-restore-fix.md`.
+      Restlicher `ProtoPirate`-Code (`chrysler_v0`, `honda_static`/`honda_v1`,
+      `kia_v0`–`v7`, `land_rover_v0`, `mazda_v0`, `star_line`, `subaru`, `vag.c`,
+      PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft. Beim Durchsehen der
+      übrigen Decoder außerdem festgestellt: derselbe Ein-Zeilen-Durchreicher-Deserialize
+      ohne Nachbearbeitung findet sich auch in `kia_v2.c` (dessen `get_string()` ebenfalls
+      `generic.serial`/`generic.btn`/`generic.cnt` statt aus `generic.data`
+      rückgerechneter Werte anzeigt) und mutmaßlich weiteren noch ungeprüften Dateien —
+      als eigenständiger, übergreifender Prüfpunkt für eine künftige Sitzung vorgemerkt,
+      Datei für Datei zu bestätigen statt pauschal anzunehmen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
