@@ -147,9 +147,23 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
       dieses Unterschritts, nicht das Firmware-Image selbst.
   - [ ] P0.3c **Lokal:** Testaufnahme `whsniff -c <Kanal> | tshark -i - -w capture.pcap` für
     30–60 s, Kanal aus eigener Zigbee-Umgebung wählen.
-  - [ ] P0.3d **Lokal:** pcap in Wireshark sichten — nur Meta-Ergebnis (Kanal, Paketzahl,
+    - Kanal-Findung: falls eigener Koordinator/Router bekannt (z. B. Zigbee2MQTT/ZHA-Konfig,
+      Router-Admin-UI), dessen konfigurierten Kanal direkt nehmen. Sonst Kurz-Scan vor der
+      eigentlichen Aufnahme: die vier überlappungsarmen Kanäle 11/15/20/25 je 5 s antesten
+      (`timeout 5 whsniff -c <n> | tshark -i - -c 20 -q -z io,phs`), den mit sichtbaren
+      `zbee_nwk`/`ieee802154`-Frames für die 30–60-s-Aufnahme nehmen.
+    - `timeout` statt Handabbruch verwenden, damit die Pipe sicher terminiert, z. B.
+      `timeout 45 whsniff -c 15 | tshark -i - -w /home/kali/zigbee_test_c15.pcap` (Zieldatei
+      **außerhalb** des Repo-Arbeitsverzeichnisses, damit sie nicht versehentlich mitgestaged wird).
+  - [ ] P0.3d **Lokal:** pcap in Wireshark/tshark sichten — nur Meta-Ergebnis (Kanal, Paketzahl,
     erkannte Gerätetypen) dokumentieren, **keine** pcap mit echten Fremd-Zigbee-Nutzdaten pushen
     (analog CONSTRAINTS.md Regel 2/3).
+    - Rein statistische Sichtung ohne Nutzdaten-Export: `tshark -r capture.pcap -q -z io,phs`
+      (Protokoll-Hierarchie/Paketzahlen je Layer) und `tshark -r capture.pcap -Y ieee802154 -T
+      fields -e wpan.src16 -e wpan.dst16 -e wpan.frame_type | sort -u` (eindeutige
+      Kurzadressen/Frame-Typen als Metadaten — keine Nutzlast). Nur diese Kennzahlen (Kanal,
+      Gesamtpaketzahl, Anzahl unterschiedlicher Kurzadressen, gesehene Frame-Typen) landen im
+      Arbeits-Log; die `.pcap`-Datei selbst bleibt lokal, wird nicht committet.
   - Verifikation: pcap lokal vorhanden, Wireshark zeigt gültige 802.15.4/Zigbee-Frame-Header.
   - Kein Cloud-Anteil möglich außer dieser Verfeinerung — Pi-SSH und USB-Dongle sind aus der
     Cloud nicht erreichbar.
@@ -292,6 +306,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   (senkt die Dringlichkeit gegenüber "öffentlich exponiert", macht Rotation/Historie-Bereinigung
   aber nicht überflüssig). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/
   GUI-Code geschrieben.
+- 2026-09-09 (Cloud-Heartbeat): P0.3c/d konkretisiert — Kanal-Findung per Kurz-Scan (11/15/20/25,
+  je 5 s) falls kein Koordinator-Kanal bekannt, fertiger `timeout`-Befehl für die 30–60-s-Aufnahme
+  (P0.3c), sowie zwei `tshark`-Kommandos für P0.3d, die nur Metadaten (Protokoll-Hierarchie,
+  eindeutige Kurzadressen/Frame-Typen) liefern statt Nutzdaten — die pcap bleibt lokal, nur die
+  Kennzahlen gehören ins Arbeits-Log. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin
+  `private`. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -302,8 +322,9 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    `pi_flash_v4.py`/`flipper_ctl.py` auf den in P0.2d vorgeschlagenen `get_device_port()`-Contract
    umstellen (Vorschlag steht, nur noch zu übernehmen/anzupassen).
 2. CC2531 am Pi: erst den Praxis-Test aus P0.3a (`whsniff -c 11 | tshark -i - -c 5`) versuchen —
-   liefert er Frames, direkt zu P0.3c/d; sonst Flash-Weg klären (P0.3b, siehe Blocker-Hinweis
-   unten) und dann Testaufnahme + Sichtung (P0.3c/d).
+   liefert er Frames, direkt zu P0.3c/d (jetzt mit fertigem Kanal-Scan + `timeout`-Aufnahmebefehl
+   und den beiden Meta-Auswertungs-`tshark`-Kommandos, siehe P0.3c/d oben); sonst Flash-Weg klären
+   (P0.3b, siehe Blocker-Hinweis unten) und danach dieselbe Testaufnahme + Sichtung.
 3. `UKFE-RF-V2-SPEC.md` Abschnitt 5/7 gegenlesen: SRC_ID/ORIGIN_ID-Enum und BLE-GATT-UUIDs sind
    jetzt fertige Vorschläge (nur noch bestätigen oder gezielt abändern, nicht neu entwerfen),
    Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
@@ -358,18 +379,28 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
 - Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
   Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen (jetzt mit korrekter
   Commit-Angabe).
+- Unverändert seit mehreren Sitzungen dokumentiert (`reports/2026-09-08-0624.md`): bereits
+  gepushte Commits tragen entgegen CONSTRAINTS.md Regel 1 einen `Co-Authored-By`/`Claude-Session`-
+  Trailer — die ausführende Cloud-Umgebung hängt diesen automatisch an, eine einzelne Sitzung kann
+  das nicht unterbinden. Betrifft nur Commit-Metadaten, keine Repo-Datei; Historie-Bereinigung
+  weiterhin nur lokal mit ausdrücklicher Freigabe möglich.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-08):** P0.2c von einer generischen Anweisung zu
+**Cloud hat in dieser Sitzung erledigt (2026-09-09):** P0.3c/d von "Aufnahme machen, Wireshark
+sichten" zu konkret ausführbaren Schritten gemacht: Kanal-Findung per Kurz-Scan der vier
+überlappungsarmen Kanäle 11/15/20/25 (falls kein Koordinator-Kanal bekannt) mit fertigem
+`timeout`-Befehl statt Handabbruch für P0.3c, sowie für P0.3d zwei konkrete `tshark`-Kommandos, die
+nur Metadaten (Protokoll-Hierarchie, eindeutige Kurzadressen/Frame-Typen) liefern statt Nutzdaten —
+die pcap selbst bleibt lokal. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`,
+unverändert seit letzter Prüfung. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+Firmware-/GUI-Code geschrieben.
+
+**Vorherige Cloud-Sitzung (2026-09-08):** P0.2c von einer generischen Anweisung zu
 einer fertigen Prüfschritt-Liste je der 9 aktiven Geräte gemacht (Befehl, VID:PID, Soll-MAC pro
 Eintrag aus `ecosystem/devices.json`). Den seit 2026-08-27 wiederholten Zugangsdaten-Fund direkt
 gegen die Repo-Historie verifiziert (nicht nur aus `reports/` übernommen) und dabei eine seit
 ~30 Reports falsch zitierte Commit-Angabe korrigiert (`df0cf3b` → `7e39b5b`/`57560bd`) sowie die
 Repo-Sichtbarkeit (privat) geprüft. Kein Hardware-Zugriff versucht, nichts geflasht, kein
 Firmware-/GUI-Code geschrieben.
-
-**Vorherige Cloud-Sitzung (2026-09-07):** die drei nächsten offenen TODOs (P0.2d, P0.3a/b, P0.4e/f)
-um konkrete, sofort umsetzbare Unterschritte ergänzt (Zugriffs-Contract-Vorschlag, Praxis-Test statt
-Firmware-Introspektion, fertige BLE-UUID-/Patch-Reihenfolge-Vorschläge in `UKFE-RF-V2-SPEC.md`).
 
 ---
 
