@@ -1002,6 +1002,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Fix (`serial`/`btn`/`cnt` mit derselben Formel wie im Live-Decode-Pfad
       `kia_protocol_decoder_v2_feed()` aus `generic.data` zurückrechnen) in
       `app-improvements/ProtoPirate/kia-v2-decoder-deserialize-missing-field-restore-fix.md`.
+- [x] **ProtoPirate** `protocols/chrysler_v0.c` geprüft (nächster Kandidat aus der Liste
+      des ungeprüften restlichen ProtoPirate-Codes): anders als `fiat_v0`/`fiat_v1`/`kia_v2`
+      ruft `subghz_protocol_decoder_chrysler_v0_deserialize()` bereits
+      `chrysler_v0_decode_packet()` (dieselbe Funktion wie im Live-Commit-Pfad) auf und
+      rechnet `seed`/`decoded_button`/`check_ok`/`plain_a`/`plain_b`/`cnt`/`sn_b` korrekt aus
+      dem geladenen `generic.data`+`Key_2` zurück, mit zusätzlichem, konsistentem
+      Direkt-Laden von `Plain_A`/`Plain_B`, falls in der Datei vorhanden — kein Fund dieser
+      Fehlerklasse. Beim Weiterlesen der Datei Fund in `protocols/land_rover_v0.c`
+      (eigener Eintrag direkt im Anschluss).
+- [x] **ProtoPirate** `protocols/land_rover_v0.c` (81-Bit Land-Rover-Rolling-Code-Protokoll)
+      geprüft: `subghz_protocol_decoder_land_rover_v0_get_string()`s `Tail:`-Anzeige
+      rekonstruiert den angezeigten Wert nicht aus `instance->tail`/`instance->extra_bit`,
+      sondern rät ihn ausschließlich aus Bit 15 von `instance->tail` auf einen von zwei fest
+      kodierten Werten (`0x1FFFF`/`0x0FFFF`) und ignoriert `extra_bit` komplett. Für die
+      beiden einzigen Zustände, die ein erfolgreicher Live-Empfang erreichen kann
+      (`tail∈{0xFFFF,0x7FFF}`, `extra_bit=1`), trifft das zufällig den korrekten Wert — beim
+      Laden einer Datei übernimmt `deserialize()` `Tail`/`ExtraBit` aber direkt aus den
+      Datei-Feldern, ohne `land_rover_v0_validate_frame()`s Rückgabewert zu prüfen (die
+      `check_ok`/`tail_ok`-Anzeige daneben ist bereits korrekt), sodass eine Datei mit
+      abweichendem Tail-Wert oder `extra_bit=0` (bearbeitete/beschädigte Testdatei, im
+      eigenen autorisierten Testrahmen ein regulärer Anwendungsfall) einen irreführenden,
+      vom tatsächlichen Inhalt losgelösten `Tail:`-Wert anzeigt. Mit Host-Repro (beide
+      Formeln 1:1 isoliert, sieben Fälle inkl. der zwei kanonischen Zustände als
+      Regressionsanker) unter `gcc -O2 -Wall -Wextra -fsanitize=address,undefined`
+      verifiziert — Fix (`Tail:` direkt aus `(tail<<1)|extra_bit` berechnen) in
+      `app-improvements/ProtoPirate/land-rover-v0-tail-display-formula-fix.md`. Restlicher
+      `ProtoPirate`-Code (`honda_static`/`honda_v1`, `kia_v0`–`v1`, `kia_v3`–`v7`, `mazda_v0`,
+      `star_line`, `subaru`, `vag.c`, PSA-Bruteforce-Kernel) weiterhin größtenteils
+      ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
