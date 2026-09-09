@@ -1031,6 +1031,33 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ProtoPirate`-Code (`honda_static`/`honda_v1`, `kia_v0`–`v1`, `kia_v3`–`v7`, `mazda_v0`,
       `star_line`, `subaru`, `vag.c`, PSA-Bruteforce-Kernel) weiterhin größtenteils
       ungeprüft.
+- [x] **ProtoPirate** `protocols/honda_static.c`, `protocols/honda_v1.c`, `protocols/kia_v0.c`,
+      `protocols/kia_v1.c` und `protocols/subaru.c` vollständig geprüft (nächste Kandidaten
+      aus der Liste des ungeprüften restlichen ProtoPirate-Codes): in allen fünf berechnet
+      `get_string()` die angezeigten Sn/Btn/Cnt-Werte bei jedem Aufruf frisch aus
+      `generic.data` (bzw. ruft dieselbe Rückrechnungsfunktion auf, die auch der
+      Live-Decode-Pfad nutzt), sodass ein unvollständiges `deserialize()` dort folgenlos
+      bleibt — kein Fund dieser Fehlerklasse. `mazda_v0.c` zusätzlich geprüft: dessen
+      `deserialize()` lässt die internen `instance->serial`/`button`/`count`-Kopien bei
+      fehlenden Serial/Btn/Cnt-Dateifeldern auf `0` stehen, aber sowohl `get_string()` als
+      auch `serialize()` rufen vorher `mazda_v0_decode_key()` auf und überschreiben damit
+      diese Kopien korrekt aus `generic.data` — selbstheilend, kein extern sichtbarer Fund.
+      Dabei Fund in `protocols/kia_v3_v4.c`: `kia_protocol_decoder_v3_v4_get_string()` liest
+      `generic.serial`/`btn`/`cnt` dagegen direkt und ungeprüft ohne Rückrechnung, während
+      `kia_protocol_decoder_v3_v4_deserialize()` beim Laden nur `Encrypted`/`Decrypted`/
+      `KIAVersion`/`CRC` restauriert und diese drei Felder nie setzt — nach dem Laden zeigt
+      die Detailansicht beliebigen `malloc()`-Speicherinhalt statt der echten Werte (schlimmer
+      als der bereits behobene `kia_v2`-Fund, der zumindest verlässlich `0` zeigte, da
+      `kia_protocol_decoder_v3_v4_alloc()` `malloc()` statt `calloc()` verwendet). Mit
+      Host-Repro (`pp_reverse_bits8()`/`pp_u64_to_bytes_be()` 1:1 übernommen, synthetischer
+      Frame aus Ziel-`serial`/`btn`/`encrypted` rückwärts aufgebaut, ALT/NEU gegen
+      absichtlich „vergifteten" Vor-Zustand getestet statt gegen `0`, vier Fälle inkl.
+      Randfällen) unter `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert —
+      Fix (dieselbe Rückrechnung wie `kia_v3_v4_process_buffer()` in `deserialize()`
+      nachziehen) in
+      `app-improvements/ProtoPirate/kia-v3-v4-decoder-deserialize-missing-field-restore-fix.md`.
+      Restlicher `ProtoPirate`-Code (`kia_v5`–`v7`, `star_line`, `vag.c`,
+      PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
