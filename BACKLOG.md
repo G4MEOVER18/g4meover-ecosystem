@@ -1058,6 +1058,29 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/ProtoPirate/kia-v3-v4-decoder-deserialize-missing-field-restore-fix.md`.
       Restlicher `ProtoPirate`-Code (`kia_v5`–`v7`, `star_line`, `vag.c`,
       PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
+- [x] **ProtoPirate** `protocols/kia_v5.c` geprüft (nächster Kandidat aus der Liste des
+      ungeprüften restlichen ProtoPirate-Codes): `kia_protocol_decoder_v5_deserialize()`
+      liest ausschließlich `generic.data`/`data_count_bit`, während
+      `kia_protocol_decoder_v5_get_string()` `instance->yek`/`generic.serial`/`btn`/`cnt`/
+      `instance->crc` direkt (ohne Rückrechnung) ausgibt — fünf statt der bei `kia_v3_v4`
+      gefundenen drei betroffenen Felder, da `Yek:` und `CRC:` hier zusätzlich betroffen
+      sind. `kia_protocol_decoder_v5_alloc()` nutzt `malloc()` statt `calloc()`, die
+      Detailansicht zeigt nach dem Laden also beliebigen Speicherinhalt statt der echten
+      Werte. Mit eigenständigem Host-Repro (`mixer_decode()`/`build_keystore_from_mfkey()`/
+      `pp_reverse_bits8()` 1:1 übernommen, `get_kia_v5_key()` durch festen Test-Schlüssel
+      ersetzt, ALT/NEU gegen vergifteten Vor-Zustand statt `0` getestet, vier Fälle inkl.
+      Randfällen, NEU zusätzlich gegen unabhängigen Nachbau der Live-Decode-Rückrechnung
+      verglichen) unter `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert —
+      Fix (dieselbe Rückrechnung wie `KiaV5DecoderStepData` in `deserialize()` nachziehen,
+      CRC aus dem bereits von `serialize()` geschriebenen Feld lesen) in
+      `app-improvements/ProtoPirate/kia-v5-decoder-deserialize-missing-field-restore-fix.md`.
+      `protocols/kia_v6.c` und `protocols/kia_v7.c` im selben Durchgang geprüft, kein Fund:
+      `kia_v6`s `deserialize()` liest `Key_2`–`Key_4`/`Fx` sowie über
+      `pp_encoder_read_fields()` `Serial:`/`Btn:`/`Cnt:` bereits vollständig zurück;
+      `kia_v7`s `get_string()` ruft vor jeder Ausgabe `kia_v7_decode_key_decoder()` auf und
+      rechnet Sn/Btn/Cnt/CRC bei jedem Aufruf frisch aus `generic.data` zurück
+      (Selbstheilungs-Muster wie `mazda_v0.c`). Restlicher `ProtoPirate`-Code (`star_line`,
+      `vag.c`, PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
