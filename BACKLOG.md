@@ -1081,6 +1081,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       rechnet Sn/Btn/Cnt/CRC bei jedem Aufruf frisch aus `generic.data` zurück
       (Selbstheilungs-Muster wie `mazda_v0.c`). Restlicher `ProtoPirate`-Code (`star_line`,
       `vag.c`, PSA-Bruteforce-Kernel) weiterhin größtenteils ungeprüft.
+- [x] **ProtoPirate** `protocols/star_line.c` und `protocols/vag.c` geprüft (nächste
+      Kandidaten aus der Liste des ungeprüften restlichen ProtoPirate-Codes): beide
+      selbstheilend, kein Fund der bisherigen Fehlerklasse. `star_line.c`s
+      `get_string()`/`serialize()` rufen vor jeder Ausgabe
+      `subghz_protocol_star_line_check_remote_controller()` auf, die `serial`/`btn`
+      deterministisch aus `generic.data` zurückrechnet und `cnt` über denselben
+      KeeLoq-Entschlüsselungspfad wie beim Live-Empfang neu bestimmt (identisches
+      Verhalten bei fehlendem Herstellerschlüssel wie beim Live-Empfang, keine
+      Lade-spezifische Abweichung). `vag.c`s `deserialize()` ruft nach dem Einlesen von
+      Key1/Key2/Type bereits selbst `vag_parse_data()` auf (dieselbe Funktion, die auch
+      `get_string()`/`serialize()` bei noch nicht entschlüsseltem Zustand aufrufen) —
+      Serial/Cnt/Btn/`decrypted`-Status werden vollständig aus Key1/Key2/Type
+      zurückgerechnet, keine der drei betroffenen Felder hängt von unbestimmtem
+      `malloc()`-Speicherinhalt ab (`alloc()` nutzt bereits `calloc()`). Stattdessen dabei
+      den seit mehreren Sitzungen mitgeschleppten Rückstellpunkt "`scher_khan.c`s
+      `malloc()`-ohne-`furi_check()`-Muster als übergreifender Prüfpunkt" aufgegriffen und
+      vollständig abgearbeitet: systematische Prüfung aller `= malloc(` in `protocols/*.c`
+      ergab neun statt der vermuteten zwei bis drei betroffenen Allokationsfunktionen ohne
+      NULL-Absicherung (`ford_v0.c` Encoder+Decoder, `kia_v1.c` Encoder+Decoder, `kia_v2.c`
+      Encoder+Decoder, `scher_khan.c` Decoder, `subaru.c` Encoder+Decoder) gegenüber elf
+      bereits korrekt abgesicherten Allokationsfunktionen im selben Baum. Mit Host-Repro
+      (identisches Strukturmuster nachgebaut, `malloc()`-Stub simuliert Speichermangel,
+      ALT/NEU je in eigenem `fork()`-Kindprozess unter `gcc -O0 -Wall -Wextra` ohne ASan,
+      damit das reale Signal statt ASan's abgefangenem Bericht sichtbar wird) verifiziert:
+      ALT endet unkontrolliert per `SIGSEGV`, NEU (mit `furi_check(instance)` direkt nach
+      `malloc()`, wie an den elf bereits korrekten Stellen) kontrolliert mit eigenem
+      Exit-Code vor jedem Schreibzugriff — Port-Vorschlag inkl. Fix (Ein-Zeilen-Ergänzung an
+      allen neun Stellen) in
+      `app-improvements/ProtoPirate/alloc-malloc-null-check-hardening.md`. Restlicher
+      `ProtoPirate`-Code (PSA-Bruteforce-Kernel; Mitsubishi V0 weiterhin auf verifizierte
+      Referenz-Timings wartend) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
