@@ -116,6 +116,16 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
       - Nach jedem Gerät `verified_at` (Datum) im jeweiligen `devices.json`-Eintrag setzen;
         `notes`/`usb_id`-Lücken (s. o.) gleich mitfüllen, aber **keine** Zugangsdaten/LAN-IPs
         eintragen (CONSTRAINTS.md Regel 3).
+      - Mechanik für den Eintrag, statt Hand-Editieren der JSON (weniger Risiko für
+        kaputtes JSON bei 9 Einträgen nacheinander): `jq` je Gerät gegen die Datei laufen
+        lassen und zurückschreiben, z. B. für `heltec-v3` nach erfolgreichem `read_mac`:
+        `jq '(.devices[] | select(.id=="heltec-v3")) |= (.verified_at="2026-MM-TT" |
+        .last_known_port="COMxx")' ecosystem/devices.json > /tmp/devices.json.tmp &&
+        mv /tmp/devices.json.tmp ecosystem/devices.json`. Gleiches Muster für `mac`/`usb_id`
+        bei `esp32-wroom`/`lilygo-t-display`/`dogytag` (zusätzliches `.mac="AA:BB:.."` bzw.
+        `.usb_id="VVVV:PPPP"` im `|=`-Ausdruck). Nach dem letzten Gerät einmal
+        `python -c "import json;json.load(open('ecosystem/devices.json'))"` zur
+        Syntax-Gegenprobe (wie beim initialen Anlegen), bevor committet wird.
   - [ ] P0.2d **Lokal:** `pi_flash_v4.py`/`flipper_ctl.py` auf `ecosystem/devices.json` als
     Port-Quelle umstellen statt hartkodierter Werte; Regressionstest: bestehender
     Flash-Workflow (P0.1) läuft unverändert.
@@ -130,15 +140,44 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
       `verified_at`/`last_known_port` **nicht** von den Tools automatisch aktualisiert (bleibt
       manueller Schritt aus P0.2c) — vermeidet, dass ein einmaliger Fehl-Match sich in die JSON
       zurückschreibt.
+      Konkretes Gerüst (nur Ablaufskizze, kein fertiger Code — Fehlerbehandlung/Imports je nach
+      Zielsprache der beiden Tools ergänzen):
+      ```
+      def get_device_port(device_id, devices_path="ecosystem/devices.json"):
+          devices = load_json(devices_path)["devices"]
+          entry = find(devices, lambda d: d["id"] == device_id)   # Schritt 1: exakter id-Treffer
+          if entry is None:
+              raise LookupError(f"unknown device id: {device_id}")
+          if entry["usb_id"]:
+              live = match_connected_usb_devices(entry["usb_id"])  # Schritt 2: esptool/pyserial-Scan
+              if live:
+                  return live.port
+          if entry["last_known_port"]:
+              return entry["last_known_port"]                      # Schritt 3: Fallback
+          raise LookupError(f"no live match and no last_known_port for {device_id}")
+      ```
+      `match_connected_usb_devices()` kapselt den ohnehin vorhandenen esptool-/pyserial-
+      Enumerationscode aus `pi_flash_v4.py`/`flipper_ctl.py` — beim Übernehmen prüfen, welches
+      der beiden Tools das bereits sauberer kapselt, und von dort in eine gemeinsame Helper-Datei
+      (z. B. `ecosystem/tools/device_ports.py`) auslagern statt zu duplizieren.
   - Verifikation: `python -c "import json;json.load(open('ecosystem/devices.json'))"` ✅ (Cloud,
     Syntax geprüft) + Soll/Ist-Abgleich gegen Abschnitt-1-Tabelle (lokal, nach Replug, noch offen).
 - [ ] P0.3 CC2531-Zigbee-Pipeline am Pi: Sniffer-FW-Status prüfen, `whsniff`/`tshark`-Capture → pcap.
   - [ ] P0.3a **Lokal (Pi-SSH):** `lsusb` gegen erwartete ID `0451:16a8` prüfen, aktuellen
     Firmware-Stand des CC2531 feststellen (Sniffer- vs. Z-Stack-Coordinator-Image).
-    - Praxis-Test statt Firmware-Introspektion: `whsniff -c 11 | tshark -i - -c 5` (kurz,
-      unkritisch) versuchen — liefert es innerhalb weniger Sekunden gültige 802.15.4-Frames,
-      ist ein Sniffer-Image bereits drauf (P0.3b entfällt); hängt es oder liefert nur Müll, ist
-      vermutlich ein Coordinator-/Router-Image drauf → P0.3b.
+    - Vor dem eigentlichen Test klären, ob `whsniff` am Pi überhaupt installiert ist
+      (`which whsniff || dpkg -l | grep -i whsniff`) — fehlt es ganz, ist das ein eigener,
+      vom Firmware-Stand unabhängiger Blocker (Paket/Build nachziehen), kein Grund, direkt auf
+      P0.3b (Firmware-Flash) zu schließen.
+    - Praxis-Test statt Firmware-Introspektion (erst wenn `whsniff` vorhanden ist):
+      `timeout 10 whsniff -c 11 | tshark -i - -c 5` (kurz, unkritisch, `timeout` verhindert ein
+      Hängenbleiben der Pipe) versuchen. Drei mögliche Ausgänge: (1) `tshark` zeigt innerhalb
+      weniger Sekunden Zeilen mit Protokoll `IEEE 802.15.4` (nicht nur "Malformed Packet"/leer)
+      → Sniffer-Image bereits drauf, P0.3b entfällt, direkt zu P0.3c; (2) der Befehl liefert bis
+      zum `timeout` gar keine Zeilen oder nur "Malformed Packet" → vermutlich Coordinator-/
+      Router-Image drauf → P0.3b; (3) `whsniff` selbst bricht sofort mit einem USB-/
+      Berechtigungsfehler ab (z. B. `libusb` "Access denied") → eigener Blocker (udev-Regel/
+      Gruppenrechte für den CC2531), ebenfalls unabhängig vom Firmware-Stand, vor P0.3b zu klären.
   - [ ] P0.3b **Lokal:** falls kein Sniffer-Image drauf: mit am Pi verfügbarem Tool (z. B.
     `cc-tool`/SmartRF Flash Programmer) whsniff-kompatibles Firmware-Image flashen.
     - Vorab prüfen, ob am Pi bereits ein CC-Debugger oder ein anderer unterstützter Flash-Weg für
@@ -312,19 +351,37 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eindeutige Kurzadressen/Frame-Typen) liefern statt Nutzdaten — die pcap bleibt lokal, nur die
   Kennzahlen gehören ins Arbeits-Log. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin
   `private`. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-10 (Cloud-Heartbeat): die drei vordersten offenen TODOs je einen Schritt konkreter
+  gemacht. P0.2c: Update-Mechanik für `devices.json` ergänzt (`jq`-Einzeiler pro Gerät statt
+  Hand-Editieren, Syntax-Gegenprobe nach dem letzten Gerät). P0.2d: den bisher nur in Prosa
+  beschriebenen `get_device_port()`-Contract als Ablaufskizze (Pseudocode) ausformuliert, inkl.
+  Hinweis, den ohnehin vorhandenen esptool-/pyserial-Scan aus `pi_flash_v4.py`/`flipper_ctl.py`
+  in eine gemeinsame Helper-Datei auszulagern statt zu duplizieren. P0.3a: den Praxis-Test um
+  eine dritte, bisher übergangene Fehlerquelle ergänzt (`whsniff` fehlt ganz vs. USB-/
+  Berechtigungsfehler vs. tatsächlich falsches Firmware-Image) — jede der drei braucht einen
+  anderen nächsten Schritt, nur der letzte Fall führt zu P0.3b. Repo-Sichtbarkeit erneut per
+  GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation (siehe Risiken) weiterhin
+  unbestätigt, jetzt seit zwei Wochen unverändert offen. Kein Hardware-Zugriff versucht, nichts
+  geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
 **Nächster konkreter Schritt:**
-1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — die neue Prüfschritt-
-   Liste unter P0.2c oben (Abschnitt 4) ist pro Gerät fertig (Befehl + Soll-MAC/VID:PID), nur noch
-   abzuarbeiten und `verified_at` zu setzen; Replug-Check nach Neustart nicht vergessen. Danach
-   `pi_flash_v4.py`/`flipper_ctl.py` auf den in P0.2d vorgeschlagenen `get_device_port()`-Contract
-   umstellen (Vorschlag steht, nur noch zu übernehmen/anzupassen).
-2. CC2531 am Pi: erst den Praxis-Test aus P0.3a (`whsniff -c 11 | tshark -i - -c 5`) versuchen —
-   liefert er Frames, direkt zu P0.3c/d (jetzt mit fertigem Kanal-Scan + `timeout`-Aufnahmebefehl
-   und den beiden Meta-Auswertungs-`tshark`-Kommandos, siehe P0.3c/d oben); sonst Flash-Weg klären
-   (P0.3b, siehe Blocker-Hinweis unten) und danach dieselbe Testaufnahme + Sichtung.
+1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — die Prüfschritt-Liste
+   unter P0.2c oben (Abschnitt 4) ist pro Gerät fertig (Befehl + Soll-MAC/VID:PID), inkl. der
+   `jq`-Einzeiler zum Zurückschreiben von `verified_at`/`mac`/`usb_id` statt Hand-Editieren; nur
+   noch abzuarbeiten. Replug-Check nach Neustart nicht vergessen. Danach `pi_flash_v4.py`/
+   `flipper_ctl.py` auf den in P0.2d vorgeschlagenen `get_device_port()`-Contract umstellen — die
+   Ablaufskizze (Pseudocode, s. o.) steht, nur noch in die Zielsprache der beiden Tools zu
+   übertragen und den vorhandenen esptool-/pyserial-Scan in eine gemeinsame Helper-Datei
+   auszulagern.
+2. CC2531 am Pi: erst `which whsniff` prüfen (fehlt es, ist das der Blocker, nicht die Firmware),
+   dann den Praxis-Test aus P0.3a (`timeout 10 whsniff -c 11 | tshark -i - -c 5`) versuchen — drei
+   mögliche Ausgänge (gültige `IEEE 802.15.4`-Frames / nichts bzw. Malformed / USB-Berechtigungs-
+   fehler), siehe P0.3a oben für die jeweils passende Folgeaktion. Liefert er Frames, direkt zu
+   P0.3c/d (fertiger Kanal-Scan + `timeout`-Aufnahmebefehl und den beiden Meta-Auswertungs-
+   `tshark`-Kommandos, siehe P0.3c/d oben); sonst Flash-Weg klären (P0.3b, siehe Blocker-Hinweis
+   unten) und danach dieselbe Testaufnahme + Sichtung.
 3. `UKFE-RF-V2-SPEC.md` Abschnitt 5/7 gegenlesen: SRC_ID/ORIGIN_ID-Enum und BLE-GATT-UUIDs sind
    jetzt fertige Vorschläge (nur noch bestätigen oder gezielt abändern, nicht neu entwerfen),
    Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
@@ -385,21 +442,25 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   das nicht unterbinden. Betrifft nur Commit-Metadaten, keine Repo-Datei; Historie-Bereinigung
   weiterhin nur lokal mit ausdrücklicher Freigabe möglich.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-09):** P0.3c/d von "Aufnahme machen, Wireshark
+**Cloud hat in dieser Sitzung erledigt (2026-09-10):** Die drei vordersten offenen TODOs (P0.2c,
+P0.2d, P0.3a) von "Befehl/Vorschlag steht" zu "direkt ausführbar/übertragbar" verfeinert: P0.2c
+bekam die fehlende Schreib-Mechanik (`jq`-Einzeiler statt Hand-Editieren von `devices.json` + eine
+abschließende Syntax-Gegenprobe). P0.2d bekam den bisher nur in Prosa beschriebenen
+`get_device_port()`-Contract als konkrete Ablaufskizze (Pseudocode) plus den Hinweis, den
+vorhandenen esptool-/pyserial-Scan-Code in eine gemeinsame Helper-Datei auszulagern statt ihn zu
+duplizieren. P0.3a bekam eine dritte, bisher übergangene Fehlerquelle (`whsniff` fehlt am Pi ganz,
+unabhängig vom Firmware-Stand des CC2531) und eine Unterscheidung zum tatsächlichen
+USB-Berechtigungsfehler — beide brauchen einen anderen nächsten Schritt als "falsches
+Firmware-Image, also P0.3b". Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`.
+Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+
+**Vorherige Cloud-Sitzung (2026-09-09):** P0.3c/d von "Aufnahme machen, Wireshark
 sichten" zu konkret ausführbaren Schritten gemacht: Kanal-Findung per Kurz-Scan der vier
 überlappungsarmen Kanäle 11/15/20/25 (falls kein Koordinator-Kanal bekannt) mit fertigem
 `timeout`-Befehl statt Handabbruch für P0.3c, sowie für P0.3d zwei konkrete `tshark`-Kommandos, die
 nur Metadaten (Protokoll-Hierarchie, eindeutige Kurzadressen/Frame-Typen) liefern statt Nutzdaten —
 die pcap selbst bleibt lokal. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`,
 unverändert seit letzter Prüfung. Kein Hardware-Zugriff versucht, nichts geflasht, kein
-Firmware-/GUI-Code geschrieben.
-
-**Vorherige Cloud-Sitzung (2026-09-08):** P0.2c von einer generischen Anweisung zu
-einer fertigen Prüfschritt-Liste je der 9 aktiven Geräte gemacht (Befehl, VID:PID, Soll-MAC pro
-Eintrag aus `ecosystem/devices.json`). Den seit 2026-08-27 wiederholten Zugangsdaten-Fund direkt
-gegen die Repo-Historie verifiziert (nicht nur aus `reports/` übernommen) und dabei eine seit
-~30 Reports falsch zitierte Commit-Angabe korrigiert (`df0cf3b` → `7e39b5b`/`57560bd`) sowie die
-Repo-Sichtbarkeit (privat) geprüft. Kein Hardware-Zugriff versucht, nichts geflasht, kein
 Firmware-/GUI-Code geschrieben.
 
 ---
