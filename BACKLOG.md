@@ -482,6 +482,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       inkl. Fix in `firmware-mining/uhfrfid-hexstring-oob-read-fix.md`. Restlicher NFC-Werkzeug-
       Cluster nach wie vor nur `nfctools` (Fortsetzung laufend) sowie die bestätigten
       Fremdgerät-Fälle `chameleon`/`nfc_relay`.
+- [x] NFC-Werkzeug-Cluster weiterverfolgt: Rückstellpunkt "Tag-Info-/QR-Code-/NDEF-Detail-
+      Lesepfade" aufgegriffen — `nfc_tools_scene_tag_info.c`/`nfc_tools_scene_ndef_qr_code.c` ohne
+      Fund, Fund im dahinterliegenden Encoder `helpers/qrcode/nfc_tools_qrcodegen.c`: Version 6/7
+      sind bei ECC-L in Wirklichkeit zweiblöckig (Reed-Solomon), der Encoder behandelt sie
+      fälschlich als einen einzigen Block und hängt eine zu kurze, falsch berechnete ECC-Folge an —
+      jeder NDEF-Wert mit 107-127 Zeichen (der praktisch einzige erreichbare Fall, `value[128]`)
+      wählt Version 6 und erzeugt dadurch einen strukturell falschen, mit einem echten QR-Decoder
+      (`pyzbar`/`zbar`, nicht nur gegen sich selbst) verifiziert zu 100 % unlesbaren Code. Fix
+      (korrigierte Datenkapazitätstabelle + Blockaufteilung/Interleaving) mit vollständigem
+      Host-Repro-Sweep (137 Testfälle, Längen 1-140) verifiziert: ALT 31 Fehlschläge, NEU 0 —
+      Port-Vorschlag inkl. Fix in `firmware-mining/nfctools-qr-code-v6-corrupt-fix.md`. Dabei einen
+      zweiten, unabhängigen Fehler in der Version-7-Alignment-Pattern-Platzierung gefunden (nur 3
+      von 6 nötigen Mustern gezeichnet) und bewusst nicht mitgefixt, da Version 7 über den
+      einzigen Aufrufer ohnehin nie erreichbar ist und ein Teilfix diesen Pfad im eigenen Sweep
+      nicht repariert hat — Version 7 stattdessen deaktiviert (Versionsauswahl auf v≤6 begrenzt),
+      Version 6 allein deckt die volle erreichbare Werte-Kapazität bereits ab. Restlicher
+      Cluster-Umfang (~35 Schreib-Szenen für Kontakt/Bitcoin/WLAN/Social/etc.) weiterhin für
+      künftige Sitzungen offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
