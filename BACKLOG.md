@@ -1295,6 +1295,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       gelesen — unfertiger UI-Platzhalter ohne Funktion, kein Port-Kandidat, siehe
       `ideas/mfdesfire-auth-app-status.md`. Restlicher Cluster (u. a. `nfc_sniffer`, `chameleon`,
       `nfc_relay`, `mifare_fuzzer`, `nfc_rfid_detector`, `nfctools`, `uhf_rfid`) weiterhin offen.
+- [x] `uhf_rfid` (YRM100-/M100-UHF-RFID-Modul, Fremdhardware am Erweiterungsport) aus demselben
+      Cluster aufgegriffen — reiner Quelltext-Check braucht die Hardware nicht. Den gesamten
+      Nicht-Szenen-Kern (721 Zeilen, vier Dateien) gelesen: `uhf_buffer.c` implementiert den
+      UART-Empfangspuffer als echten Ringpuffer (überschreibt bei Kapazitätsüberlauf das älteste
+      Byte, schiebt `head` weiter), während der einzige Aufrufer (`uhf_module.c`,
+      `setup_and_send_rx()` und fünf weitere Stellen) ihn durchgehend als einfachen linearen
+      Block ab Index 0 behandelt — sobald eine einzelne Modul-Antwort die 250-Byte-Kapazität
+      übersteigt (z. B. kombinierte TID+USER-Bank-Lesung oder Multi-Tag-Inventur), liest die App
+      bis zu 49 Byte hinter das Ende der Heap-Allokation hinaus, mit AddressSanitizer als
+      `heap-buffer-overflow` bestätigt; unterhalb der Kapazitätsgrenze (Regressionsfälle 40 B und
+      exakt 250 B) fehlerfrei — Fix in
+      `firmware-mining/uhf-rfid-ring-buffer-oob-read-fix.md` (Kapazitätsprüfung vor jedem
+      Ringpuffer-Schreibzugriff, wodurch `head` für den real genutzten
+      Sammle-bis-Reset-Anwendungsfall dauerhaft 0 bleibt). Expansion-/5V-OTG-Handling in
+      `uhf_app.c` sowie `uhf_tag.c`/`uhf_worker.c` mitgeprüft, kein weiterer Fund. Szenen-Code
+      (reine UI-Ablaufsteuerung) sowie restlicher Cluster (`chameleon`, `nfc_relay` — beide
+      zwingend Fremd-/Zweitgerät; NFC-Tools-Schreib-Szenen/Passwort-Entfernung) weiterhin offen.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
