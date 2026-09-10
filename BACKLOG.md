@@ -1112,6 +1112,22 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/ProtoPirate/alloc-malloc-null-check-hardening.md`. Restlicher
       `ProtoPirate`-Code (PSA-Bruteforce-Kernel; Mitsubishi V0 weiterhin auf verifizierte
       Referenz-Timings wartend) weiterhin offen.
+- [x] **g4meover-magspoof** aus früherer Sitzung vorgemerkten Folgepunkt aufgegriffen
+      (`mag-encode-fixed-buffer-overflow-fix.md`, Risiko-Abschnitt: „sichtbare Warnung
+      (Popup/Log) beim Kappen sinnvoll"): `mag_encode()` um einen optionalen
+      `out_truncated`-Ausgabeparameter erweitert, `mag_spoof()` verknüpft die drei
+      Track-Flags in `mag->last_tx_truncated` und loggt sie (`FURI_LOG_W`), die
+      Emulate-Szene löst bei gesetztem Flag zusätzlich zum bestehenden Cyan-Blink eine
+      `sequence_error`-Rückmeldung aus (bereits an anderer Stelle in diesem Ökosystem gegen
+      `mntm-012` verifiziert). Mit Host-Repro (reiner Bit-Pack-Nachbau, identisch zum bereits
+      kapazitätsbegrenzten `mag_encode()`-Stand) verifiziert: ALT liefert für eine 72- und
+      eine 73-Zeichen-Track-1-Eingabe identischen Bitcount/identische Bitfolge (ebenso 101
+      vs. 102 Zeichen bei Track 2/3) — aus dem Rückgabewert allein nicht unterscheidbar; NEU
+      setzt `truncated` exakt an der bereits bekannten Kappungsgrenze, Bitausgabe bleibt
+      dabei unverändert, Regressionsfall (40 Zeichen, `NULL` vs. `&truncated`) bestätigt
+      keinen Verhaltensunterschied bei normal langen Tracks — Port-Vorschlag inkl. Fix in
+      `app-improvements/g4meover-magspoof/track-truncation-visible-warning-fix.md`. Damit ist
+      der zuletzt offene `g4meover-magspoof`-Rückstellpunkt abgeschlossen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
