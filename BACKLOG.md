@@ -1164,8 +1164,7 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Exit-Code vor jedem Schreibzugriff — Port-Vorschlag inkl. Fix (Ein-Zeilen-Ergänzung an
       allen neun Stellen) in
       `app-improvements/ProtoPirate/alloc-malloc-null-check-hardening.md`. Restlicher
-      `ProtoPirate`-Code (PSA-Bruteforce-Kernel; Mitsubishi V0 weiterhin auf verifizierte
-      Referenz-Timings wartend) weiterhin offen.
+      `ProtoPirate`-Code (PSA-Bruteforce-Kernel) weiterhin offen.
 - [x] **g4meover-magspoof** aus früherer Sitzung vorgemerkten Folgepunkt aufgegriffen
       (`mag-encode-fixed-buffer-overflow-fix.md`, Risiko-Abschnitt: „sichtbare Warnung
       (Popup/Log) beim Kappen sinnvoll"): `mag_encode()` um einen optionalen
@@ -1182,6 +1181,33 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       keinen Verhaltensunterschied bei normal langen Tracks — Port-Vorschlag inkl. Fix in
       `app-improvements/g4meover-magspoof/track-truncation-visible-warning-fix.md`. Damit ist
       der zuletzt offene `g4meover-magspoof`-Rückstellpunkt abgeschlossen.
+- [x] **ProtoPirate**: den beim `VW`/`VAG`-Timing-Tuner-Fix selbst vermerkten offenen Punkt
+      aufgegriffen ("`Mitsubishi V0` hat überhaupt keinen Eintrag in `protocol_timings[]`,
+      zurückgestellt bis verifizierte Referenz-Timings vorliegen") — beim erneuten Draufschauen
+      festgestellt, dass diese Zurückstellung zu vorsichtig war: alle 24 vorhandenen
+      Tabellenzeilen sind bereits 1:1 Kopien des `SubGhzBlockConst` des jeweiligen Decoders
+      selbst (z. B. `VW`/`VAG`: 500/1000/120µs — identisch zu `vag.c`), keine separat
+      recherchierten Werte. Mitsubishi V0 (real registriert über
+      `protocols/plugins/protopirate_fm_plugin.c`, FM-Registry) hat mit
+      `subghz_protocol_mitsubishi_const` (`protocols/mitsubishi_v0.c`) dieselben Werte bereits
+      im Quelltext (250/500/100µs, 80 Bit) — Fix (neue Tabellenzeile plus fehlender
+      `mitsubishi_v0.h`-Include) in
+      `app-improvements/ProtoPirate/mitsubishi-v0-timing-tuner-missing-entry-fix.md`. Mit
+      Host-Repro (Tabellensuche + Alias-Fallback 1:1 nachgebaut, alle 25 real registrierten
+      Decoder-Namen aus beiden Registries einzeln gegen ALT/NEU geprüft) unter
+      `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert: ALT liefert für
+      `"Mitsubishi V0"` `NOT FOUND`, NEU liefert die korrekten Referenzwerte, alle 23 übrigen
+      Namen (sowie der separate, hier bewusst unveränderte `"VW"`/`VAG`-Fund) bleiben
+      unverändert. Dabei zusätzlich `ford_v0.c` und `mitsubishi_v0.c` (Encoder/Decoder-
+      Deserialize) sowie `aut64.c`/`keys.c`/`protocols_common.c` aus dem weiterhin offenen
+      Rückstellpunkt "restlicher ProtoPirate-Code" auf das bereits bestätigte
+      Deserialize-Bug-Muster geprüft: kein neuer Fund (beide lesen Serial/Btn/Cnt über
+      `pp_encoder_read_fields()` aus stets unbedingt geschriebenen Serialize-Feldern zurück,
+      strukturell identisch zum bereits als „gut" bestätigten `kia_v6`-Muster; `aut64.c` ist
+      eine in sich geschlossene, bereits defensiv validierte Kryptoprimitive ohne
+      Deserialize-Bezug). Restlicher `ProtoPirate`-Code (PSA-Bruteforce-Kernel; `ford_v1.c`/
+      `ford_v2.c`/`ford_v3.c` nur auf dieses eine Bug-Muster geprüft, nicht auf sonstige
+      Korrektheit) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
