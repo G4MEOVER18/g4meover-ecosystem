@@ -1208,6 +1208,25 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Deserialize-Bezug). Restlicher `ProtoPirate`-Code (PSA-Bruteforce-Kernel; `ford_v1.c`/
       `ford_v2.c`/`ford_v3.c` nur auf dieses eine Bug-Muster geprüft, nicht auf sonstige
       Korrektheit) weiterhin offen.
+- [x] **ProtoPirate**: den zuletzt offenen Rückstellpunkt "`ford_v1.c`/`ford_v2.c`/`ford_v3.c`
+      nur auf das Deserialize-Bug-Muster geprüft, nicht auf sonstige Korrektheit" aufgegriffen —
+      alle drei Dateien vollständig gelesen. `ford_v1.c`/`ford_v2.c` (CRC16-/Paritäts-/
+      Interleave-Descramble- bzw. Sync-Wort-/Struktur-Validierungslogik): alle Feld-
+      Transformationen über die jeweilige Encoder-Gegenrichtung exakt umkehrbar (mit
+      unabhängigem Host-Repro über je 200 000 zufällige Serial/Btn/Cnt/Tail-Werte bitgenau
+      bestätigt), kein Fund; zwei unerreichbare/inaktive Codestellen ohne Funktionsauswirkung
+      notiert (`ford_v1.c`s Preset-Hop-Zweig, feste `0`-Stub-Funktion; `weak`-Symbol-
+      Zähler-Override mit Standard `false`). `ford_v3.c`: toter Zweig in
+      `FordV3DecoderStepData` gefunden — Copy-Paste aus `FordV3DecoderStepReset`, prüft die
+      bereits als ungültig erkannte `duration` ein zweites Mal auf "kurz", kann dadurch nie
+      auslösen (bewiesen, keine Empfangslücke, da der reguläre `Reset`-Fall den nächsten Puls
+      ohnehin korrekt abfängt) — Fix (Entfernen des toten Zweigs) in
+      `app-improvements/ProtoPirate/ford-v3-unreachable-preamble-restart-check-fix.md`. Mit
+      Host-Repro (erschöpfende Duration-Sweep 0-20000 plus randomisierte ALT-vs-NEU-
+      Zustandsäquivalenz über 200 000 gefütterte Pulse) unter
+      `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert: toter Zweig in keinem
+      Fall erreicht, ALT/NEU-Zustand nach jedem Puls identisch. Damit ist der Rückstellpunkt
+      abgeschlossen; restlicher `ProtoPirate`-Code (PSA-Bruteforce-Kernel) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
