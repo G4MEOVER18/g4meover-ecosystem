@@ -5,9 +5,26 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 ## Firmware-Feature-Mining
 - [x] Unleashed **unlshd-090** vs. mntm-012: **Telcoma/Cardin EDGE**-SubGHz-Protokoll fehlt mir —
       Port-Vorschlag in `firmware-mining/telcoma-cardin-edge-subghz.md`.
-- [ ] Unleashed **unlshd-090+** vs. mntm-012: weitere neue/erweiterte **SubGHz-Protokolle** prüfen
-      (unlshd-090 selbst brachte darüber hinaus primär Stabilitätsfixes, kein zweites neues
-      Protokoll — bei künftigen unlshd-Releases erneut gegenprüfen).
+- [x] Unleashed **unlshd-090+** vs. mntm-012: weitere neue/erweiterte **SubGHz-Protokolle** geprüft
+      — Stand `dev`, Commit `945234a` (2026-09-10, API 88.9, noch kein neuer `unlshd-`-Tag seit
+      090). CHANGELOG nennt vier Kandidaten: Nice O-Code (neues Protokoll, 52/72 Bit), Security+
+      2.0 Keypad-Unterstützung (86-Bit-Erweiterung des bereits vorhandenen `secplus_v2`), neue
+      KeeLoq-Hersteller (JCM Tech Gen2/Stagnoli/Telcoma/SEA/2× Wisniowski — Hersteller-Lernschlüssel,
+      nicht quelltextlich gegen echte Aufnahmen verifizierbar, daher zurückgestellt) und **Prastel
+      42 Bit ist jetzt Rolling Code statt Fixed Code** (aus `came.c` in ein eigenes `prastel.c`
+      ausgelagert). Prastel als ersten, am klarsten abgeschlossenen Fund bearbeitet: bei mir läuft
+      42-Bit-Prastel noch komplett als CAME-Fixed-Code (`came.c`, keine Feld-Extraktion, kein
+      Zähler) — Port-Vorschlag inkl. an meine Basis angepasstem `prastel.c/.h` (mein Stand hat
+      weder Unleasheds neue `common.h`-Decoder/Encoder-Infrastruktur noch die globale Tasten-/
+      Zähler-Override-Infrastruktur; stattdessen an `came_atomo.c` orientiert) sowie host-seitiger
+      Verifikation der übernommenen Bit-Verwürflung (Pack/Unpack-Inversität, Round-Trip auf
+      legitimen Nutzlasten, `gen_data()`-Zyklus — je 0 Abweichungen) in
+      `firmware-mining/prastel-42bit-rolling-code-port.md` /
+      `firmware-mining/repro-prastel-42bit-rolling/repro.c`. Verbleibend zurückgestellt: Nice
+      O-Code (neues Protokoll + eigene Installer-Code-Recovery-App, größerer Portaufwand), Security+
+      2.0 Keypad (tief in den bestehenden `secplus_v2.c`-Zustandsautomat verwoben, kein sauber
+      isolierbares Diff), neue KeeLoq-Hersteller (Schlüsselmaterial-Fragen, siehe oben) — für
+      künftige Sitzungen einzeln aufgreifbar.
 - [x] RogueMaster App-Bündel (`applications/external/`, ~700 Apps) durchgesehen: erster
       konkreter Fund ist die **Wiegand Reader**-App (Physical-Access-Audit, mir bislang komplett
       fehlende Kategorie) — Port-Vorschlag in `firmware-mining/wiegand-reader-app.md`. Bündel ist
