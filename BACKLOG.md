@@ -500,6 +500,25 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Version 6 allein deckt die volle erreichbare Werte-Kapazität bereits ab. Restlicher
       Cluster-Umfang (~35 Schreib-Szenen für Kontakt/Bitcoin/WLAN/Social/etc.) weiterhin für
       künftige Sitzungen offen.
+- [x] NFC-Werkzeug-Cluster weiterverfolgt: Rückstellpunkt "~35 Schreib-Szenen für Kontakt/
+      Bitcoin/WLAN/Social/etc." aufgegriffen — alle 34 Dateien unter `scenes/write/` vollständig
+      gelesen (reine Tastatur-Eingabe-Wrapper ohne eigene Kodierlogik, kein Fund) sowie
+      `core/nfc_tools_search.c`/`core/nfc_tools_social.c` (statische Präfix-/Suffix-Tabellen,
+      kein Fund). Beim Nachverfolgen, wo die dort gesammelten Felder tatsächlich in NDEF-Payloads
+      umgesetzt werden, Fund im gemeinsamen URL-Encoder-Helfer `url_encode()`
+      (`core/nfc_tools_ndef.c:529`, genutzt von `NdefTypeBitcoin`s `message`-Feld und
+      `NdefTypeSearch`s Suchbegriff): Off-by-eins in der Schleifenbedingung (`j + 4 < dest_size`
+      statt `j + 4 <= dest_size`) verlangt ein Byte mehr Pufferreserve als nötig — bei den exakt
+      worst-case-dimensionierten Zielpuffern beider Aufrufstellen (`raw_len * 3 + 1`) bricht die
+      Kodierung dadurch vorzeitig ab und schneidet das Ende des Strings stillschweigend ab (bei
+      kurzen/einzeichigen Eingaben bis auf einen leeren String), ohne Fehlermeldung. Mit
+      Host-Repro (neun Fälle inkl. Regressionsanker gegen einen unabhängigen Referenz-Encoder)
+      unter ASan/UBSan verifiziert — Port-Vorschlag inkl. Fix in
+      `firmware-mining/nfctools-url-encode-off-by-one-truncation-fix.md`. Reiner
+      Datenkorrektheitsfehler (Payload-Länge und -Inhalt bleiben konsistent, nur inhaltlich
+      verstümmelt), keine Speichersicherheitsfrage. Damit ist der Schreib-Szenen-Rückstellpunkt
+      abgeschlossen; restlicher Cluster-Umfang nur noch `chameleon`/`nfc_relay` (Fremdgerät/
+      Zweitgerät, außerhalb reiner Quelltextprüfung).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
