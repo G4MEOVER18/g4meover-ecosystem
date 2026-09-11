@@ -363,6 +363,20 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation (siehe Risiken) weiterhin
   unbestätigt, jetzt seit zwei Wochen unverändert offen. Kein Hardware-Zugriff versucht, nichts
   geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-11 (Cloud-Heartbeat): die drei vordersten offenen TODOs (P0.2c/d, P0.3a-d, P0.4e/f) sind
+  nach fünf aufeinanderfolgenden Verfeinerungs-Runden jetzt so detailliert (Befehl, Soll-Werte,
+  Fehlerbaum, Schreib-Mechanik, Vorschläge für jede offene Entscheidung), dass eine weitere
+  Cloud-Verfeinerung nur noch Text wiederholen würde statt echten Mehrwert zu liefern — bewusst
+  keine weitere Textmenge ergänzt, um genau das zu vermeiden. Stattdessen den seit fünf Sitzungen
+  wiederholten, aber nie umgesetzten Punkt bearbeitet: die Zugangsdaten-Rotation (Pi-SSH,
+  LORIX-Admin) — bisher nur als "muss rotiert werden" notiert, jetzt als fertiges Drei-Schritt-
+  Runbook unter Risiken (Rotation zuerst, danach erst `git filter-repo --replace-text` statt
+  Pfad-Entfernung, `--force-with-lease` statt `--force`, Hinweis auf nötiges Neuklonen aller
+  Checkouts) — lokal nur noch auszuführen, nicht mehr zu entwerfen. Fund bleibt unverändert seit
+  2026-08-27 offen, jetzt 15 statt 14 Tage; per Push-Notification an den User eskaliert, da fünf
+  Cloud-Sitzungen ihn bereits erfolglos im Log vermerkt haben. Repo-Sichtbarkeit erneut per
+  GitHub-API geprüft: weiterhin `private`. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -387,9 +401,11 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
    kleinen Firmware-Patch auf `heltec-v4-hub` umsetzen (P0.4e/f) — nur `SRC_ID`/Versionsbyte,
    BLE-Transport separat später.
-4. **Sicherheitsrelevant, siehe Risiken unten:** Pi-SSH-Passwort und LORIX-Admin-Passwort rotieren
-   und entscheiden, ob die Git-Historie bereinigt wird (`git filter-repo`/BFG + Force-Push) — die
-   Commit-Angabe dafür ist jetzt korrekt (`7e39b5b`/`57560bd`, nicht mehr `df0cf3b`).
+4. **Sicherheitsrelevant, siehe Risiken unten — jetzt 15 Tage überfällig:** Pi-SSH-Passwort und
+   LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
+   Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
+   `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
+   Neuklonen aller bestehenden Checkouts) steht jetzt unter Risiken unten — nur noch auszuführen.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
@@ -423,6 +439,23 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 15 Tage überfällig):**
+    1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
+       neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
+       (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
+       `sshd` neu laden — schließt den Passwort-Angriffsweg dauerhaft. Neues Passwort nur lokal
+       (Passwort-Manager), nicht ins Repo.
+    2. **LORIX-Admin-Passwort:** Web-UI → Administration/System → Passwort ändern (Menüpfad je
+       Firmware-Version leicht abweichend, sonst LORIX-Handbuch); falls CLI/SSH-Zugriff aufs
+       LORIX besteht, alternativ dortiges Passwort-Kommando nutzen. Neues Passwort nur lokal notieren.
+    3. **Git-Historie erst NACH 1+2 bereinigen** (sonst bleiben die noch gültigen Alt-Credentials im
+       force-gepushten Objekt-Store erreichbar): `git filter-repo --replace-text` mit einer lokalen
+       Ersetzungsdatei (Alt-Werte → `[REDACTED]`, Datei selbst nicht committen) über die volle
+       Historie laufen lassen — **nicht** `--path …--invert-paths`, da die betroffene Datei aktuell
+       gebraucht wird und nur der Text ersetzt werden soll. Danach `git push --force-with-lease
+       origin main` (nicht `--force`, falls zwischenzeitlich woanders gepusht wurde). Jeder
+       bestehende Klon (PC, Pi) muss danach **neu geklont** werden, nicht nur gepullt (History-IDs
+       ändern sich).
 - Heltec-V4-Native-USB kann nach esptool-Reset kurz verschwinden → ggf. Replug nötig (bekannt,
   siehe AUTO-FORTSETZUNG Regel 4).
 
@@ -442,26 +475,25 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   das nicht unterbinden. Betrifft nur Commit-Metadaten, keine Repo-Datei; Historie-Bereinigung
   weiterhin nur lokal mit ausdrücklicher Freigabe möglich.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-10):** Die drei vordersten offenen TODOs (P0.2c,
-P0.2d, P0.3a) von "Befehl/Vorschlag steht" zu "direkt ausführbar/übertragbar" verfeinert: P0.2c
-bekam die fehlende Schreib-Mechanik (`jq`-Einzeiler statt Hand-Editieren von `devices.json` + eine
-abschließende Syntax-Gegenprobe). P0.2d bekam den bisher nur in Prosa beschriebenen
-`get_device_port()`-Contract als konkrete Ablaufskizze (Pseudocode) plus den Hinweis, den
-vorhandenen esptool-/pyserial-Scan-Code in eine gemeinsame Helper-Datei auszulagern statt ihn zu
-duplizieren. P0.3a bekam eine dritte, bisher übergangene Fehlerquelle (`whsniff` fehlt am Pi ganz,
-unabhängig vom Firmware-Stand des CC2531) und eine Unterscheidung zum tatsächlichen
-USB-Berechtigungsfehler — beide brauchen einen anderen nächsten Schritt als "falsches
-Firmware-Image, also P0.3b". Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`.
+**Cloud hat in dieser Sitzung erledigt (2026-09-11):** Bewusst **keine** weitere Verfeinerung der
+drei vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f) — nach fünf aufeinanderfolgenden Runden sind sie
+bereits auf Befehlszeile/Soll-Wert-Ebene detailliert, weitere Textmenge dort wäre Wiederholung statt
+Mehrwert. Stattdessen den seit 2026-08-27 wiederholt vermerkten, aber nie umgesetzten
+Zugangsdaten-Fund bearbeitet: fertiges Drei-Schritt-Rotations-Runbook unter Risiken ergänzt (Pi-SSH
++ LORIX-Admin-Passwort zuerst rotieren, danach erst `git filter-repo --replace-text` statt
+Pfad-Entfernung, `--force-with-lease` statt `--force`, Hinweis auf nötiges Neuklonen aller
+bestehenden Checkouts) — lokal nur noch auszuführen. Fund ist jetzt 15 Tage alt; per
+Push-Notification eskaliert. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`.
 Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-09):** P0.3c/d von "Aufnahme machen, Wireshark
-sichten" zu konkret ausführbaren Schritten gemacht: Kanal-Findung per Kurz-Scan der vier
-überlappungsarmen Kanäle 11/15/20/25 (falls kein Koordinator-Kanal bekannt) mit fertigem
-`timeout`-Befehl statt Handabbruch für P0.3c, sowie für P0.3d zwei konkrete `tshark`-Kommandos, die
-nur Metadaten (Protokoll-Hierarchie, eindeutige Kurzadressen/Frame-Typen) liefern statt Nutzdaten —
-die pcap selbst bleibt lokal. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`,
-unverändert seit letzter Prüfung. Kein Hardware-Zugriff versucht, nichts geflasht, kein
-Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-10):** Die drei vordersten offenen TODOs (P0.2c, P0.2d, P0.3a)
+von "Befehl/Vorschlag steht" zu "direkt ausführbar/übertragbar" verfeinert: P0.2c bekam die fehlende
+Schreib-Mechanik (`jq`-Einzeiler statt Hand-Editieren von `devices.json` + eine abschließende
+Syntax-Gegenprobe). P0.2d bekam den bisher nur in Prosa beschriebenen `get_device_port()`-Contract
+als konkrete Ablaufskizze (Pseudocode). P0.3a bekam eine dritte, bisher übergangene Fehlerquelle
+(`whsniff` fehlt am Pi ganz) und eine Unterscheidung zum tatsächlichen USB-Berechtigungsfehler.
+Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`. Kein Hardware-Zugriff
+versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
