@@ -561,6 +561,25 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       exakten Zeilenankern — kein „klein & sicher"-Fund, sondern ein mehrteiliger Feature-Port.
       Damit von den drei zurückgestellten Kandidaten noch offen: Nice O-Code (neues Protokoll),
       neue KeeLoq-Hersteller (Lernschlüssel, nicht quelltextlich verifizierbar).
+- [x] Rückstellpunkt "uhf_rfid-Szenen-Code (reine UI-Ablaufsteuerung, nicht mitgeprüft)"
+      aufgegriffen — alle 14 Szenen-C-Dateien vollständig gelesen. Fund: in 7 von 9
+      Nicht-Wurzel-Szenen (`read_tag`, `write_tag`, `read_tag_success`, `write_tag_success`,
+      `delete`, `saved_menu`, `settings`) wird `SceneManagerEventTypeBack` entweder gegen das
+      falsche Struct-Feld geprüft (`event.event` statt `event.type`, in drei Szenen) oder gar
+      nicht behandelt (in vier Szenen) — `on_event()` liefert dadurch für die physische
+      Zurück-Taste `consumed = false`, was laut `view_dispatcher.c` unmittelbar
+      `view_dispatcher_stop()` auslöst: die Taste beendet die gesamte App statt eine Ebene
+      zurückzuspringen, u. a. auf den beiden zentralen Read-/Write-Tag-Bildschirmen. Gegen die
+      korrekt implementierten Nachbarszenen (`device_info`, `tag_menu`) sowie die
+      Input-Callbacks von Widget/Popup/Submenu/VariableItemList/TextInput im eigenen
+      `mntm-012`-Baum verifiziert (nur Popup mit gesetztem Callback und TextInput fangen die
+      Taste bereits ab, daher `save_success`/`delete_success`/`save_name` nicht betroffen;
+      `module_info` ist Wurzelszene, dort ist App-Ende bei Zurück das erwartbare Verhalten).
+      Mit Host-Repro (alle sieben `on_event()`-Funktionen ALT/NEU nachgebaut, gegen ein echtes
+      Zurück-Ereignis sowie eine Regressionsmatrix aus allen zehn bereits gültigen
+      Ereigniscodes je Szene geprüft) bestätigt — Port-Vorschlag inkl. Fix in
+      `firmware-mining/uhfrfid-back-button-exits-app-fix.md`. Damit ist der komplette
+      `uhf_rfid`-Quelltext (Core + Scenes) jetzt vollständig geprüft.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
