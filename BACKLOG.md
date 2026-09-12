@@ -1289,6 +1289,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `gcc -O2 -Wall -Wextra -fsanitize=address,undefined` verifiziert: toter Zweig in keinem
       Fall erreicht, ALT/NEU-Zustand nach jedem Puls identisch. Damit ist der Rückstellpunkt
       abgeschlossen; restlicher `ProtoPirate`-Code (PSA-Bruteforce-Kernel) weiterhin offen.
+- [x] **g4meover-magspoof**: `mag_device_load_data()` (`mag_device.c`) geprüft — übernimmt den
+      Dateinamen (ohne Endung) per bloßem `strncpy(dev_name, ..., MAG_DEV_NAME_MAX_LEN)` in ein
+      `char[23]`-Feld einer nur `malloc()`'ten (nicht zero-initialisierten) Struktur; bei 22+
+      Zeichen langen Dateinamen bleibt `dev_name` ohne Terminierung. Beim App-Start mit
+      Dateipfad-Argument (`mag.c`, Favoriten/„Open with") fehlt der reparierende
+      `mag_device_set_name()`-Folgeaufruf, der beim interaktiven „Load file"-Pfad zufällig
+      terminiert (per Selbst-Kopie-Nachrechnung als unkritisch bewiesen) — jeder spätere
+      `%s`-Zugriff auf `dev_name` (Emulate-/Delete-Confirm-/Saved-Info-Szene,
+      `mag_device_delete()`-Fallback) liest dann über die 23-Byte-Struktur hinaus. Mit
+      Host-Repro unter ASan verifiziert (`heap-buffer-overflow`, „0 bytes after 23-byte
+      region") — Fix in
+      `app-improvements/g4meover-magspoof/mag-device-load-data-dev-name-oob-read-fix.md`
+      (`strlcpy` auf volle Puffergröße statt `strncpy`, behebt beide Aufrufpfade an der
+      Quelle).
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
