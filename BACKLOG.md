@@ -580,6 +580,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Ereigniscodes je Szene geprüft) bestätigt — Port-Vorschlag inkl. Fix in
       `firmware-mining/uhfrfid-back-button-exits-app-fix.md`. Damit ist der komplette
       `uhf_rfid`-Quelltext (Core + Scenes) jetzt vollständig geprüft.
+- [x] Quellsuche zum offenen Punkt "MIFARE Plus / Ultralight AES: schlüsselbasierte
+      Authentifizierung fehlt komplett" (weiter oben als offen vermerkt) abgeschlossen:
+      Unleashed (`dev`, Commit `945234a`) hat seit meinem `mntm-012`-Pin-Stand sowohl volle
+      MIFARE-Plus-SL3-AES-Authentifizierung (Sektor-Keys, Secure Messaging, Admin-Keys,
+      Konfigurationsblöcke, plus eine komplett neue Listener-/Emulationsseite) als auch
+      MIFARE-Ultralight-AES/MF0AES20 (3-Pass-Auth, CMAC-Secure-Messaging) bekommen — grob
+      3000+ Zeilen über ~25 Dateien, klar zu groß für einen einzelnen Patch. Vollständige
+      Bestandsaufnahme (betroffene Dateien gestuft in sechs Phasen, Risiko, Port-Skizze) in
+      `firmware-mining/mfplus-mfultralight-aes-auth-port.md`; den einzigen bereits jetzt
+      eigenständig portierbaren Teil — die reinen AES-128-Kryptografie-Primitive beider
+      Kartenfamilien (`mf_plus_crypto.c/.h`, `mf_ultralight_aes_crypto.c/.h`, 427 Zeilen) —
+      1:1 übernommen und mit Host-Repro gegen drei unabhängige Referenzen verifiziert
+      (FIPS-197-AES-Vektor, alle vier RFC-4493-CMAC-Vektoren, 4000 Fälle Differenzfuzz gegen
+      OpenSSL `EVP_MAC`) in
+      `firmware-mining/repro-mfplus-mfultralight-aes-crypto/repro.c`, `ALL CHECKS PASSED`
+      unter ASan/UBSan. Zustandsautomat-Verdrahtung (Poller/Listener), Struct-Erweiterungen
+      und UI bewusst nicht mitgeliefert — mehrteiliger Feature-Port, für künftige Sitzungen
+      gestuft vorgemerkt (Phase 2-6 in der Port-Skizze).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
