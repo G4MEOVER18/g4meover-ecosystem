@@ -536,6 +536,31 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       verstümmelt), keine Speichersicherheitsfrage. Damit ist der Schreib-Szenen-Rückstellpunkt
       abgeschlossen; restlicher Cluster-Umfang nur noch `chameleon`/`nfc_relay` (Fremdgerät/
       Zweitgerät, außerhalb reiner Quelltextprüfung).
+- [x] Einen der drei aus der Prastel-Sitzung zurückgestellten SubGHz-Kandidaten aufgegriffen:
+      **Security+ 2.0 Keypad-Unterstützung** — mein `secplus_v2.c` decodiert bisher nur das
+      62-Bit-Halbpaket, das Handsender senden; LiftMaster-/Chamberlain-Funktastaturen desselben
+      Protokolls senden stattdessen ein 86-Bit-Rahmenformat (eigener Vorlauf, breiteres
+      Sync-Gap, 18- statt 10-Bit-Mischpuffer, zusätzliches 16-Bit-Datenfeld inkl. darin
+      verpackter PIN, XOR-Prüfsumme über acht Nibbles gegen den Button-Wert) — dafür gibt es bei
+      mir aktuell keine Erkennung, ein Keypad-Signal bleibt komplett unklassifiziert. Unleashed
+      (`dev`, Commit `945234a`) hat dieselbe Datei genau um diese 86-Bit-Erkennung erweitert.
+      Port-Vorschlag mit vollständiger Analyse (Struct-/Zustandsautomat-Anforderungen anhand
+      exakter Zeilen meiner eigenen Basisdatei) in
+      `firmware-mining/secplus-v2-keypad-frame-port.md`; den wiederverwendbaren, reinen
+      Bit-Mathematik-Kern (Mix-/Order-Funktionen als eigenständige `_86`-Varianten statt Umbau
+      der bestehenden, im 62-Bit-Pfad genutzten Funktionen, Halbpaket-Encode/Decode,
+      PIN-Extraktion) 1:1 aus Unleashed übernommen und mit Host-Repro
+      (`firmware-mining/repro-secplus-v2-keypad-frame/repro.c`, `gcc -O2 -Wall -Wextra
+      -fsanitize=address,undefined`) verifiziert: Encode/Decode-Rundlauf über 200 000 zufällige
+      Nutzlasten (0 Abweichungen), Mix-Invertierung/-Reihenfolge je Involution/Inverse für alle 9
+      gültigen Werte, PIN-Rundlauf über den vollständigen 4-stelligen Bereich (0000-9999, 0
+      Abweichungen), Präambel-Gate sowie Einzelbit-Verfälschung (5000 Versuche) korrekt
+      verworfen bzw. nie unbemerkt akzeptiert. Die Zustandsautomat-Verdrahtung in `feed()`
+      (86-Bit-Sync-Gap-Fenster, dynamische Bitzahl-Schwelle, 86-Bit-Präambelprüfung) liefere ich
+      bewusst nicht als fertigen Patch, sondern als konkrete Schritt-für-Schritt-Skizze mit
+      exakten Zeilenankern — kein „klein & sicher"-Fund, sondern ein mehrteiliger Feature-Port.
+      Damit von den drei zurückgestellten Kandidaten noch offen: Nice O-Code (neues Protokoll),
+      neue KeeLoq-Hersteller (Lernschlüssel, nicht quelltextlich verifizierbar).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
