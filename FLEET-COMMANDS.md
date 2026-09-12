@@ -1,7 +1,11 @@
 # G4MEOVER Fleet — Befehls- & Fähigkeits-Matrix
 
 Autoritative Übersicht, welcher `ukfe_rf`-Befehl auf welchem Gerät läuft und in welchem Zustand.
-Stand: 2026-08-18.
+Stand: 2026-08-18 (v1-Protokoll/-Matrix, weiterhin live).
+
+> **Vorausschau v2:** [`UKFE-RF-V2-SPEC.md`](UKFE-RF-V2-SPEC.md) entwirft eine Frame-Erweiterung
+> (Source-/Origin-ID, BLE-Transport, neue Commands `0x60`–`0x70`) für Masterplan-Phase 0/2b/8.
+> Entwurfsstatus, noch nicht live — diese Matrix bleibt bis zur lokalen Umsetzung (P0.4f) gültig.
 
 **Status-Legende:** ✅ live (auf Hardware verifiziert) · 🔨 in PR (gebaut & kompiliert, wartet auf Flash-Test) · 📋 geplant (nur Enum, kein Handler)
 

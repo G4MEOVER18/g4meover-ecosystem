@@ -224,6 +224,25 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
   Pi+Windows ohne Extra-Deps; Worker-Thread für Serial/CLI). Tabs: Flipper (aktiv) + Heltec/LoRaWAN/DogyTag/Karte/Zigbee/Visualizer (Stubs).
   Desktop-Verknüpfungen: Windows `.lnk` (pythonw) + Kali `.desktop` (beide gesetzt). Deploy Pi `/home/kali/g4meover-control/`.
 - [ ] P1.2 Transport-Abstraktion: serielle ukfe_rf-Verbindung (Auto-Port aus Cockpit übernehmen) + Frame-Dekoder.
+  - [ ] P1.2a **Lokal:** Transport-Interface definieren (`open()`/`close()`/`send_frame(bytes)`/
+    `receive_frame() -> bytes|None`/`is_connected`), erste Implementierung `SerialTransport`
+    (pyserial) im bestehenden Kali-Cockpit-Prototyp (`g4meover_control.py`, Tkinter, P1.1).
+    Portauflösung **nicht** neu erfinden: denselben `get_device_port()`-Contract aus P0.2d nutzen,
+    sobald der dort vorgeschlagene Helper lokal existiert — sonst driften zwei Port-Logiken
+    (Cockpit vs. Flash-Tools) auseinander.
+  - [ ] P1.2b **Lokal, nicht aus der Cloud lieferbar:** Frame-Encode/-Decode (v1-Header aus
+    Abschnitt „Alle Transporte tragen denselben signierten Frame" in `FLEET-COMMANDS.md`) als
+    eigenständiges Modul, getrennt von der Transport-Schicht. Grund für „nur lokal": `CRC16`-Polynom
+    und der **keyed-MAC**-Algorithmus (`MAC4`) sind nur in der echten Firmware verifizierbar
+    (`heltec-v4-hub`, `lora-ukfe`, `heltec-ukfe-rx`, …) — diese Repos liegen außerhalb des
+    GitHub-Zugriffs-Scopes dieser Cloud-Sitzung (nur `g4meover-ecosystem`). Ein hier geschriebener
+    Codec wäre reine Vermutung statt gegen die reale Quelle verifizierter Bytes — genau das Risiko,
+    das die firmware-mining-Routine mit ihren Host-Repros bewusst vermeidet (dort immer gegen
+    echten Firmware-Quellcode geprüft). Lokal denselben Ansatz übertragen: Host-Repro (reines
+    Python/C, ohne Hardware) gegen die tatsächliche Firmware-Implementierung schreiben, danach erst
+    ins Cockpit integrieren.
+  - [ ] P1.2c **Lokal:** Auto-Port-Übernahme aus dem bestehenden Kali-Cockpit-Prototyp (WAN-Tab,
+    P1.1 bereits ✅) in die neue Transport-Abstraktion überführen statt neu zu entwerfen.
 - [ ] P1.3 Tab **Geräte**: Live-Liste (aus devices.json + Probe), Status/Batt/RSSI je Gerät.
 - [ ] P1.4 Tab **Flipper**: alle Flipper-Funktionen (CLI + App-Katalog) inkl. **Raw-Command**-Feld.
 - [ ] P1.5 Tab **Heltec/V4**: voller Command-Katalog + Raw-Frame-Sender; Ergebnis mit Quell-ID.
@@ -377,6 +396,23 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Cloud-Sitzungen ihn bereits erfolglos im Log vermerkt haben. Repo-Sichtbarkeit erneut per
   GitHub-API geprüft: weiterhin `private`. Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-09-12 (Cloud-Heartbeat): P0.2c/d, P0.3a-d und P0.4e/f sind nach sechs aufeinanderfolgenden
+  Verfeinerungsrunden bewusst unverändert gelassen (weitere Textmenge dort wäre Wiederholung, siehe
+  Log 2026-09-11) — stattdessen den nächsten, noch unverfeinerten Tier aufgegriffen: **Phase 1
+  (aktueller Fokus laut FORTSCHRITT)**, P1.2 „Transport-Abstraktion" in drei Unterschritte zerlegt
+  (P1.2a Transport-Interface + Wiederverwendung von P0.2d's `get_device_port()`; P1.2b
+  Frame-Encode/-Decode — explizit als „lokal, nicht aus der Cloud lieferbar" markiert, da CRC16/
+  keyed-MAC nur gegen die echte Firmware verifizierbar sind, deren Repos (`heltec-v4-hub`,
+  `lora-ukfe`, …) außerhalb des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung liegen — ein hier
+  geschriebener Codec wäre unverifizierte Vermutung, kein prüfbares Artefakt; P1.2c Auto-Port aus
+  dem bestehenden Cockpit-Prototyp übernehmen statt neu entwerfen). Doku-Konsistenzlücke geschlossen:
+  `FLEET-COMMANDS.md` verwies bisher nicht auf `UKFE-RF-V2-SPEC.md` (nur umgekehrt) — Vorausschau-
+  Hinweis ergänzt, v1-Matrix selbst unverändert (weiterhin live). Repo-Sichtbarkeit erneut per
+  GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin unverändert offen (siehe
+  Risiken, jetzt seit 2026-08-27), keine erneute Eskalation ohne neuen Sachstand. Kein
+  Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben (auch keine
+  „nur Python, keine Hardware nötig"-Ausnahme für P1.2b — siehe Begründung oben: der Grund ist hier
+  fehlender Quell-Zugriff, nicht nur fehlende Hardware).
 
 ## PREP für nächste lokale Session
 
@@ -401,7 +437,11 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
    kleinen Firmware-Patch auf `heltec-v4-hub` umsetzen (P0.4e/f) — nur `SRC_ID`/Versionsbyte,
    BLE-Transport separat später.
-4. **Sicherheitsrelevant, siehe Risiken unten — jetzt 15 Tage überfällig:** Pi-SSH-Passwort und
+4. Sobald Zeit für Phase 1 (aktueller Fokus) ist: P1.2a/b/c oben (Abschnitt 4) sind jetzt
+   Unterschritte statt einer einzelnen Zeile. P1.2b (Frame-Codec) **zuerst gegen die echte
+   Firmware-Quelle verifizieren** (`heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx`), erst danach
+   Host-Repro schreiben und ins Cockpit integrieren — nicht aus der v1-Doku allein raten.
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 16 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -439,7 +479,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 15 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 16 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -465,7 +505,10 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
 - P0.3 komplett: CC2531 physisch am Pi (Firmware-Check/Flash, Capture, Wireshark-Sichtung).
 - P0.4e/f: Firmware-Owner-Review der jetzt vorliegenden Spec-Vorschläge, jede Firmware-Umsetzung
   (Compile/Flash/Funktest auf V3/V4/LilyGo/WROOM).
-- Phase 1 GUI-Arbeit, sofern gegen echte Serial-/USB-Geräte getestet wird.
+- Phase 1 GUI-Arbeit, sofern gegen echte Serial-/USB-Geräte getestet wird. P1.2b (Frame-Codec)
+  zusätzlich deshalb nur lokal möglich, weil die zur Verifikation nötige Firmware-Quelle
+  (`heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx`) außerhalb des GitHub-Zugriffs-Scopes dieser
+  Cloud-Sitzung liegt — unabhängig von der Hardware-Frage.
 - Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
   Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen (jetzt mit korrekter
   Commit-Angabe).
@@ -475,25 +518,27 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   das nicht unterbinden. Betrifft nur Commit-Metadaten, keine Repo-Datei; Historie-Bereinigung
   weiterhin nur lokal mit ausdrücklicher Freigabe möglich.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-11):** Bewusst **keine** weitere Verfeinerung der
-drei vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f) — nach fünf aufeinanderfolgenden Runden sind sie
-bereits auf Befehlszeile/Soll-Wert-Ebene detailliert, weitere Textmenge dort wäre Wiederholung statt
-Mehrwert. Stattdessen den seit 2026-08-27 wiederholt vermerkten, aber nie umgesetzten
-Zugangsdaten-Fund bearbeitet: fertiges Drei-Schritt-Rotations-Runbook unter Risiken ergänzt (Pi-SSH
-+ LORIX-Admin-Passwort zuerst rotieren, danach erst `git filter-repo --replace-text` statt
-Pfad-Entfernung, `--force-with-lease` statt `--force`, Hinweis auf nötiges Neuklonen aller
-bestehenden Checkouts) — lokal nur noch auszuführen. Fund ist jetzt 15 Tage alt; per
-Push-Notification eskaliert. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`.
-Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Cloud hat in dieser Sitzung erledigt (2026-09-12):** P0.2c/d, P0.3a-d, P0.4e/f bewusst unverändert
+gelassen (nach sechs Runden Wiederholung statt Mehrwert, siehe Log). Stattdessen Phase 1 (aktueller
+Fokus) aufgegriffen: P1.2 „Transport-Abstraktion" in P1.2a (Interface + `get_device_port()`-Reuse),
+P1.2b (Frame-Codec — explizit als lokal markiert, Begründung: Verifikation braucht Firmware-Quelle
+außerhalb des GitHub-Scopes dieser Sitzung, nicht nur Hardware) und P1.2c (Auto-Port aus Cockpit
+übernehmen) zerlegt. `FLEET-COMMANDS.md` bekam einen fehlenden Vorausschau-Verweis auf
+`UKFE-RF-V2-SPEC.md`. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`.
+Zugangsdaten-Rotation weiterhin offen, jetzt 16 Tage — keine erneute Push-Notification ohne neuen
+Sachstand (bereits am 2026-09-11 eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-10):** Die drei vordersten offenen TODOs (P0.2c, P0.2d, P0.3a)
-von "Befehl/Vorschlag steht" zu "direkt ausführbar/übertragbar" verfeinert: P0.2c bekam die fehlende
-Schreib-Mechanik (`jq`-Einzeiler statt Hand-Editieren von `devices.json` + eine abschließende
-Syntax-Gegenprobe). P0.2d bekam den bisher nur in Prosa beschriebenen `get_device_port()`-Contract
-als konkrete Ablaufskizze (Pseudocode). P0.3a bekam eine dritte, bisher übergangene Fehlerquelle
-(`whsniff` fehlt am Pi ganz) und eine Unterscheidung zum tatsächlichen USB-Berechtigungsfehler.
-Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`. Kein Hardware-Zugriff
-versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-11):** Bewusst **keine** weitere Verfeinerung der drei vordersten
+TODOs (P0.2c/d, P0.3a-d, P0.4e/f) — nach fünf aufeinanderfolgenden Runden sind sie bereits auf
+Befehlszeile/Soll-Wert-Ebene detailliert, weitere Textmenge dort wäre Wiederholung statt Mehrwert.
+Stattdessen den seit 2026-08-27 wiederholt vermerkten, aber nie umgesetzten Zugangsdaten-Fund
+bearbeitet: fertiges Drei-Schritt-Rotations-Runbook unter Risiken ergänzt (Pi-SSH + LORIX-Admin-
+Passwort zuerst rotieren, danach erst `git filter-repo --replace-text` statt Pfad-Entfernung,
+`--force-with-lease` statt `--force`, Hinweis auf nötiges Neuklonen aller bestehenden Checkouts) —
+lokal nur noch auszuführen. Fund war 15 Tage alt; per Push-Notification eskaliert. Repo-Sichtbarkeit
+erneut per GitHub-API geprüft: weiterhin `private`. Kein Hardware-Zugriff versucht, nichts geflasht,
+kein Firmware-/GUI-Code geschrieben.
 
 ---
 
