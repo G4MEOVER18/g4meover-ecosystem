@@ -1487,6 +1487,30 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `uhf_app.c` sowie `uhf_tag.c`/`uhf_worker.c` mitgeprüft, kein weiterer Fund. Szenen-Code
       (reine UI-Ablaufsteuerung) sowie restlicher Cluster (`chameleon`, `nfc_relay` — beide
       zwingend Fremd-/Zweitgerät; NFC-Tools-Schreib-Szenen/Passwort-Entfernung) weiterhin offen.
+- [x] NFC-Tools-Cluster weiterverfolgt: **FeliCa Write Block**
+      (`scenes/write/nfc_tools_scene_felica_write.c` + `_felica_write_input.c`, 358 Zeilen)
+      vollständig gelesen. Eingabevalidierung (34-Zeichen-Format, Blockbereich 00–13) und
+      Frame-Aufbau (32-Byte-WRITE-WITHOUT-ENCRYPTION-Rahmen, Puffergrößen exakt nachgerechnet)
+      ohne Fund. Fund: `nfc_tools_felica_write_worker()` wartet einmalig 8 s auf das
+      Poller-Ergebnis, ohne den Rückgabewert von `furi_event_flag_wait()` zu prüfen — anders als
+      alle fünf übrigen Poller-/Schreib-Worker derselben App (`write_scan`, `format_tag`,
+      `lock_tag`, `nfc_commands_run`, `set_password_write`, `remove_password_write`), die
+      vorab eine eigene `NfcScanner`-Erkennungsphase mit geprüftem Timeout und der Meldung
+      `NTS_ERR_NO_TAG` ("No tag detected") durchführen. FeliCa Write ist der einzige Schreibpfad
+      ganz ohne diese Vorprüfung — hält der Nutzer innerhalb der 8 s keine Karte an die Antenne,
+      läuft der Poller-Callback (einzige Quelle für `app->info_str`) nie, und die App zeigt
+      "Failed" mit vollständig leerem Meldungstext statt einer Ursache. Mit Host-Repro
+      (Zustandsmodell aller fünf Callback-Ausgänge inkl. Timeout) verifiziert: ALT liefert in 1
+      von 5 Fällen eine leere Meldung, NEU (Wait-Rückgabewert geprüft, bei Timeout
+      `NTS_ERR_NO_TAG` gesetzt) in 0 von 5, alle vier Callback-Fälle (Erfolg/Denied/Bad
+      Response/Aktivierungsfehler) unverändert — Port-Vorschlag inkl. Fix in
+      `firmware-mining/nfctools-felica-write-no-tag-timeout-blank-failure.md`. Als Nebenbefund
+      notiert (nicht Teil dieses Fundes): dieselbe unbeobachtete zweite Wait-Rückgabe kommt auch
+      in den fünf genannten Geschwisterfunktionen nach deren eigener Scanner-Phase vor, dort
+      aber mit deutlich kleinerem Zeitfenster (Tag-Präsenz bereits vorab bestätigt) — für eine
+      künftige Sitzung als eigener, kleinerer Rückstellpunkt vorgemerkt. Restlicher Cluster
+      weiterhin offen: `chameleon`, `nfc_relay` (Fremd-/Zweitgerät), NFC-Tools-Passwort-
+      Entfernung/Sektor-Analyse-Restumfang.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
