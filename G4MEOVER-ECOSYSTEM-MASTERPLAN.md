@@ -244,8 +244,46 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
   - [ ] P1.2c **Lokal:** Auto-Port-Übernahme aus dem bestehenden Kali-Cockpit-Prototyp (WAN-Tab,
     P1.1 bereits ✅) in die neue Transport-Abstraktion überführen statt neu zu entwerfen.
 - [ ] P1.3 Tab **Geräte**: Live-Liste (aus devices.json + Probe), Status/Batt/RSSI je Gerät.
+  - [ ] P1.3.0 **Lokal, zuerst:** klären, ob `ecosystem/g4meover-control/g4meover_control.py` (P1.1,
+    hier als ✅ mit diesem Pfad vermerkt) tatsächlich nur lokal existiert (siehe neuer Blocker
+    „Referenzierte Tool-Dateien fehlen im Repo" unten) — falls ja, aktuellen Stand ins Repo
+    committen, **bevor** P1.3 draufgesetzt wird, sonst baut dieser Unterschritt auf einer von hier
+    aus unsichtbaren Dateistruktur auf. Falls die Datei bewusst lokal-only bleiben soll: das explizit
+    hier vermerken (Grund) statt es weiter stillschweigend als Repo-Artefakt zu führen.
+  - [ ] P1.3a Datenquelle: `ecosystem/devices.json` laden (Schema aus P0.2a/b bereits vorhanden) +
+    Live-Probe je Gerät über denselben `get_device_port()`-Contract aus P0.2d/P1.2a — kein zweiter,
+    paralleler Probe-Pfad im GUI-Code.
+  - [ ] P1.3b Anzeige: da P1.1 laut Log auf Tkinter/`ttk.Notebook` aufsetzt (kein Qt), passt
+    `ttk.Treeview` als Tabelle (Spalten `id`/`host`/`status`/`last_known_port`/`verified_at`);
+    Refresh über den in P1.1 bereits vorhandenen Worker-Thread, nicht im UI-Thread pollen.
+  - [ ] P1.3c Batt/RSSI **zurückgestellt**: `0x01 Status` steht in `FLEET-COMMANDS.md` weiterhin auf
+    📋 (geplant, kein Handler) — ohne Firmware-Response gibt es keine echten Werte zu zeigen. Bis
+    P0.4f/Status-Response umgesetzt ist, nur `devices.json`-Felder + ein simples
+    erreichbar/nicht-erreichbar aus der Live-Probe anzeigen, keine Platzhalter-Zahlen erfinden.
 - [ ] P1.4 Tab **Flipper**: alle Flipper-Funktionen (CLI + App-Katalog) inkl. **Raw-Command**-Feld.
+  - [ ] P1.4.0 **Lokal, zuerst:** dieselbe Existenz-/Commit-Frage wie P1.3.0, hier für
+    `ecosystem/flipper-ctl/flipper_ctl.py` (P2.0, ebenfalls ✅ mit Pfad vermerkt, ebenfalls nicht im
+    Repo auffindbar).
+  - [ ] P1.4a Sobald verfügbar: `flipper_ctl.py`s CLI-Funktionen (SubGHz/NFC/RFID/IR/GPIO/
+    Storage/Loader/Apps laut P2.0-Beschreibung) als Aufrufe aus dem GUI-Tab verdrahten (Subprocess
+    oder Modul-Import — je nachdem, wie `flipper_ctl.py` tatsächlich strukturiert ist, erst nach
+    P1.4.0 entscheidbar).
+  - [ ] P1.4b Raw-Command-Textfeld: freier String direkt an die Flipper-CLI-Schicht durchreichen,
+    Antwort unverändert im Log-Panel (P1.6) anzeigen — kein Parsing/Validierung nötig, ist bewusst
+    der Fallback für alles, was der katalogisierte Teil noch nicht abdeckt.
+  - [ ] P1.4c App-Katalog als Liste/Menü im Tab, gespeist aus derselben Quelle wie die CLI-Funktionen
+    (kein zweiter, separat gepflegter Katalog).
 - [ ] P1.5 Tab **Heltec/V4**: voller Command-Katalog + Raw-Frame-Sender; Ergebnis mit Quell-ID.
+  - [ ] P1.5a Command-Katalog-Tabelle direkt aus der Befehls-Matrix in `FLEET-COMMANDS.md` ableiten
+    (Code/Befehl/Args/Status-Spalte übernehmen) statt einer zweiten, separat gepflegten Liste im
+    GUI-Code.
+  - [ ] P1.5b Raw-Frame-Sender ist **blockiert auf P1.2b** (Frame-Encode/-Decode, als lokal markiert
+    — CRC16/keyed-MAC nur gegen echte Firmware verifizierbar): ohne fertigen Codec kein sicherer
+    Raw-Frame-Versand, nicht vorher als Freitext-Bytes ohne CRC/MAC durchreichen (würde von der
+    Firmware ohnehin verworfen).
+  - [ ] P1.5c Ergebnis-Anzeige mit Quell-ID setzt v2-`SRC_ID`/`ORIGIN_ID` (P0.4f) voraus; bis dahin
+    Fallback: Ergebnis ohne Quell-ID anzeigen (wie v1 es implizit über den Transport-Pfad macht),
+    Feld erst nachrüsten sobald P0.4f live ist — kein Platzhalter-Wert erfinden.
 - [ ] P1.6 Ergebnis-/Log-Panel: jede Antwort zeigt **Herkunftsgerät**, Zeit, dekodierter Inhalt.
 - [ ] P1.7 Packaging: PyInstaller → `G4MEOVER-Control.exe` (Win) + Kali-Binary/AppImage; Icons/Branding.
 
@@ -413,6 +451,22 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben (auch keine
   „nur Python, keine Hardware nötig"-Ausnahme für P1.2b — siehe Begründung oben: der Grund ist hier
   fehlender Quell-Zugriff, nicht nur fehlende Hardware).
+- 2026-09-13 (Cloud-Heartbeat): Phase-1-TODO-Kette nach P1.2 (09-12 bereits zerlegt) fortgesetzt:
+  P1.3 (Tab Geräte), P1.4 (Tab Flipper), P1.5 (Tab Heltec/V4) in Abschnitt 4 in Unterschritte
+  zerlegt. Dabei einen realen Doku-Konsistenzfund gemacht: die als ✅ mit Repo-Pfad geführten Tools
+  `ecosystem/tools/pi_flash_v4.py` (P0.1), `ecosystem/g4meover-control/g4meover_control.py` (P1.1),
+  `ecosystem/flipper-ctl/flipper_ctl.py` (P2.0) sowie `ecosystem/tools/g4meover_resume.py` (Abschnitt
+  FORTSCHRITT/RESUME) sind weder im aktuellen Checkout noch in der vollen Git-Historie dieses Repos
+  auffindbar (`git log --all --diff-filter=A` auf alle vier Dateinamen: keine Treffer) — nur
+  `ecosystem/devices.json` ist tatsächlich committet. Als neuer Blocker in Risiken/Blocker und PREP
+  „Nur lokal möglich" aufgenommen, P1.3/P1.4/P1.5 verweisen jetzt explizit auf diese Klärung als
+  ersten Schritt statt blind auf eine von hier aus unsichtbare Dateistruktur aufzusetzen. Repo-
+  Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin
+  unverändert offen (seit 2026-08-27, jetzt 17 Tage) — keine erneute Push-Notification ohne neuen
+  Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben (die fehlenden Tool-Dateien wurden hier bewusst nicht neu erstellt,
+  da ihr tatsächlicher lokaler Stand unbekannt ist — ein hier neu geschriebener Ersatz würde einen
+  eventuell bereits funktionierenden lokalen Stand überschreiben/verwirren, siehe CONSTRAINTS Regel 6).
 
 ## PREP für nächste lokale Session
 
@@ -441,6 +495,9 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Unterschritte statt einer einzelnen Zeile. P1.2b (Frame-Codec) **zuerst gegen die echte
    Firmware-Quelle verifizieren** (`heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx`), erst danach
    Host-Repro schreiben und ins Cockpit integrieren — nicht aus der v1-Doku allein raten.
+   **Davor** aber den neuen Blocker unten klären: `g4meover_control.py`/`flipper_ctl.py` existieren
+   nicht im Repo — erst prüfen/committen, dann P1.3/P1.4/P1.5 (jetzt ebenfalls in Unterschritte
+   zerlegt, siehe Abschnitt 4) darauf aufsetzen.
 5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 16 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
@@ -498,6 +555,17 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
        ändern sich).
 - Heltec-V4-Native-USB kann nach esptool-Reset kurz verschwinden → ggf. Replug nötig (bekannt,
   siehe AUTO-FORTSETZUNG Regel 4).
+- **Neu (2026-09-13), Doku-Konsistenz:** Die als ✅ abgehakten Tools `ecosystem/tools/pi_flash_v4.py`
+  (P0.1), `ecosystem/g4meover-control/g4meover_control.py` (P1.1), `ecosystem/flipper-ctl/flipper_ctl.py`
+  (P2.0) sowie `ecosystem/tools/g4meover_resume.py` (Abschnitt „FORTSCHRITT/RESUME") werden im
+  Tracker mit konkretem Repo-Pfad geführt, existieren aber **nirgends in diesem Repo** — weder im
+  aktuellen Checkout noch in der vollen Git-Historie (`git log --all --diff-filter=A` auf alle vier
+  Dateinamen: keine Treffer). Nur `ecosystem/devices.json` ist tatsächlich committet. Entweder wurden
+  die Tools lokal gebaut und nie gepusht (dann fehlt hier ein Commit-Schritt aus den jeweiligen
+  Sitzungen), oder sie sollen bewusst lokal-only bleiben (dann sollte der Tracker das nicht als
+  Repo-Pfad, sondern als lokalen Stand kennzeichnen). Blockiert die sinnvolle Vertiefung von P1.3/
+  P1.4/P1.5, P0.2d und der `get_device_port()`-Integration aus der Cloud, da der tatsächliche
+  Code-Stand von hier aus nicht einsehbar ist.
 
 **Nur lokal möglich (Hardware: flashen/serial/BLE/Pi-SSH):**
 - P0.2c/d: echte Port-/MAC-Verifikation (Prüfschritt-Liste steht), Tool-Umstellung gegen den
@@ -517,28 +585,31 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Trailer — die ausführende Cloud-Umgebung hängt diesen automatisch an, eine einzelne Sitzung kann
   das nicht unterbinden. Betrifft nur Commit-Metadaten, keine Repo-Datei; Historie-Bereinigung
   weiterhin nur lokal mit ausdrücklicher Freigabe möglich.
+- **Neu (2026-09-13):** prüfen, ob `ecosystem/tools/pi_flash_v4.py`, `ecosystem/g4meover-control/
+  g4meover_control.py`, `ecosystem/flipper-ctl/flipper_ctl.py`, `ecosystem/tools/g4meover_resume.py`
+  lokal existieren (laut Tracker ✅ mit diesen Pfaden) — falls ja, in dieses Repo committen; falls
+  bewusst lokal-only, den Tracker entsprechend umformulieren. Nur lokal feststellbar, da diese
+  Dateien aus der Cloud-Sitzung heraus nicht sichtbar sind.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-12):** P0.2c/d, P0.3a-d, P0.4e/f bewusst unverändert
-gelassen (nach sechs Runden Wiederholung statt Mehrwert, siehe Log). Stattdessen Phase 1 (aktueller
-Fokus) aufgegriffen: P1.2 „Transport-Abstraktion" in P1.2a (Interface + `get_device_port()`-Reuse),
-P1.2b (Frame-Codec — explizit als lokal markiert, Begründung: Verifikation braucht Firmware-Quelle
-außerhalb des GitHub-Scopes dieser Sitzung, nicht nur Hardware) und P1.2c (Auto-Port aus Cockpit
-übernehmen) zerlegt. `FLEET-COMMANDS.md` bekam einen fehlenden Vorausschau-Verweis auf
-`UKFE-RF-V2-SPEC.md`. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`.
-Zugangsdaten-Rotation weiterhin offen, jetzt 16 Tage — keine erneute Push-Notification ohne neuen
-Sachstand (bereits am 2026-09-11 eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein
-Firmware-/GUI-Code geschrieben.
+**Cloud hat in dieser Sitzung erledigt (2026-09-13):** Phase-1-TODO-Kette fortgesetzt: P1.3/P1.4/P1.5
+in Abschnitt 4 in Unterschritte zerlegt. Dabei realen Doku-Konsistenzfund gemacht und dokumentiert:
+die als ✅ mit Repo-Pfad geführten Tools (`pi_flash_v4.py`, `g4meover_control.py`, `flipper_ctl.py`,
+`g4meover_resume.py`) existieren nicht in diesem Repo (weder Checkout noch volle Git-Historie) —
+neuer Blocker in Risiken/Blocker + PREP „Nur lokal möglich", P1.3/P1.4/P1.5 verweisen jetzt darauf
+als zuerst zu klärender Schritt. Bewusst keine Ersatz-Implementierung dieser Tools hier geschrieben,
+da ihr tatsächlicher lokaler Stand unbekannt ist. Repo-Sichtbarkeit erneut per GitHub-API geprüft:
+weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 17 Tage — keine erneute
+Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
+versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-11):** Bewusst **keine** weitere Verfeinerung der drei vordersten
-TODOs (P0.2c/d, P0.3a-d, P0.4e/f) — nach fünf aufeinanderfolgenden Runden sind sie bereits auf
-Befehlszeile/Soll-Wert-Ebene detailliert, weitere Textmenge dort wäre Wiederholung statt Mehrwert.
-Stattdessen den seit 2026-08-27 wiederholt vermerkten, aber nie umgesetzten Zugangsdaten-Fund
-bearbeitet: fertiges Drei-Schritt-Rotations-Runbook unter Risiken ergänzt (Pi-SSH + LORIX-Admin-
-Passwort zuerst rotieren, danach erst `git filter-repo --replace-text` statt Pfad-Entfernung,
-`--force-with-lease` statt `--force`, Hinweis auf nötiges Neuklonen aller bestehenden Checkouts) —
-lokal nur noch auszuführen. Fund war 15 Tage alt; per Push-Notification eskaliert. Repo-Sichtbarkeit
-erneut per GitHub-API geprüft: weiterhin `private`. Kein Hardware-Zugriff versucht, nichts geflasht,
-kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-12):** P0.2c/d, P0.3a-d, P0.4e/f bewusst unverändert gelassen
+(nach sechs Runden Wiederholung statt Mehrwert, siehe Log). Stattdessen Phase 1 (aktueller Fokus)
+aufgegriffen: P1.2 „Transport-Abstraktion" in P1.2a (Interface + `get_device_port()`-Reuse), P1.2b
+(Frame-Codec — explizit als lokal markiert) und P1.2c (Auto-Port aus Cockpit übernehmen) zerlegt.
+`FLEET-COMMANDS.md` bekam einen fehlenden Vorausschau-Verweis auf `UKFE-RF-V2-SPEC.md`.
+Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin
+offen, jetzt 16 Tage. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
+geschrieben.
 
 ---
 
