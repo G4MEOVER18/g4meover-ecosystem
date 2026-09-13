@@ -1532,6 +1532,29 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/nfctools-second-wait-timeout-blank-failure.md`. Restlicher Cluster weiterhin
       offen: `chameleon`, `nfc_relay` (Fremd-/Zweitgerät), NFC-Tools-Passwort-Entfernung/
       Sektor-Analyse-Restumfang.
+- [x] NFC-Tools-Cluster weiterverfolgt: den zuletzt offenen Rückstellpunkt "Sektor-Analyse-Restumfang"
+      aufgegriffen — `scenes/other/nfc_tools_scene_sector_analysis.c` (389 Zeilen) sowie
+      `core/nfc_tools_ntag.c` (123 Zeilen) vollständig gelesen, bisher nur zur Kontextprüfung eines
+      anderen Fundes überflogen. Fund: `nfc_tools_sector_worker()` prüft für drei der vier
+      Protokollzweige (ICODE, DESFire, FeliCa) das Ergebnis des jeweiligen Dump-/Lese-Helfers und
+      springt bei Fehlschlag in den Fehlerpfad — der vierte, MF-Ultralight/NTAG-Zweig ruft
+      `nfc_tools_ntag_dump()` auf, verwirft aber dessen `bool`-Rückgabewert. Schlägt der zugrunde
+      liegende `mf_ultralight_poller_sync_read_card()`-Aufruf fehl (Tag während des Lesens vom Feld
+      genommen), hängt die Funktion "Read error" an `info_str` an und kehrt vorzeitig zurück — der
+      Worker spielt danach trotzdem unbedingt die Erfolgs-Notification (Ton+LED) und dasselbe
+      `NfcToolsEventAnalysisDone` wie bei einem echten Erfolg, während der sichtbare Text bereits den
+      Fehler zeigt: hörbare/haptische Rückmeldung widerspricht dem tatsächlichen Ergebnis, dieselbe
+      Fundklasse wie der bereits dokumentierte FeliCa-Write-/Remove-Password-Reihenfolgen-Fund. Mit
+      Host-Repro (Zustandsmodell beider Funktionen, Erfolgs- und Fehlschlagfall) verifiziert: ALT
+      meldet in 1 von 2 Fällen die falsche Benachrichtigung, NEU (Rückgabewert geprüft, exakt nach
+      Vorbild des bestehenden ICODE-Zweigs) in 0 von 2, Regressionsfall (Lesevorgang erfolgreich)
+      unverändert — Port-Vorschlag inkl. Fix in
+      `firmware-mining/nfctools-sector-analysis-ntag-dump-ignored-result.md`. Dabei
+      `nfc_tools_felica_sector_cb()`/`nfc_tools_desfire_sector_cb()` sowie `nfc_tools_mfc_dump()`
+      (`void`-Rückgabe hier korrekt, Funktion kann konstruktionsbedingt nie vollständig fehlschlagen)
+      mitgeprüft, kein weiterer Fund. Damit ist der Rückstellpunkt "Sektor-Analyse-Restumfang"
+      abgeschlossen; restlicher NFC-Werkzeug-Cluster nur noch `chameleon`/`nfc_relay`
+      (Fremd-/Zweitgerät, außerhalb reiner Quelltextprüfung).
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
