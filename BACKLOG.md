@@ -484,6 +484,24 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Schreibaufrufe) in `firmware-mining/nfctools-remove-password-order-fix.md`. Restlicher
       Cluster-Umfang (~35 Schreib-Szenen für Kontakt/Bitcoin/WLAN/Social/etc.,
       Tag-Info-/QR-Code-/NDEF-Detail-Lesepfade) weiterhin für künftige Sitzungen offen.
+- [x] NFC-Werkzeug-Cluster weiterverfolgt: den zentralen NDEF-Schreib-Worker geprüft, über den alle
+      ~35 Schreib-Szenen am Ende laufen — `scenes/write/nfc_tools_scene_write_scan.c`
+      (`nfc_tools_ndef_write_worker()`) sowie zum Quervergleich `core/nfc_tools_ndef.c`
+      (`nfc_tools_ndef_build()`, alle NDEF-Typen) vollständig gelesen. Fund in der
+      MFUL/NTAG-Kapazitätsprüfung: der CC-Lesevorgang (Seite 3) bekommt — anders als jeder der vier
+      nachfolgenden Schreibpfade in derselben Funktion — keinen Wiederholungsversuch; schlägt er
+      transient fehl, bleibt die Kapazität beim Fallback-Wert 48 Byte, der direkt im Anschluss als
+      wäre er die echte, gemessene Kapazität in der Meldung "Tag too small!" ausgegeben wird — ein
+      Kommunikationsfehler wird so als Kapazitätsurteil mit einer erfundenen Zahl gemeldet, derselbe
+      Fundtyp wie der bereits dokumentierte "Remove Password"-Reihenfolgen-Fund. Mit Host-Repro
+      (Zustandsmodell aller vier Fälle: transienter CC-Lesefehler, dauerhafter CC-Lesefehler, echte
+      kleine Kapazität, ausreichende Kapazität) verifiziert: ALT meldet in 2 von 4 Fällen eine
+      falsche Ursache, NEU (CC-Read mit demselben bereits vorhandenen Retry-Makro wie die
+      Seiten-Writes) in keinem — Port-Vorschlag inkl. Fix in
+      `firmware-mining/nfctools-write-scan-cc-read-no-retry-tag-too-small.md`. Restlicher
+      Cluster-Umfang: `nfc_tools_scene_felica_write.c`/`_felica_write_input.c` (FeliCa-Schreibpfad),
+      Tag-Info-/QR-Code-Detail-Lesepfade sowie `chameleon`/`nfc_relay` (Fremdgerät/Zweitgerät)
+      weiterhin für künftige Sitzungen offen.
 - [x] `uhf_rfid` erneut aufgegriffen: bei der NFC-Comparator-Sitzung nur als Fremdhardware-Fall
       (externes YRM100-Modul) bestätigt und ohne vollständigen Quelltext-Review abgeschlossen —
       diesmal alle 15 C-Dateien/beide Header-Verzeichnisse vollständig gelesen. Fund in
