@@ -1511,6 +1511,27 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       künftige Sitzung als eigener, kleinerer Rückstellpunkt vorgemerkt. Restlicher Cluster
       weiterhin offen: `chameleon`, `nfc_relay` (Fremd-/Zweitgerät), NFC-Tools-Passwort-
       Entfernung/Sektor-Analyse-Restumfang.
+- [x] NFC-Tools-Cluster weiterverfolgt: den bei der FeliCa-Write-Sitzung vorgemerkten
+      Rückstellpunkt aufgegriffen — dieselbe unbeobachtete zweite Wait-Rückgabe von
+      `furi_event_flag_wait()` in den vier Geschwisterfunktionen geprüft, die (anders als
+      `write_scan`/`format_tag`) eine zweite, poller-getriebene RF-Sitzung nach ihrer eigenen
+      Scanner-Phase durchführen: `set_password_write`, `remove_password_write`,
+      `nfc_commands_run`, `lock_tag` (zusammen ~1180 Zeilen, vollständig gelesen). Bestätigt: alle
+      vier verwerfen den Rückgabewert identisch (`scenes/other/nfc_tools_scene_set_password_write.c:202`,
+      `_remove_password_write.c:205`, `_nfc_commands_run.c:256`, `_lock_tag.c:179`) — läuft der
+      jeweilige Poller-Callback innerhalb der 8 s kein einziges Mal (Karte nach erfolgreicher
+      Scanner-Erkennung, aber vor dem ersten Ereignis der zweiten RF-Sitzung wieder verloren),
+      bleiben `success`/`err[80]` des jeweils lokalen Kontexts bei ihren nullinitialisierten Werten
+      stehen — dieselbe leere "Failed"-Meldung wie beim bereits dokumentierten FeliCa-Fund, hier mit
+      kleinerem, aber realem Zeitfenster (Tag bereits einmal bestätigt erkannt). Mit generischem
+      Host-Repro (fünf Szenarien, gemeinsamer `success`+`err[80]`-Kontext, identisch für alle vier
+      Fundstellen) verifiziert: ALT 1 von 5 Fällen mit leerer Meldung, NEU 0 von 5, 0
+      Regressionsabweichungen — Port-Vorschlag inkl. Fix (nutzt bewusst nicht `NTS_ERR_NO_TAG`,
+      da diese Konstante hier bereits für den separaten Phase-1-Scanner-Timeout reserviert ist,
+      sondern die ebenfalls bereits vorhandene, semantisch passendere `NTS_ERR_TAG_CONTACT`) in
+      `firmware-mining/nfctools-second-wait-timeout-blank-failure.md`. Restlicher Cluster weiterhin
+      offen: `chameleon`, `nfc_relay` (Fremd-/Zweitgerät), NFC-Tools-Passwort-Entfernung/
+      Sektor-Analyse-Restumfang.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
