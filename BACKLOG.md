@@ -1352,6 +1352,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Ersatzlogik liefert daher bei jedem Aufruf dieselbe Schaltfläche). Restlicher
       PSA-Bruteforce-Kernel (`psa.c`, `psa_crypto.c`, die reverse-engineerten
       Krypto-Konstanten selbst) weiterhin offen.
+- [x] **ProtoPirate**: den zuletzt offenen Rückstellpunkt "`protocols/psa.c` (1443 Zeilen,
+      eigentlicher PSA-Protokoll-Decoder/-Encoder) in dieser Sitzung nicht geprüft" aufgegriffen
+      — vollständig gelesen. Fund in `subghz_protocol_decoder_psa_feed()`: der Decoder läuft
+      über zwei alternative Zustandspfade (`State2`/`State4`, je nach erkanntem
+      Präambel-Timing), die beide dieselben 64+16 Bit über strukturell identische
+      Manchester-Schleifen decodieren und in denselben Abschlusstest
+      (`decode_count_bit != PSA_KEY2_BITS`) laufen. `State2` deckelt den Zähler-Inkrement
+      bewusst auf `< PSA_KEY2_BITS` (80), sodass zusätzliche, nach dem 80. Datenbit
+      eintreffende Manchester-dekodierbare Flanken (physikalisch plausibles Jitter/Rauschen
+      vor der eigentlichen Rahmenende-Lücke) folgenlos bleiben; `State4` erhöht denselben
+      Zähler bei jeder erfolgreich dekodierten Flanke unbedingt, ohne diesen Deckel — schon
+      eine einzige zusätzliche Flanke lässt den Zähler auf 81 statt 80 laufen und der
+      anschließende Gleichheitstest verwirft ein andernfalls vollständig korrektes,
+      empfangenes 80-Bit-Signal komplett, ohne jede Fehlermeldung. Mit Host-Repro (Zähler-Logik
+      beider Zustände 1:1 nachgebaut, 0-5 zusätzliche Störflanken nach einem vollständigen
+      80-Bit-Signal sowie 5 echte Kurz-Signal-Regressionsfälle) unter
+      `gcc -O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert: ALT verliert das Signal
+      bei jeder der fünf Störflanken-Mengen (1-5), NEU (Deckel analog State2 in den
+      State4-Bit-Dekodierzweig übernommen) sowie der unveränderte State2-Pfad akzeptieren
+      dasselbe Signal in allen Fällen korrekt; alle fünf Kurz-Signal-Regressionsfälle bleiben
+      unverändert korrekt verworfen — Port-Vorschlag inkl. Fix (Ein-Zeilen-Deckel, mirror-genau
+      zu State2) in
+      `app-improvements/ProtoPirate/state4-decode-bit-count-uncapped-frame-loss-fix.md`. Dabei
+      Encoder/Decoder-Symmetrie (`psa_second_stage_xor_encrypt`/`_decrypt`,
+      `psa_calculate_checksum`, `psa_extract_fields_mode23` vs. `psa_build_buffer_mode23`),
+      Upload-Pulszahl-Rechnung (`psa_encoder_build_upload()`, exakt 325 = `PSA_UPLOAD_CAPACITY`
+      im worst case) sowie beide Deserialize-Pfade (Flipper-Format-Feldreihenfolge, jeder
+      Lesezugriff ruft vorab selbst `flipper_format_rewind()`) algebraisch bzw. strukturell
+      geprüft, kein weiterer Fund. Restlicher PSA-Bruteforce-Kernel (`psa_crypto.c`s reine
+      Puffer-Auf-/Abbau-Helfer, die reverse-engineerten Krypto-Konstanten selbst) weiterhin
+      offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
