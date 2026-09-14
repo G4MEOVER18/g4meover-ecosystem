@@ -1383,6 +1383,31 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       geprüft, kein weiterer Fund. Restlicher PSA-Bruteforce-Kernel (`psa_crypto.c`s reine
       Puffer-Auf-/Abbau-Helfer, die reverse-engineerten Krypto-Konstanten selbst) weiterhin
       offen.
+- [x] **ProtoPirate**: letzten offenen Teil des PSA-Bruteforce-Rückstellpunkts aufgegriffen —
+      `protocols/psa_crypto.c`s reine Puffer-Auf-/Abbau-Helfer vollständig gelesen. Fund an der
+      Stelle, an der ein Bruteforce-Fund in Anzeige-/Speicherfelder zerlegt wird
+      (`psa_crypto_bf.c`, `psa_bf_fill_state_from_buffer()`): die Funktion ist für die
+      BF1-Erfolgsprüfung geschrieben (8-Bit-CRC allein in `buffer[9]`, `buffer[8]` echte
+      Zähler-Nutzlast), wird aber unverändert auch für die BF2-Erfolgsprüfung wiederverwendet,
+      deren `expected_crc = dec_v1 & 0xFFFF` **beide** Bytes (`buffer[8]` und `buffer[9]`) als
+      16-Bit-Prüfsumme verwendet. Für einen BF2-Fund verunreinigt `decrypted_counter` deshalb
+      das obere CRC-Byte als Zähler-Nutzlast, und `decrypted_crc` verliert dasselbe Byte —
+      beide Felder landen unverändert in Verlaufsanzeige (`apply_success_to_history()`) und
+      `.sub`-Datei (`host_patch_flipper_format_on_success()`, `FF_CNT`/`"CRC"`). Mit Host-Repro
+      (20 synthetische BF2-Funde, `dec_v1`s untere 16 Bit jeweils exakt auf das reale CRC16
+      gesetzt, reale BF2-Erfolgsprüfung vorab gegengeprüft; zusätzlich 16 BF1-Regressionsfälle)
+      unter `gcc -O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert: ALT liefert in
+      19/20 BF2-Fällen ein falsches CRC und einen verunreinigten Counter (einzige Ausnahme: der
+      entartete Alles-Null-Fall), NEU (eigene BF2-Zerlegungsfunktion, nur am BF2-Aufrufort
+      eingesetzt) in 0/20, alle 16 BF1-Regressionsfälle bleiben unverändert korrekt — Fix in
+      `app-improvements/ProtoPirate/psa-bf2-counter-crc-buffer8-conflation-fix.md`. Dabei
+      `psa_crypto_setup_byte_buffer()`, `psa_crypto_prepare_tea_data()`,
+      `psa_crypto_unpack_tea_result_to_buffer()` (Rundlauf-Symmetrie), `psa_crypto_tea_crc()`
+      sowie `psa_crypto_crc16_bf2()` (gegen unabhängige Referenzimplementierung im Repro
+      nachgerechnet) geprüft, kein weiterer Fund. Damit ist der PSA-Bruteforce-Rückstellpunkt
+      quelltextlich vollständig abgearbeitet — offen bleiben ausschließlich die
+      reverse-engineerten TEA-Krypto-Konstanten selbst, weiterhin ohne verifizierte
+      Referenzimplementierung bewusst zurückgestellt.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
