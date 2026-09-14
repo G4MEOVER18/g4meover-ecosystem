@@ -285,7 +285,35 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
     Fallback: Ergebnis ohne Quell-ID anzeigen (wie v1 es implizit über den Transport-Pfad macht),
     Feld erst nachrüsten sobald P0.4f live ist — kein Platzhalter-Wert erfinden.
 - [ ] P1.6 Ergebnis-/Log-Panel: jede Antwort zeigt **Herkunftsgerät**, Zeit, dekodierter Inhalt.
+  - [ ] P1.6a Ein gemeinsames Log-Widget (nicht pro Tab dupliziert) im bestehenden `g4meover_control.py`
+    (P1.1, Tkinter): `ttk.Treeview` mit Spalten `Zeit`/`Quelle`/`Inhalt`, Einträge kommen aus dem in
+    P1.1 bereits vorhandenen Worker-Thread über eine Queue (`queue.Queue` + `after()`-Poll im
+    UI-Thread) statt direktem Cross-Thread-Widget-Zugriff.
+  - [ ] P1.6b **Herkunftsgerät** ohne v2-`SRC_ID` (das kommt erst mit P0.4f): bis dahin denselben
+    Fallback wie P1.5c nutzen — die aktive Tab-/Transport-Verbindung (welcher Port/welches Gerät laut
+    `devices.json`-`id` gerade verbunden ist) als Quelle eintragen, nicht auf ein Protokollfeld warten.
+    Sobald P0.4f live ist, zusätzlich das echte `SRC_ID`/`ORIGIN_ID` aus dem Frame anzeigen (Feld
+    ergänzen, Fallback bleibt für v1-Only-Geräte bestehen).
+  - [ ] P1.6c **Dekodierter Inhalt** hat zwei Fälle, die unterschiedlich weit sind: Flipper-CLI-Antworten
+    (P1.4, reiner Text über die Flipper-CLI-Schicht) können unverändert als Rohtext geloggt werden —
+    kein Decoder nötig, das ist schon heute möglich, sobald P1.1/P1.4 committet sind. `ukfe_rf`-Binär-
+    frames (Heltec/V4, P1.5) brauchen dagegen den Codec aus P1.2b — bis der lokal gegen die echte
+    Firmware verifiziert ist, hier nur die Rohbytes (Hex) loggen statt eine ungeprüfte Dekodierung zu
+    zeigen.
 - [ ] P1.7 Packaging: PyInstaller → `G4MEOVER-Control.exe` (Win) + Kali-Binary/AppImage; Icons/Branding.
+  - [ ] P1.7a **Bewusst zurückgestellt, bis P1.3/P1.4 (Geräte-/Flipper-Tab) tatsächlich funktionieren**
+    (nicht nur Stubs wie laut P1.1-Log) — Packaging eines noch bewegten Ziels erzeugt nur wiederholte
+    Rebuild-Arbeit ohne Mehrwert; kein Cloud-Anteil, da PyInstaller-Builds nur lokal gegen die echten
+    Win-/Kali-Umgebungen sinnvoll sind.
+  - [ ] P1.7b PyInstaller-Grundgerüst: `pyinstaller --onefile --windowed g4meover_control.py` sollte für
+    reines Tkinter + `pyserial` ohne Sonder-Deps auskommen; bekannter Stolperstein vorab einplanen —
+    `pyserial`s Backend-Module (`serial.tools.list_ports_windows`/`_linux`) werden von PyInstaller nicht
+    immer automatisch erkannt, ggf. `--hidden-import` je Zielplattform nötig (Windows-Build separat vom
+    Kali-Build testen, nicht nur eine Plattform).
+  - [ ] P1.7c **Blocker, neu hier vermerkt:** kein Icon-/Branding-Asset existiert bisher im Repo (nur
+    die beiden Ökosystem-Karten-Screenshots unter `docs/img/`, kein Logo/`.ico`/`.png`-Icon) —
+    `--icon`-Flag von PyInstaller braucht eins. Muss vor P1.7c erst erstellt/beigesteuert werden
+    (eigenständiger kleiner Schritt, keine Abhängigkeit von Hardware oder Firmware).
 
 ### Phase 2 — Flipper ↔ Ökosystem-Tiefe
 - [~] P2.0 **Pi/PC steuert Flipper DIREKT** ✅ Engine (2026-08-26): `ecosystem/flipper-ctl/flipper_ctl.py`
@@ -467,6 +495,24 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Firmware-/GUI-Code geschrieben (die fehlenden Tool-Dateien wurden hier bewusst nicht neu erstellt,
   da ihr tatsächlicher lokaler Stand unbekannt ist — ein hier neu geschriebener Ersatz würde einen
   eventuell bereits funktionierenden lokalen Stand überschreiben/verwirren, siehe CONSTRAINTS Regel 6).
+- 2026-09-14 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f weiterhin bewusst unverändert (siehe Log
+  2026-09-11/12, weitere Textmenge wäre Wiederholung); Phase-1-TODO-Kette letzten Schritt fortgesetzt:
+  P1.6 (Log-Panel) und P1.7 (Packaging) in Abschnitt 4 in Unterschritte zerlegt — beide bauen auf dem
+  am 2026-09-13 dokumentierten Fallback-Muster von P1.5c auf (Herkunftsgerät ohne v2-`SRC_ID` über die
+  aktive Transport-Verbindung statt Protokollfeld) statt eine dritte, separate Lösung zu entwerfen.
+  Dabei einen konkreten neuen Blocker gefunden: P1.7c (Icons/Branding) braucht ein Icon-Asset für
+  PyInstallers `--icon`-Flag, das im Repo bisher komplett fehlt (`docs/img/` enthält nur die zwei
+  Ökosystem-Karten-Screenshots, kein Logo/`.ico`) — als eigenständiger, hardwareunabhängiger
+  Kleinschritt vermerkt, nicht blockiert auf Phase 1 selbst. P1.7 zusätzlich explizit auf „erst wenn
+  P1.3/P1.4 wirklich funktionieren, nicht nur Stubs" zurückgestellt, um kein bewegliches Ziel zu
+  verpacken. Den seit 2026-09-13 offenen Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut gegen
+  `git log --all --diff-filter=A` geprüft: unverändert kein Treffer, Blocker bleibt bestehen. Repo-
+  Sichtbarkeit erneut per GitHub-API geprüft (`visibility`-Feld direkt, nicht nur `private`-Flag):
+  weiterhin `private`. Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 18
+  Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
+  Tageszählung ohne neue Information ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
+  geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -497,8 +543,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Host-Repro schreiben und ins Cockpit integrieren — nicht aus der v1-Doku allein raten.
    **Davor** aber den neuen Blocker unten klären: `g4meover_control.py`/`flipper_ctl.py` existieren
    nicht im Repo — erst prüfen/committen, dann P1.3/P1.4/P1.5 (jetzt ebenfalls in Unterschritte
-   zerlegt, siehe Abschnitt 4) darauf aufsetzen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 16 Tage überfällig:** Pi-SSH-Passwort und
+   zerlegt, siehe Abschnitt 4) darauf aufsetzen. P1.6 (Log-Panel) und P1.7 (Packaging) sind jetzt
+   ebenfalls in Unterschritte zerlegt: P1.6 kann teilweise schon vor P1.2b/P0.4f entstehen (Rohtext-
+   Logging der Flipper-CLI-Antworten, P1.6c), P1.7 bewusst erst nach funktionierendem P1.3/P1.4
+   angehen (kein Packaging eines beweglichen Ziels). Für P1.7c fehlt noch ein Icon-/Branding-Asset
+   (siehe Blocker unten) — unabhängig vom Rest von Phase 1 besorgbar.
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 18 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -536,7 +586,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 16 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 18 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -580,36 +630,49 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
 - Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
   Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen (jetzt mit korrekter
   Commit-Angabe).
-- Unverändert seit mehreren Sitzungen dokumentiert (`reports/2026-09-08-0624.md`): bereits
-  gepushte Commits tragen entgegen CONSTRAINTS.md Regel 1 einen `Co-Authored-By`/`Claude-Session`-
-  Trailer — die ausführende Cloud-Umgebung hängt diesen automatisch an, eine einzelne Sitzung kann
-  das nicht unterbinden. Betrifft nur Commit-Metadaten, keine Repo-Datei; Historie-Bereinigung
-  weiterhin nur lokal mit ausdrücklicher Freigabe möglich.
+- **Korrigiert (2026-09-14):** der bisher hier vermerkte Satz „die ausführende Cloud-Umgebung hängt
+  den `Co-Authored-By`/`Claude-Session`-Trailer automatisch an, eine einzelne Sitzung kann das nicht
+  unterbinden" stimmt nicht mehr (evtl. nie so allgemeingültig, siehe unten) — diese Sitzung hat
+  `git log` über alle 50 Commits gegen den Trailer geprüft: die letzten 15 Commits **mit** Trailer
+  enden am 2026-09-10 (`29aa985`); jeder Commit **ab** 2026-09-11 (Beginn: lokale `git config
+  user.name/user.email`-Setzung laut `reports/2026-09-11-0632.md`) trägt **keinen** Trailer mehr —
+  0 von inzwischen 35 Commits. Betroffen bleiben nur die 15 historischen Commits bis 2026-09-10;
+  das ist weiterhin nur über die bereits dokumentierte Historie-Bereinigung (`git filter-repo`,
+  Force-Push, nur lokal mit ausdrücklicher Freigabe) zu beheben, aber kein laufendes/aktives Problem
+  mehr — muss nicht mehr bei jeder neuen Cloud-Sitzung neu geprüft werden.
 - **Neu (2026-09-13):** prüfen, ob `ecosystem/tools/pi_flash_v4.py`, `ecosystem/g4meover-control/
   g4meover_control.py`, `ecosystem/flipper-ctl/flipper_ctl.py`, `ecosystem/tools/g4meover_resume.py`
   lokal existieren (laut Tracker ✅ mit diesen Pfaden) — falls ja, in dieses Repo committen; falls
   bewusst lokal-only, den Tracker entsprechend umformulieren. Nur lokal feststellbar, da diese
   Dateien aus der Cloud-Sitzung heraus nicht sichtbar sind.
+- **Neu (2026-09-14):** für P1.7c (Packaging-Icon) fehlt ein Icon-/Branding-Asset (`.ico`/`.png`,
+  Windows-Taskleiste + Kali-Desktop-Eintrag) — im Repo bisher nirgends vorhanden. Kein Hardware-Bezug,
+  aber eine bewusste Design-/Marken-Entscheidung (Motiv, Farben), die hier aus der Cloud nicht
+  eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
+  einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-13):** Phase-1-TODO-Kette fortgesetzt: P1.3/P1.4/P1.5
-in Abschnitt 4 in Unterschritte zerlegt. Dabei realen Doku-Konsistenzfund gemacht und dokumentiert:
-die als ✅ mit Repo-Pfad geführten Tools (`pi_flash_v4.py`, `g4meover_control.py`, `flipper_ctl.py`,
-`g4meover_resume.py`) existieren nicht in diesem Repo (weder Checkout noch volle Git-Historie) —
-neuer Blocker in Risiken/Blocker + PREP „Nur lokal möglich", P1.3/P1.4/P1.5 verweisen jetzt darauf
-als zuerst zu klärender Schritt. Bewusst keine Ersatz-Implementierung dieser Tools hier geschrieben,
-da ihr tatsächlicher lokaler Stand unbekannt ist. Repo-Sichtbarkeit erneut per GitHub-API geprüft:
-weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 17 Tage — keine erneute
-Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
+**Cloud hat in dieser Sitzung erledigt (2026-09-14):** Phase-1-TODO-Kette letzten Schritt fortgesetzt:
+P1.6 (Log-Panel) und P1.7 (Packaging) in Abschnitt 4 in Unterschritte zerlegt, beide auf dem seit
+2026-09-13 etablierten Fallback-Muster für „Herkunftsgerät ohne v2-SRC_ID" aufgesetzt. Dabei zwei
+reale Funde gemacht und dokumentiert: (1) P1.7c braucht ein bisher komplett fehlendes Icon-/
+Branding-Asset — neuer, hardwareunabhängiger Blocker oben; (2) der seit mehreren Sitzungen als aktiv
+geführte Blocker „Cloud-Umgebung hängt Co-Authored-By-Trailer automatisch an" ist **veraltet** — gegen
+alle 50 Commits per `git log` geprüft, der letzte Trailer stammt vom 2026-09-10, seit der
+Git-Identitäts-Setzung am 2026-09-11 tragen 0 von 35 Commits einen Trailer; Blocker-Eintrag oben
+entsprechend korrigiert (betrifft nur noch die 15 historischen Commits, kein aktives Problem mehr).
+Den Blocker „referenzierte Tool-Dateien fehlen im Repo" erneut gegen `git log --all
+--diff-filter=A` geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per GitHub-API geprüft
+(`visibility`-Feld): weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 18 Tage — keine
+erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
 versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-12):** P0.2c/d, P0.3a-d, P0.4e/f bewusst unverändert gelassen
-(nach sechs Runden Wiederholung statt Mehrwert, siehe Log). Stattdessen Phase 1 (aktueller Fokus)
-aufgegriffen: P1.2 „Transport-Abstraktion" in P1.2a (Interface + `get_device_port()`-Reuse), P1.2b
-(Frame-Codec — explizit als lokal markiert) und P1.2c (Auto-Port aus Cockpit übernehmen) zerlegt.
-`FLEET-COMMANDS.md` bekam einen fehlenden Vorausschau-Verweis auf `UKFE-RF-V2-SPEC.md`.
-Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin
-offen, jetzt 16 Tage. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
-geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-13):** Phase-1-TODO-Kette nach P1.2 fortgesetzt: P1.3 (Tab Geräte),
+P1.4 (Tab Flipper), P1.5 (Tab Heltec/V4) in Unterschritte zerlegt. Realen Doku-Konsistenzfund gemacht:
+die als ✅ mit Repo-Pfad geführten Tools (`pi_flash_v4.py`, `g4meover_control.py`, `flipper_ctl.py`,
+`g4meover_resume.py`) existieren nicht in diesem Repo — Blocker in Risiken/Blocker + PREP „Nur lokal
+möglich" aufgenommen, P1.3/P1.4/P1.5 verweisen darauf als zuerst zu klärender Schritt. Repo-
+Sichtbarkeit erneut geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 17
+Tage. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
