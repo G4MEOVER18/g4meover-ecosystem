@@ -1321,6 +1321,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `app-improvements/g4meover-magspoof/mag-device-load-data-dev-name-oob-read-fix.md`
       (`strlcpy` auf volle Puffergröße statt `strncpy`, behebt beide Aufrufpfade an der
       Quelle).
+- [x] **ProtoPirate**: ersten Schritt in den bislang zurückgestellten Rückstellpunkt
+      "PSA-Bruteforce-Kernel" gemacht — bewusst nicht an den reverse-engineerten
+      Krypto-Konstanten selbst (`psa_crypto_bf.c`/`psa_bf_core.c`, weiterhin ohne verifizierte
+      Referenzimplementierung nicht risikofrei bewertbar), sondern an der reinen
+      Orchestrierungsschicht drumherum (`scenes/plugins/protopirate_psa_bf_plugin.c`,
+      `helpers/protopirate_psa_bf_host.c`). Fund: der Hintergrund-Bruteforce-Thread setzt
+      `state->status` auf einen Endwert, bevor er das zugehörige
+      `ProtoPirateCustomEventPsaBruteforceComplete`-Event verschickt; ein unabhängig
+      laufender periodischer Tick kann denselben Statuswechsel zuerst bemerken und
+      `bf_finish_and_show_result()` zuerst aufrufen — eine echte, unsynchronisierte
+      Wettlaufsituation zwischen beiden Pfaden. Der Sub-Decode-spezifische
+      `subdecode_signal_info_refresh()`-Aufruf sitzt aber nur im Custom-Event-Zweig; gewinnt
+      der Tick bei `NOT_FOUND`/`CANCELLED` das Rennen, gibt er `g_bf_state` bereits frei,
+      wodurch der später verarbeitete Custom-Event-Zweig seinen `if(g_bf_state)`-Wächter
+      nicht mehr passiert und der Refresh ausbleibt — der Sub-Decode-Szenenzustand/die
+      Empfänger-Statuszeile bleibt dann auf dem Stand vor dem Bruteforce-Versuch hängen. Mit
+      Host-Repro (Zustandsautomatik 1:1 nachgebaut, alle 12 Kombinationen aus Ergebnis ×
+      Kontext × Ereignisreihenfolge) verifiziert: ALT verliert den Refresh in exakt den 2
+      vorhergesagten Fällen, NEU (Refresh-Aufruf von der Custom-Event-Aufrufstelle in
+      `bf_finish_and_show_result()` selbst verlagert) liefert ihn in allen 6
+      Sub-Decode-Fällen zuverlässig, 0 Regressionen im `ReceiverInfo`-Kontext, keine
+      Doppel-Freigabe in allen 24 simulierten Durchläufen — Fix in
+      `app-improvements/ProtoPirate/psa-bf-subdecode-refresh-race-fix.md`. Dabei
+      `helpers/protopirate_psa_bf_host.c` vollständig gelesen (Plugin-Lade-/
+      Entlade-Infrastruktur, durchgehend `NULL`-abgesichert), kein Fund; einen anfänglich
+      vermuteten zweiten Fund (verschwindende Erfolgs-Schaltfläche im `ReceiverInfo`-Kontext
+      bei Doppelaufruf) beim Nachrechnen als nicht zutreffend verworfen (alle drei
+      tatsächlichen Aufrufstellen übergeben durchgehend `NULL`, die vorhandene
+      Ersatzlogik liefert daher bei jedem Aufruf dieselbe Schaltfläche). Restlicher
+      PSA-Bruteforce-Kernel (`psa.c`, `psa_crypto.c`, die reverse-engineerten
+      Krypto-Konstanten selbst) weiterhin offen.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
