@@ -1,0 +1,21 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight_poller.c
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight_poller.c
+@@ -848,9 +848,15 @@
+     const Iso14443_3aPollerEvent* iso14443_3a_event = event.event_data;
+ 
+     if(iso14443_3a_event->type == Iso14443_3aPollerEventTypeReady) {
+-        MfUltralightPageReadCommandData read_page_cmd_data = {};
+-        MfUltralightError error = mf_ultralight_poller_read_page(instance, 0, &read_page_cmd_data);
+-        protocol_detected = (error == MfUltralightErrorNone);
++        // Gate the probe read on SAK/ATQA first: a magic MIFARE Classic clone acks an
++        // unauthenticated READ 0x30 the same way an Ultralight does, so without this check every
++        // such clone gets misdetected as Ultralight before the Classic poller ever gets a turn.
++        if(mf_ultralight_detect_protocol(iso14443_3a_poller_get_data(instance->iso14443_3a_poller))) {
++            MfUltralightPageReadCommandData read_page_cmd_data = {};
++            MfUltralightError error =
++                mf_ultralight_poller_read_page(instance, 0, &read_page_cmd_data);
++            protocol_detected = (error == MfUltralightErrorNone);
++        }
+         iso14443_3a_poller_halt(instance->iso14443_3a_poller);
+     }
+ 

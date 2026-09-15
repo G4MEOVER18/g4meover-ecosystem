@@ -693,6 +693,29 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       ursprünglich zurückgestellten UL-Funden sind damit zwei offen: Typ-Erkennungs-Umbau
       (NTAG210/212), gelockerte `detect_protocol()`-ATQA-Prüfung sowie die
       `get_write_end_page()`-Schreibbereichs-Anpassung (gehört zum künftigen Schreibfluss).
+- [x] **MIFARE Ultralight/NTAG: SAK/ATQA-Gate vor `mf_ultralight_poller_detect()`s Sonden-Read +
+      `detect_protocol()`-ATQA-Lockerung** — beim genaueren Nachgehen des beim UL-AES-Phase-2-Port
+      zurückgestellten `detect_protocol()`-Funds stellt sich heraus, dass Unleashed diese Funktion
+      inzwischen als Gate vor dem bislang bedingungslosen Sonden-`READ` in
+      `mf_ultralight_poller_detect()` einbaut (Fund per sparse `git clone` des `dev`-Branchs, da
+      der Aufruf über reinen Rohdatei-Zugriff auf vermutete Dateipfade nicht zu finden war). Ohne
+      dieses Gate liest meine Basis bei jedem ISO14443-3A-Tag im `Ready`-Zustand unauthentifiziert
+      Seite 0 und stuft einen magischen MIFARE-Classic-Klon, der diesen `READ` beantwortet, dabei
+      fälschlich als Ultralight ein, bevor die Classic-Erkennung überhaupt zum Zug kommt. Beide
+      zusammengehörigen Änderungen geliefert: das Gate selbst sowie die bereits notierte
+      ATQA-Low-Byte-Lockerung in `detect_protocol()` (ohne sie würde das neue Gate die
+      4-Byte-UID-Ultralight-Klone aussperren, die meine ungegatete Basis bisher zufällig weiterhin
+      erkannt hat). Als Unified-Diffs gegen meine unveränderte `main`-Basis in
+      `firmware-mining/mfultralight-detect-protocol-atqa-gate/` (`detect_protocol_c.patch`,
+      `poller_gate.patch` — `patch --dry-run -p1` gegen frische Basiskopien verifiziert, real
+      angewendet und Byte-für-Byte gegen die host-getestete Fassung abgeglichen), mit fünf
+      Host-Testgruppen unter ASan/UBSan (`ALL CHECKS PASSED`, inkl. Kontrollfluss-Modell für die
+      auf dem Host nicht kompilierbare Poller-Funktion und Gegenprobe gegen die reale, ungepatchte
+      Basis-Zeile) in `firmware-mining/repro-mfultralight-detect-protocol-atqa-gate/repro.c` —
+      Details inkl. Testhinweis in `firmware-mining/mfultralight-detect-protocol-atqa-gate.md`.
+      Von den vier ursprünglich zurückgestellten UL-Funden ist damit nur noch der
+      Typ-Erkennungs-Umbau (NTAG210/212) offen; die `get_write_end_page()`-Schreibbereichs-
+      Anpassung gehört zum künftigen Schreibfluss und wurde separat vorgemerkt.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

@@ -1,0 +1,16 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.c
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.c
+@@ -558,8 +558,11 @@
+ bool mf_ultralight_detect_protocol(const Iso14443_3aData* iso14443_3a_data) {
+     furi_check(iso14443_3a_data);
+ 
+-    bool mfu_detected = (iso14443_3a_data->atqa[0] == 0x44) &&
+-                        (iso14443_3a_data->atqa[1] == 0x00) && (iso14443_3a_data->sak == 0x00);
++    // ATQA high byte 0x00 + SAK 0x00 is the actual Ultralight/NTAG signature. The ATQA low byte
++    // is deliberately not checked: it only encodes UID length (0x44 for the standard 7-byte UID,
++    // 0x04 on some single-size-UID magic/clone tags), so restricting it to 0x44 silently drops
++    // real Ultralight-compatible cards that use the 4-byte-UID encoding.
++    bool mfu_detected = (iso14443_3a_data->atqa[1] == 0x00) && (iso14443_3a_data->sak == 0x00);
+ 
+     return mfu_detected;
+ }
