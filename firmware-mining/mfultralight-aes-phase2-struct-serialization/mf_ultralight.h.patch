@@ -1,0 +1,53 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.h	2026-09-15 06:25:05.897093367 +0000
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.h	2026-09-15 06:27:19.215686826 +0000
+@@ -32,6 +32,7 @@
+ #define MF_ULTRALIGHT_MAX_PAGE_NUM       (510)
+ #define MF_ULTRALIGHT_PAGE_SIZE          (4U)
+ #define MF_ULTRALIGHT_SIGNATURE_SIZE     (32)
++#define MF_ULTRALIGHT_AES_SIGNATURE_SIZE (48) // secp192r1, MF0AES20 only
+ #define MF_ULTRALIGHT_COUNTER_SIZE       (3)
+ #define MF_ULTRALIGHT_COUNTER_NUM        (3)
+ #define MF_ULTRALIGHT_TEARING_FLAG_SIZE  (1)
+@@ -48,6 +49,14 @@
+ #define MF_ULTRALIGHT_C_AUTH_RND_B_BLOCK_OFFSET (8)
+ #define MF_ULTRALIGHT_C_ENCRYPTED_PACK_SIZE     (MF_ULTRALIGHT_C_AUTH_DATA_SIZE + 1)
+ 
++// MIFARE Ultralight AES (MF0AES20): key material only, ahead of the auth/session state machine
++// (separate future phase). AES-128 DataProtKey lives at pages 0x30-0x33 but always reads back as
++// zero over the air; a key recovered by other means (dictionary, already known) is stashed here
++// in card byte order (memory[i] = key[15-i]) for display/save, mirroring the layout the recovery
++// flow will need once the poller exists. Unlike UL-C's 3DES key, which is kept in natural order.
++#define MF_ULTRALIGHT_AES_KEY_SIZE      (16)
++#define MF_ULTRALIGHT_AES_DATA_KEY_PAGE (0x30)
++
+ typedef enum {
+     MfUltralightErrorNone,
+     MfUltralightErrorNotPresent,
+@@ -69,6 +78,7 @@
+     MfUltralightTypeNTAGI2C2K,
+     MfUltralightTypeNTAGI2CPlus1K,
+     MfUltralightTypeNTAGI2CPlus2K,
++    MfUltralightTypeUltralightAES,
+ 
+     MfUltralightTypeNum,
+ } MfUltralightType;
+@@ -180,6 +190,8 @@
+     MfUltralightType type;
+     MfUltralightVersion version;
+     MfUltralightSignature signature;
++    bool aes_signature_present; // UL-AES 48-byte originality sig captured (vs `signature` above)
++    uint8_t aes_signature[MF_ULTRALIGHT_AES_SIGNATURE_SIZE];
+     MfUltralightCounter counter[MF_ULTRALIGHT_COUNTER_NUM];
+     MfUltralightTearingFlag tearing_flag[MF_ULTRALIGHT_TEARING_FLAG_NUM];
+     MfUltralightPage page[MF_ULTRALIGHT_MAX_PAGE_NUM];
+@@ -245,6 +257,10 @@
+ 
+ const uint8_t* mf_ultralight_3des_get_key(const MfUltralightData* data);
+ 
++// Read the recovered UL-AES DataProtKey (pages 0x30-0x33) as the actual 16-byte AES key value,
++// reversing the card byte order it is stored in. `key` must be MF_ULTRALIGHT_AES_KEY_SIZE bytes.
++void mf_ultralight_aes_get_key(const MfUltralightData* data, uint8_t* key);
++
+ void mf_ultralight_3des_encrypt(
+     mbedtls_des3_context* ctx,
+     const uint8_t* ck,

@@ -633,6 +633,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Testhinweis in `firmware-mining/mfplus-phase2-sl3-struct-serialization.md`. Damit von den
       sechs Phasen der ursprünglichen Skizze zwei erledigt (Krypto-Kern, Struct/Serialisierung);
       Phase 3 (Poller-Zustandsautomat) braucht echte Hardware zum Testen und bleibt offen.
+- [x] Bei der letzten Sitzung bewusst verschobenen Rest aufgegriffen: MIFARE-Ultralight-AES-Port
+      **Phase 2** geliefert (analog zur bereits gelieferten MIFARE-Plus-SL3-Phase-2) —
+      `MfUltralightData` bekommt die optionale 48-Byte-UL-AES-Originalitätssignatur
+      (`aes_signature`/`aes_signature_present`) plus deren Serialisierung, einen neuen
+      Kartentyp-Eintrag `MfUltralightTypeUltralightAES` (60 Seiten,
+      `ReadVersion|Authenticate|ReadCounter|IncCounter`) sowie `mf_ultralight_aes_get_key()`
+      (liest den wiederhergestellten DataProtKey aus den vorhandenen Kartenseiten, mit
+      Byte-Umkehrung) — reines Speicher-/Dateiformat, ohne Hardware nachrechenbar. Dabei
+      Unleasheds eigene Ladelogik für die neue Signatur korrigiert: ihr direktes
+      `aes_signature_present = flipper_format_read_hex(...)` ohne vorheriges Nullen hätte bei
+      mir (kein Zero-Init in `mf_ultralight_alloc()`) für jede Nicht-UL-AES-Karte einen
+      nicht-deterministischen `mf_ultralight_is_equal()` ergeben (Allocator-Altinhalt bleibt im
+      Puffer stehen, obwohl das Presence-Flag korrekt `false` wird) — bei mir stattdessen der
+      Puffer vor dem optionalen Lesevorgang immer genullt. Bewusst nicht mitgezogen (siehe
+      Port-Dokument): Unleasheds zeitgleiche, unabhängige NTAG210/212-Typ-Erkennungs-
+      Umstellung, die gelockerte `detect_protocol()`-ATQA-Prüfung, `is_pwd_pack_read()`
+      sowie die UL-AES-Schreibbereichs-Anpassung (gehört zum künftigen Schreibfluss). Als
+      Unified-Diffs gegen meine `G4MEOVER-FW`-Basis in
+      `firmware-mining/mfultralight-aes-phase2-struct-serialization/` (`patch --dry-run` vorab
+      gegen frische Basiskopien verifiziert, real angewendet und Byte-für-Byte gegen die
+      host-getestete Fassung abgeglichen), mit acht Host-Testgruppen (Reset, Copy, Rundlauf
+      mit/ohne Signatur, ALT-vs-NEU-Nachweis der oben beschriebenen Korrektur, Schlüssel-
+      Byte-Umkehrung inkl. FIPS-197-Referenzschlüssel, Typ-Verdrahtung, Regression eines
+      unveränderten Kartentyps) unter ASan/UBSan verifiziert (`ALL CHECKS PASSED`, keine
+      LeakSanitizer-Funde) in
+      `firmware-mining/repro-mfultralight-aes-phase2-struct-serialization/repro.c` — Details
+      inkl. Testhinweis in `firmware-mining/mfultralight-aes-phase2-struct-serialization.md`.
+      Damit haben beide Kartenfamilien aus der ursprünglichen Skizze ihre Phase 2 erledigt;
+      Phase 3 (Poller-Zustandsautomaten für beide Familien) braucht echte Hardware und bleibt
+      offen, ebenso die für UL-AES oben gelisteten, unabhängigen Unleashed-Funde.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

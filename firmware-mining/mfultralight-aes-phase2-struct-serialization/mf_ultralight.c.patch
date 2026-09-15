@@ -1,0 +1,116 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.c	2026-09-15 06:25:06.768661656 +0000
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.c	2026-09-15 06:28:22.143688884 +0000
+@@ -8,6 +8,7 @@
+ #define MF_ULTRALIGHT_FORMAT_VERSION_KEY  "Data format version"
+ #define MF_ULTRALIGHT_TYPE_KEY            MF_ULTRALIGHT_PROTOCOL_NAME " type"
+ #define MF_ULTRALIGHT_SIGNATURE_KEY       "Signature"
++#define MF_ULTRALIGHT_AES_SIGNATURE_KEY   "AES signature"
+ #define MF_ULTRALIGHT_MIFARE_VERSION_KEY  "Mifare version"
+ #define MF_ULTRALIGHT_COUNTER_KEY         "Counter"
+ #define MF_ULTRALIGHT_TEARING_KEY         "Tearing"
+@@ -150,6 +151,21 @@
+                 MfUltralightFeatureSupportSectorSelect | MfUltralightFeatureSupportFastWrite |
+                 MfUltralightFeatureSupportDynamicLock,
+         },
++    [MfUltralightTypeUltralightAES] =
++        {
++            // 144-byte user memory, 60 pages (0x00-0x3B). AES 3-pass auth reuses the Authenticate
++            // feature flag (shared with UL-C, branched on type). Three 24-bit counters
++            // (ReadCounter/IncCounter), no tearing-flag command, no ReadSignature (the 48-byte
++            // secp192r1 sig doesn't fit the shared 32-byte MfUltralightSignature, see
++            // `aes_signature` instead) and no FastRead (plain READ suffices). config_page = 0:
++            // the UL-AES config/access/lock page layout isn't modeled yet (future phase).
++            .device_name = "Mifare Ultralight AES",
++            .total_pages = 60,
++            .config_page = 0,
++            .feature_set =
++                MfUltralightFeatureSupportReadVersion | MfUltralightFeatureSupportAuthenticate |
++                MfUltralightFeatureSupportReadCounter | MfUltralightFeatureSupportIncCounter,
++        },
+ };
+ 
+ const NfcDeviceBase nfc_device_mf_ultralight = {
+@@ -185,6 +201,8 @@
+     furi_check(data);
+ 
+     iso14443_3a_reset(data->iso14443_3a_data);
++    data->aes_signature_present = false;
++    memset(data->aes_signature, 0, sizeof(data->aes_signature));
+ }
+ 
+ void mf_ultralight_copy(MfUltralightData* data, const MfUltralightData* other) {
+@@ -205,6 +223,8 @@
+     data->type = other->type;
+     data->version = other->version;
+     data->signature = other->signature;
++    data->aes_signature_present = other->aes_signature_present;
++    memcpy(data->aes_signature, other->aes_signature, sizeof(data->aes_signature));
+ 
+     data->pages_read = other->pages_read;
+     data->pages_total = other->pages_total;
+@@ -331,6 +351,18 @@
+             data->auth_attempts = 0;
+         }
+ 
++        // Optional UL-AES 48-byte originality signature: written only when captured, so its
++        // absence (legacy dumps, non-UL-AES cards) simply loads as "no signature". The buffer is
++        // zeroed up front (mf_ultralight_alloc() does not zero-initialize) so a dump without this
++        // key always produces the same all-zero, not-present state instead of leftover heap
++        // garbage that would make mf_ultralight_is_equal() unreliable between two such loads.
++        memset(data->aes_signature, 0, sizeof(data->aes_signature));
++        data->aes_signature_present = flipper_format_read_hex(
++            ff,
++            MF_ULTRALIGHT_AES_SIGNATURE_KEY,
++            data->aes_signature,
++            MF_ULTRALIGHT_AES_SIGNATURE_SIZE);
++
+         parsed = true;
+     } while(false);
+ 
+@@ -413,6 +445,17 @@
+                ff, MF_ULTRALIGHT_FAILED_ATTEMPTS_KEY, &data->auth_attempts, 1))
+             break;
+ 
++        // UL-AES originality sig: emit only when captured (keeps legacy/other-type dumps
++        // byte-for-byte unchanged).
++        if(data->aes_signature_present) {
++            if(!flipper_format_write_hex(
++                   ff,
++                   MF_ULTRALIGHT_AES_SIGNATURE_KEY,
++                   data->aes_signature,
++                   MF_ULTRALIGHT_AES_SIGNATURE_SIZE))
++                break;
++        }
++
+         saved = true;
+     } while(false);
+ 
+@@ -437,6 +480,9 @@
+ 
+         if(memcmp(&data->version, &other->version, sizeof(data->version)) != 0) break;
+         if(memcmp(&data->signature, &other->signature, sizeof(data->signature)) != 0) break;
++        if(data->aes_signature_present != other->aes_signature_present) break;
++        if(memcmp(data->aes_signature, other->aes_signature, sizeof(data->aes_signature)) != 0)
++            break;
+ 
+         for(size_t i = 0; i < COUNT_OF(data->counter); i++) {
+             if(memcmp(&data->counter[i], &other->counter[i], sizeof(data->counter[i])) != 0) {
+@@ -698,6 +744,18 @@
+     return data->page[44].data;
+ }
+ 
++void mf_ultralight_aes_get_key(const MfUltralightData* data, uint8_t* key) {
++    furi_check(data);
++    furi_check(key);
++
++    // Key pages 0x30-0x33 hold the DataProtKey in card byte order (memory[i] = key[15-i]);
++    // reverse it back to the actual AES key value.
++    const uint8_t* stored = data->page[MF_ULTRALIGHT_AES_DATA_KEY_PAGE].data;
++    for(size_t i = 0; i < MF_ULTRALIGHT_AES_KEY_SIZE; i++) {
++        key[i] = stored[MF_ULTRALIGHT_AES_KEY_SIZE - 1 - i];
++    }
++}
++
+ void mf_ultralight_3des_encrypt(
+     mbedtls_des3_context* ctx,
+     const uint8_t* ck,
