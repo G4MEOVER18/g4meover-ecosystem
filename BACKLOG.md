@@ -616,6 +616,23 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       unter ASan/UBSan. Zustandsautomat-Verdrahtung (Poller/Listener), Struct-Erweiterungen
       und UI bewusst nicht mitgeliefert — mehrteiliger Feature-Port, für künftige Sitzungen
       gestuft vorgemerkt (Phase 2-6 in der Port-Skizze).
+- [x] MIFARE-Plus-/Ultralight-AES-Port **Phase 2** geliefert: `MfPlusData`-Struct-Erweiterung um
+      die komplette SL3-Nutzlast (Blöcke, Sektor-/Admin-Schlüssel, Konfigurationsblöcke,
+      Originalitätssignatur, alle "bekannt"-Bitmasken) plus deren vollständige Serialisierung
+      (`mf_plus_sl3_data_save`/`_load`, Rückwärtskompatibilität zu Alt-Dumps ohne "Data format
+      version"-Schlüssel, explizite Ablehnung eines unbekannten künftigen Formats) und zwölf
+      neue Zugriffsfunktionen (`mf_plus_merge_update` inklusive) — reines Speicher-/
+      Dateiformat, ohne Hardware nachrechenbar, MIFARE-Ultralight-AES bewusst auf eine eigene
+      Sitzung verschoben. Als Unified-Diffs gegen meine `mntm-012`-Basis in
+      `firmware-mining/mfplus-phase2-sl3-struct-serialization/` (`patch --dry-run` gegen frische
+      Basiskopien vorab verifiziert), mit zehn Host-Fällen (Geometrie, Masken, Reset, Copy/
+      Is-Equal, voller Save→Load-Rundlauf inkl. Basiskarten-UID, Nicht-SL3-Rundlauf, Legacy-Dump
+      ohne Formatversion, Ablehnung einer künftigen Formatversion, Merge-Update, korruptes Feld)
+      unter ASan/UBSan verifiziert (`ALL CHECKS PASSED`) in
+      `firmware-mining/repro-mfplus-phase2-sl3-struct-serialization/repro.c` — Details inkl.
+      Testhinweis in `firmware-mining/mfplus-phase2-sl3-struct-serialization.md`. Damit von den
+      sechs Phasen der ursprünglichen Skizze zwei erledigt (Krypto-Kern, Struct/Serialisierung);
+      Phase 3 (Poller-Zustandsautomat) braucht echte Hardware zum Testen und bleibt offen.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
