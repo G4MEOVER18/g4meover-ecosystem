@@ -320,8 +320,50 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
   (VID:PID-Auto-Erkennung, volle CLI SubGHz/NFC/RFID/IR/GPIO/Storage/Loader/Apps) — läuft Pi+Windows,
   am Pi deployt `/home/kali/g4meover-flipper-ctl/`. TODO: GUI-Tab + BLE-Transport (P2.4).
 - [ ] P2.1 Flipper-App: Reverse-Kanal „Kali-Tool ausführen" (Flipper→USB/GUI→Pi→Tool→Ergebnis zurück auf Flipper-Display).
+  - [ ] P2.1a **Lokal, zuerst:** prüfen ob `g4meover-companion` (laut README „flipperbridge &
+    Deck-Tools", eigenes Repo außerhalb des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung — nur
+    `g4meover-ecosystem`) bereits einen Reverse-Kanal-Mechanismus enthält, bevor hier neu entworfen
+    wird — dasselbe Blocker-Muster wie bei P1.3.0/P1.4.0 (referenzierte Tool-Dateien erst prüfen,
+    dann aufbauen).
+  - [ ] P2.1b **Lokal:** Transport-Entscheidung — zwei Optionen, keine davon hier vorentscheidbar ohne
+    echten Blick in `G4MEOVER-FW` (ebenfalls außerhalb Scope): (a) die bereits von `flipper_ctl.py`
+    genutzte CLI-/RPC-Verbindung um einen eigenen, App-seitig ausgelösten Request erweitern (kein
+    neuer Transport, nur neue Richtung auf demselben Kanal), oder (b) ein eigener UART-Pin
+    (`furi_hal_serial`, LPUART) getrennt von der USB-CLI. (a) ist der risikoärmere Standardpfad
+    (kein zusätzliches Kabel/Pin nötig, nutzt den ohnehin vorhandenen Kanal aus P2.0) — als Vorschlag
+    hier vermerkt, endgültige Wahl aber lokal gegen die echte RPC-Implementierung von `G4MEOVER-FW`
+    zu prüfen.
+  - [ ] P2.1c Protokoll-Skizze (unabhängig von P2.1b, gilt für beide Optionen): Flipper-App sendet
+    `{tool, args}` → Pi-seitiger Listener (Erweiterung des P2.0-Engines, sobald `flipper_ctl.py`
+    committet ist, siehe Blocker unten) führt das Tool aus → Ergebnis als kurzer Text (Displaybreite
+    Flipper-OLED, ca. 30 Zeichen/Zeile) zurück über denselben Kanal, längere Ausgaben auf mehrere
+    Frames aufteilen statt abschneiden.
+  - Verifikation: nur lokal (`fbt`-Build der Flipper-App, Gegenprobe an echter Hardware); über die
+    Blocker-Prüfung (P2.1a) und die Transport-Empfehlung (P2.1b) hinaus kein Cloud-Anteil möglich.
 - [ ] P2.2 Flipper-App: WiFi/BLE/SubGHz-Umschalt-Befehle — via V4 **und** V4-los (Flipper-nativ, wo möglich).
+  - [ ] P2.2a Ist-Stand gegen `FLEET-COMMANDS.md` geprüft: es gibt noch **keinen** expliziten
+    Moduswechsel-Befehl, nur je Angriff eigene Commands (`0x20`–`0x2A` WiFi, `0x30`–`0x33` BLE,
+    `0x10`–`0x16` LoRa/SubGHz), die den Funkmodus implizit mit auswählen. Offene Entscheidung für die
+    lokale Sitzung: ob P2.2 einen zusätzlichen expliziten „Modus X aktivieren"-Befehl braucht (z. B.
+    für eine Status-Anzeige am OLED, siehe P3.1) oder ob das implizite Umschalten je Attack-Command
+    bereits ausreicht — **nicht** hier vorentscheiden, da es dieselbe Funk-Koexistenz-Frage wie P8.2
+    (BLE/WiFi gleichzeitig auf dem V4) berührt.
+  - [ ] P2.2b Falls ein expliziter Befehl gebraucht wird: Code-Bereich `0x60`+ aus
+    `UKFE-RF-V2-SPEC.md` nutzen (dort bereits für v2-Erweiterungen reserviert), nicht in die laufende
+    v1-Matrix (`0x01`–`0x51`) einschieben — vermeidet die in P0.4 bereits geprüfte
+    Command-Code-Kollision.
+  - [ ] P2.2c „Flipper-nativ, wo möglich" konkretisiert: für Funktionen, die der Flipper ohne V4 selbst
+    kann (SubGHz über eigenes CC1101, siehe `FLEET-COMMANDS.md`-Transporttabelle „868-FSK"), den
+    nativen Pfad als Default nehmen und den V4-Pfad nur für WiFi/BLE (Flipper hat kein eigenes
+    WiFi/BLE-Radio) — kein Doppelpfad für Funktionen pflegen, die der Flipper allein abdeckt.
 - [ ] P2.3 Ergebnis-Anzeige am Flipper vereinheitlichen (Quell-ID, scrollbar).
+  - [ ] P2.3a Dasselbe Fallback-Muster wie P1.5c/P1.6b in der Unified-GUI übernehmen statt separat zu
+    entwerfen: Quell-ID erst echt, sobald `SRC_ID`/`ORIGIN_ID` (P0.4f) live ist; bis dahin nur die
+    aktive Verbindung (welches Gerät gerade laut `devices.json` verbunden ist) anzeigen.
+  - [ ] P2.3b Scrollbar-Anzeige ist reine Flipper-App-UI-Arbeit (`ViewPort`/Canvas, scrollendes
+    Textfeld) — baut auf P2.1c auf (dieselbe Displaybreiten-Aufteilung für lange Ergebnisse), kein
+    eigenständiges Layout zweimal entwerfen.
+  - Verifikation: nur lokal (Flipper-Display-Ausgabe visuell prüfbar).
 - [ ] P2.4 **BLE-Transport zum Flipper**: Pi (BlueZ Central) + Windows steuern den Flipper auch über dessen
   Serial-over-BLE/RPC (radio_mode=Stack ist aktiv) — kabellose Flipper-Steuerung.
 
@@ -513,6 +555,28 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
   Tageszählung ohne neue Information ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
   geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-15 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1-Kette (P1.2-P1.7)
+  bewusst unverändert gelassen (weitere Textmenge dort wäre Wiederholung, siehe Log 2026-09-11ff.) —
+  stattdessen den nächsten unverfeinerten Tier aufgegriffen: Phase 2, P2.1-P2.3 in Abschnitt 4 in
+  Unterschritte zerlegt. P2.1 (Reverse-Kanal) bekam eine Transport-Empfehlung (CLI-/RPC-Kanal aus P2.0
+  erweitern statt neuer UART-Pin) mit explizitem Hinweis, dass die endgültige Wahl nur lokal gegen den
+  echten `G4MEOVER-FW`-Quellcode zu treffen ist (Repo außerhalb des Cloud-Zugriffs-Scopes, analog der
+  P1.2b-Begründung) — hier bewusst nicht vorentschieden. P2.2 bekam einen echten Doku-Abgleich gegen
+  `FLEET-COMMANDS.md`: es gibt noch keinen expliziten Moduswechsel-Befehl, nur implizite Umschaltung
+  je Attack-Command; ob ein expliziter Befehl nötig wird, als offene lokale Entscheidung markiert
+  (verknüpft mit der P8.2-Koexistenzfrage, nicht hier separat beantwortet). P2.3 verweist jetzt auf
+  dasselbe Quell-ID-Fallback-Muster wie P1.5c/P1.6b statt einer dritten Variante.
+  Vor der Textarbeit einen echten Repo-Zustand geprüft und korrigiert: der lokale `main`-Branch dieses
+  Checkouts zeigte auf einen 29 Commits alten Stand (`68cf176`), während `origin/main` bereits weiter
+  war (`1d06c82`, reine Firmware-Mining-Reports/Repros, keine Divergenz) — lokal per Fast-Forward
+  nachgezogen; `git push` bestätigte „Everything up-to-date", also kein tatsächlicher Datenverlust,
+  nur ein veralteter lokaler Branch-Zeiger in diesem Checkout. Keine `.sub`/DogyTag-Berührung in diesem
+  Bereich geprüft. Repo-Sichtbarkeit erneut per GitHub-API geprüft: weiterhin `private`. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/
+  `flipper_ctl.py`/`g4meover_resume.py`) erneut gegen `git log --all --diff-filter=A` geprüft:
+  unverändert kein Treffer. Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt
+  19 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert).
+  Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -548,7 +612,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Logging der Flipper-CLI-Antworten, P1.6c), P1.7 bewusst erst nach funktionierendem P1.3/P1.4
    angehen (kein Packaging eines beweglichen Ziels). Für P1.7c fehlt noch ein Icon-/Branding-Asset
    (siehe Blocker unten) — unabhängig vom Rest von Phase 1 besorgbar.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 18 Tage überfällig:** Pi-SSH-Passwort und
+4b. Nach Phase 1: P2.1-P2.3 (Abschnitt 4) sind jetzt ebenfalls in Unterschritte zerlegt. P2.1b
+   (Transport-Entscheidung Reverse-Kanal) und P2.2a (expliziter Moduswechsel-Befehl ja/nein) sind
+   als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
+   im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
+   vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 19 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -586,7 +655,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 18 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 19 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -627,6 +696,11 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   zusätzlich deshalb nur lokal möglich, weil die zur Verifikation nötige Firmware-Quelle
   (`heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx`) außerhalb des GitHub-Zugriffs-Scopes dieser
   Cloud-Sitzung liegt — unabhängig von der Hardware-Frage.
+- P2.1a/b (Reverse-Kanal-Prüfung gegen `g4meover-companion`, Transport-Entscheidung gegen
+  `G4MEOVER-FW`): dieselbe Begründung wie bei P1.2b — beide Repos liegen außerhalb des
+  GitHub-Zugriffs-Scopes dieser Cloud-Sitzung, eine hier getroffene Entscheidung wäre Vermutung statt
+  gegen den echten Quellcode geprüft. P2.1/P2.3 App-seitige Umsetzung zusätzlich Hardware-gebunden
+  (`fbt`-Build, Flipper-Display-Gegenprobe).
 - Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
   Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen (jetzt mit korrekter
   Commit-Angabe).
@@ -651,28 +725,25 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-14):** Phase-1-TODO-Kette letzten Schritt fortgesetzt:
-P1.6 (Log-Panel) und P1.7 (Packaging) in Abschnitt 4 in Unterschritte zerlegt, beide auf dem seit
-2026-09-13 etablierten Fallback-Muster für „Herkunftsgerät ohne v2-SRC_ID" aufgesetzt. Dabei zwei
-reale Funde gemacht und dokumentiert: (1) P1.7c braucht ein bisher komplett fehlendes Icon-/
-Branding-Asset — neuer, hardwareunabhängiger Blocker oben; (2) der seit mehreren Sitzungen als aktiv
-geführte Blocker „Cloud-Umgebung hängt Co-Authored-By-Trailer automatisch an" ist **veraltet** — gegen
-alle 50 Commits per `git log` geprüft, der letzte Trailer stammt vom 2026-09-10, seit der
-Git-Identitäts-Setzung am 2026-09-11 tragen 0 von 35 Commits einen Trailer; Blocker-Eintrag oben
-entsprechend korrigiert (betrifft nur noch die 15 historischen Commits, kein aktives Problem mehr).
-Den Blocker „referenzierte Tool-Dateien fehlen im Repo" erneut gegen `git log --all
---diff-filter=A` geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per GitHub-API geprüft
-(`visibility`-Feld): weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 18 Tage — keine
+**Cloud hat in dieser Sitzung erledigt (2026-09-15):** komplette Phase-1-TODO-Kette (P1.2-P1.7)
+bewusst unverändert gelassen (weitere Textmenge wäre Wiederholung); stattdessen Phase 2, P2.1-P2.3
+in Abschnitt 4 in Unterschritte zerlegt (Transport-Entscheidung Reverse-Kanal P2.1b, Moduswechsel-
+Frage P2.2a gegen `FLEET-COMMANDS.md` geprüft, P2.3 auf bestehendes SRC_ID-Fallback-Muster verwiesen —
+Details siehe FORTSCHRITT-Log oben). Dabei einen echten Repo-Zustand korrigiert: lokaler `main`-Branch
+dieses Checkouts war 29 Commits hinter `origin/main` (rein lokaler Branch-Zeiger-Stand, `git push`
+bestätigte „Everything up-to-date" — kein tatsächlicher Datenverlust). Blocker „referenzierte
+Tool-Dateien fehlen im Repo" erneut geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per
+GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 19 Tage — keine
 erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
 versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-13):** Phase-1-TODO-Kette nach P1.2 fortgesetzt: P1.3 (Tab Geräte),
-P1.4 (Tab Flipper), P1.5 (Tab Heltec/V4) in Unterschritte zerlegt. Realen Doku-Konsistenzfund gemacht:
-die als ✅ mit Repo-Pfad geführten Tools (`pi_flash_v4.py`, `g4meover_control.py`, `flipper_ctl.py`,
-`g4meover_resume.py`) existieren nicht in diesem Repo — Blocker in Risiken/Blocker + PREP „Nur lokal
-möglich" aufgenommen, P1.3/P1.4/P1.5 verweisen darauf als zuerst zu klärender Schritt. Repo-
-Sichtbarkeit erneut geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 17
-Tage. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-14):** Phase-1-TODO-Kette letzten Schritt fortgesetzt: P1.6
+(Log-Panel) und P1.7 (Packaging) in Unterschritte zerlegt. Zwei reale Funde: (1) P1.7c braucht ein
+bisher komplett fehlendes Icon-/Branding-Asset; (2) der Blocker „Cloud-Umgebung hängt Co-Authored-By-
+Trailer automatisch an" ist veraltet (0 von 35 Commits seit der Git-Identitäts-Setzung am 2026-09-11
+tragen noch einen Trailer, betrifft nur die 15 historischen Commits bis 2026-09-10). Repo-Sichtbarkeit
+weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, damals 18 Tage. Kein Hardware-Zugriff
+versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
