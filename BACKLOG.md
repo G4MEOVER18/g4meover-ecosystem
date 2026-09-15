@@ -663,6 +663,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Damit haben beide Kartenfamilien aus der ursprünglichen Skizze ihre Phase 2 erledigt;
       Phase 3 (Poller-Zustandsautomaten für beide Familien) braucht echte Hardware und bleibt
       offen, ebenso die für UL-AES oben gelisteten, unabhängigen Unleashed-Funde.
+- [x] Einen der vier bei der letzten UL-AES-Phase-2-Sitzung zurückgestellten, unabhängigen
+      Unleashed-Funde aufgegriffen: neuer Helfer `mf_ultralight_is_pwd_pack_read()` — meldet,
+      ob die echten PWD-/PACK-Seiten erfasst wurden (`pages_read >= pwd_page + 2`), im
+      Unterschied zu den maskierten Nullseiten, die mein bereits vorhandener
+      `try_default_pass()`-Poller-Handler nach einem fehlgeschlagenen Default-Passwort-Versuch
+      per `pages_read -= 2` zurückrechnet. Rein additiv, keine bestehende Signatur geändert,
+      kein Aufrufer eingebaut (genau wie bei Unleashed zu diesem Diff-Zeitpunkt selbst). Mit
+      Host-Repro gegen vier Seitenzahl-Zustände über zwei unabhängige Kartentypen (UL11,
+      NTAG213) sowie einer direkten Gegenprobe zur bestehenden, unveränderten
+      `mf_ultralight_is_all_data_read()` verifiziert: deren Inhaltsheuristik
+      (`pass != 0 || pack != 0`) liest ein reales `PWD=0/PACK=0` fälschlich als "nicht
+      vollständig gelesen", der neue Helfer (nur `pages_read`, unabhängig vom Seiteninhalt)
+      korrekt — als eigenständiger Robustheitsvorteil dokumentiert, das Umstellen von
+      `is_all_data_read()` selbst aber bewusst nicht mitgeliefert (eigenständige
+      Verhaltensänderung an bestehendem, benutztem Code, eigene Sitzung wert). Dabei einen
+      eigenen, unabhängigen Fund in der wiederverwendeten Host-Test-Infrastruktur der letzten
+      Sitzung gemacht und in der eigenen Stub-Kopie behoben: `FURI_PACKED` war dort nicht
+      definiert, wodurch `MfUltralightConfigPages` auf dem Host ungepackt (falsche Größe/
+      Feldoffsets) statt wie in der echten Firmware gepackt kompiliert wurde — für die bereits
+      gelieferten Ports folgenlos (deren Tests fassen dieses Struct nicht an), für die neue,
+      feldgenaue Testgruppe aber notwendig. Als Unified-Diffs gegen meine unveränderte
+      `main`-Basis in `firmware-mining/mf-ultralight-is-pwd-pack-read-helper/`
+      (`mf_ultralight.h.patch`, `mf_ultralight.c.patch` — `patch --dry-run -p1` gegen frische
+      Basiskopien verifiziert, real angewendet und Byte-für-Byte gegen die host-getestete
+      Fassung abgeglichen), mit vier Host-Testgruppen unter ASan/UBSan (`ALL CHECKS PASSED`)
+      in `firmware-mining/repro-mf-ultralight-is-pwd-pack-read/repro.c` — Details inkl.
+      Testhinweis in `firmware-mining/mf-ultralight-is-pwd-pack-read-helper.md`. Von den vier
+      ursprünglich zurückgestellten UL-Funden sind damit zwei offen: Typ-Erkennungs-Umbau
+      (NTAG210/212), gelockerte `detect_protocol()`-ATQA-Prüfung sowie die
+      `get_write_end_page()`-Schreibbereichs-Anpassung (gehört zum künftigen Schreibfluss).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

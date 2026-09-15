@@ -1,0 +1,14 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.h	2026-09-15 12:21:42.207459716 +0000
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.h	2026-09-15 12:21:49.371563305 +0000
+@@ -235,6 +235,11 @@
+ 
+ bool mf_ultralight_is_all_data_read(const MfUltralightData* data);
+ 
++// True once the actual PWD (pages_read >= pwd_page + 2) has been captured, as opposed to the
++// masked all-zero pages a failed default-password auth attempt leaves behind (see
++// mf_ultralight_is_pwd_pack_read() in mf_ultralight.c for the full rationale).
++bool mf_ultralight_is_pwd_pack_read(const MfUltralightData* data);
++
+ bool mf_ultralight_detect_protocol(const Iso14443_3aData* iso14443_3a_data);
+ 
+ bool mf_ultralight_is_counter_configured(const MfUltralightData* data);

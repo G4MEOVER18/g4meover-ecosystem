@@ -1,0 +1,20 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.c	2026-09-15 12:21:42.209470412 +0000
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.c	2026-09-15 12:21:57.575563354 +0000
+@@ -651,6 +651,17 @@
+     return all_read;
+ }
+ 
++bool mf_ultralight_is_pwd_pack_read(const MfUltralightData* data) {
++    furi_check(data);
++
++    // PWD lives at pwd_page, PACK at pwd_page+1. On a read where auth didn't succeed the poller
++    // rolls pages_read back by 2 (see try_default_pass) because these pages come back masked as
++    // zero, so a contiguous read that still covers both pages means the real values were
++    // actually captured. pages_read is persisted, so this holds for loaded dumps too.
++    uint8_t pwd_page = mf_ultralight_get_pwd_page_num(data->type);
++    return (pwd_page != 0) && (data->pages_read >= pwd_page + 2);
++}
++
+ bool mf_ultralight_is_counter_configured(const MfUltralightData* data) {
+     furi_check(data);
+ 
