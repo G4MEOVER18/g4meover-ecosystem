@@ -1,0 +1,14 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.h	2026-09-16 00:25:51.023430088 +0000
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.h	2026-09-16 00:25:51.028126788 +0000
+@@ -69,6 +69,11 @@
+     MfUltralightTypeNTAGI2C2K,
+     MfUltralightTypeNTAGI2CPlus1K,
+     MfUltralightTypeNTAGI2CPlus2K,
++    MfUltralightTypeNTAG210,
++    MfUltralightTypeNTAG212,
++    // GetVersion succeeded but the IC isn't one of the modelled types above; distinct from
++    // Origin, which means "no GetVersion reply -> original Ultralight".
++    MfUltralightTypeUnknown,
+ 
+     MfUltralightTypeNum,
+ } MfUltralightType;

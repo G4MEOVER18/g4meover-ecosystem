@@ -1,0 +1,109 @@
+--- a/lib/nfc/protocols/mf_ultralight/mf_ultralight.c	2026-09-16 00:25:51.025717149 +0000
++++ b/lib/nfc/protocols/mf_ultralight/mf_ultralight.c	2026-09-16 00:25:51.030595108 +0000
+@@ -150,6 +150,39 @@
+                 MfUltralightFeatureSupportSectorSelect | MfUltralightFeatureSupportFastWrite |
+                 MfUltralightFeatureSupportDynamicLock,
+         },
++    [MfUltralightTypeNTAG210] =
++        {
++            // Same memory layout as MF0UL11 (20 pages, config at 16), but NTAG: no EV1 counters.
++            .device_name = "NTAG210",
++            .total_pages = 20,
++            .config_page = 16,
++            .feature_set =
++                MfUltralightFeatureSupportReadVersion | MfUltralightFeatureSupportReadSignature |
++                MfUltralightFeatureSupportFastRead | MfUltralightFeatureSupportPasswordAuth |
++                MfUltralightFeatureSupportCompatibleWrite,
++        },
++    [MfUltralightTypeNTAG212] =
++        {
++            // Same memory layout as MF0UL21 (128-byte user memory, 41 pages, config at 37,
++            // dynamic lock).
++            .device_name = "NTAG212",
++            .total_pages = 41,
++            .config_page = 37,
++            .feature_set =
++                MfUltralightFeatureSupportReadVersion | MfUltralightFeatureSupportReadSignature |
++                MfUltralightFeatureSupportFastRead | MfUltralightFeatureSupportPasswordAuth |
++                MfUltralightFeatureSupportCompatibleWrite | MfUltralightFeatureSupportDynamicLock,
++        },
++    [MfUltralightTypeUnknown] =
++        {
++            // Unmodelled IC: conservative 16-page read, single-page write only — the same
++            // feature set a GetVersion match miss fell back to before this patch (implicit
++            // MfUltralightTypeOrigin), now under its own, correctly-labelled type.
++            .device_name = "NTAG/Ultralight (Unknown)",
++            .total_pages = 16,
++            .config_page = 0,
++            .feature_set = MfUltralightFeatureSupportCompatibleWrite,
++        },
+ };
+ 
+ const NfcDeviceBase nfc_device_mf_ultralight = {
+@@ -512,35 +545,42 @@
+ MfUltralightType mf_ultralight_get_type_by_version(MfUltralightVersion* version) {
+     furi_check(version);
+ 
+-    MfUltralightType type = MfUltralightTypeOrigin;
+-
+-    if(version->storage_size == 0x0B || version->storage_size == 0x00) {
+-        type = MfUltralightTypeUL11;
+-    } else if(version->storage_size == 0x0E) {
+-        type = MfUltralightTypeUL21;
+-    } else if(version->storage_size == 0x0F) {
+-        type = MfUltralightTypeNTAG213;
+-    } else if(version->storage_size == 0x11) {
+-        type = MfUltralightTypeNTAG215;
+-    } else if(version->prod_subtype == 5 && version->prod_ver_major == 2) {
++    // NTAG I2C is matched on subtype/major, NOT the product-type nibble below: real silicon
++    // reports family 0x07 here while this firmware's own data generator emits 0x04, so the
++    // nibble is unreliable for this family. No other modelled IC uses subtype 5 + major 2.
++    if(version->prod_subtype == 5 && version->prod_ver_major == 2) {
+         if(version->prod_ver_minor == 1) {
+-            if(version->storage_size == 0x13) {
+-                type = MfUltralightTypeNTAGI2C1K;
+-            } else if(version->storage_size == 0x15) {
+-                type = MfUltralightTypeNTAGI2C2K;
+-            }
++            if(version->storage_size == 0x13) return MfUltralightTypeNTAGI2C1K;
++            if(version->storage_size == 0x15) return MfUltralightTypeNTAGI2C2K;
+         } else if(version->prod_ver_minor == 2) {
+-            if(version->storage_size == 0x13) {
+-                type = MfUltralightTypeNTAGI2CPlus1K;
+-            } else if(version->storage_size == 0x15) {
+-                type = MfUltralightTypeNTAGI2CPlus2K;
+-            }
++            if(version->storage_size == 0x13) return MfUltralightTypeNTAGI2CPlus1K;
++            if(version->storage_size == 0x15) return MfUltralightTypeNTAGI2CPlus2K;
+         }
+-    } else if(version->storage_size == 0x13) {
+-        type = MfUltralightTypeNTAG216;
++        return MfUltralightTypeUnknown;
+     }
+ 
+-    return type;
++    // Size from storage_size (lenient, as the previous logic was). AN10833 names the product
++    // family in the low nibble of prod_type; consult it ONLY to split the two storage_size
++    // values that collide across families (NTAG210/UL11 both 0x0B, NTAG212/UL21 both 0x0E), so a
++    // clone reporting a non-standard prod_type still types by storage_size alone, as before.
++    // Default is Unknown, not Origin: GetVersion succeeded, so this can never be a true original
++    // Ultralight (Origin means "no GetVersion reply").
++    const uint8_t family = version->prod_type & 0x0F; // 0x03 = Ultralight, 0x04 = NTAG
++    switch(version->storage_size) {
++    case 0x00:
++    case 0x0B:
++        return (family == 0x04) ? MfUltralightTypeNTAG210 : MfUltralightTypeUL11;
++    case 0x0E:
++        return (family == 0x04) ? MfUltralightTypeNTAG212 : MfUltralightTypeUL21;
++    case 0x0F:
++        return MfUltralightTypeNTAG213;
++    case 0x11:
++        return MfUltralightTypeNTAG215;
++    case 0x13:
++        return MfUltralightTypeNTAG216;
++    default:
++        return MfUltralightTypeUnknown;
++    }
+ }
+ 
+ uint16_t mf_ultralight_get_pages_total(MfUltralightType type) {

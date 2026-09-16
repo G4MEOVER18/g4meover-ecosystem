@@ -716,6 +716,40 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Von den vier ursprünglich zurückgestellten UL-Funden ist damit nur noch der
       Typ-Erkennungs-Umbau (NTAG210/212) offen; die `get_write_end_page()`-Schreibbereichs-
       Anpassung gehört zum künftigen Schreibfluss und wurde separat vorgemerkt.
+- [x] Letzten der vier beim UL-AES-Phase-2-Port zurückgestellten, unabhängigen Unleashed-Funde
+      aufgegriffen: **NTAG210/212-Typ-Erkennung + echter `Unknown`-Fallback** in
+      `mf_ultralight_get_type_by_version()`. Bei mir kollidiert `storage_size` bei zwei Werten
+      zwischen zwei Kartenfamilien (`0x0B`/`0x00`: MF0UL11 vs. NTAG210; `0x0E`: MF0UL21 vs.
+      NTAG212) — meine Basis kennt jeweils nur die Ultralight-Seite, eine echte NTAG210/212-Karte
+      wird also als UL11/UL21 mit falschen EV1-Zähler-Fähigkeiten fehlerkannt. Zusätzlich bleibt
+      bei einem GetVersion-antwortenden, aber nicht modellierten IC (unbekannter Klon, künftiger
+      Chip) `type` bei mir am Anfangswert `MfUltralightTypeOrigin` stehen — verwechselt mit "kein
+      GetVersion, Original-Ultralight". Unleashed löst beides in einem Umbau: `switch` über
+      `storage_size` mit den beiden Kollisionsfällen zusätzlich über das `prod_type`-Familien-
+      Nibble unterschieden (`0x03` Ultralight, `0x04` NTAG; jeder andere `storage_size`-Wert bleibt
+      unverändert allein über `storage_size` bestimmt), plus echtem `default: return
+      MfUltralightTypeUnknown;` statt stillem Nicht-Setzen — dieselbe Ersetzung auch im
+      NTAG-I2C-Zweig bei unbekanntem `minor`/`storage_size`. Drei neue, rein additive
+      Feature-Tabellen-Einträge (NTAG210: Layout wie UL11 ohne dessen EV1-Zähler; NTAG212: Layout
+      wie UL21 inkl. Dynamic Lock; Unknown: exakt derselbe `feature_set`, den der alte implizite
+      Origin-Fallback schon hatte). Dabei geprüft und als eigenständiges, von diesem Patch
+      geerbtes (nicht neu eingeführtes) Risiko dokumentiert: `mf_ultralight_get_write_end_page()`s
+      `furi_assert()`-Positivliste für den Schreib-auf-Blanko-Ablauf führt NTAG210/212 weder bei
+      mir noch im aktuellen Unleashed-Stand — nach diesem Patch würde ein Schreibversuch auf einen
+      korrekt als NTAG210/212 erkannten Dump dort abstürzen, während er vor dem Patch (mit falschem
+      Kartentyp UL11/UL21) durchlief. Als Unified-Diffs gegen meine unveränderte `main`-Basis in
+      `firmware-mining/mfultralight-ntag210-212-type-detect/` (`mf_ultralight_h.patch`,
+      `mf_ultralight_c.patch` — `patch --dry-run -p1` gegen frische Basiskopien verifiziert, real
+      angewendet und Byte-für-Byte gegen die host-getestete Fassung abgeglichen), mit sieben
+      Host-Testgruppen unter ASan/UBSan (`ALL CHECKS PASSED`, inkl. ALT-vs-NEU-Vergleich gegen
+      eine unveränderte Kopie meiner bisherigen Funktion und Feature-Tabellen-Prüfung) in
+      `firmware-mining/repro-mfultralight-ntag210-212-type-detect/repro.c` — dieselbe Testdatei
+      kompiliert gegen die unveränderte Basis mangels der neuen Enum-Werte gar nicht erst, ein noch
+      direkterer Beleg als ein reiner Laufzeit-Fehlschlag. Details, Risiko-Begründung inkl.
+      Patch-Reihenfolge-Hinweis (falls der separate UL-AES-Phase-2-Vorschlag ebenfalls lokal
+      angewendet werden soll — beide fügen ihre neuen Enum-Werte an derselben Stelle ein) und
+      Testhinweis in `firmware-mining/mfultralight-ntag210-212-type-detect.md`. Damit sind alle
+      vier ursprünglich beim UL-AES-Phase-2-Port zurückgestellten Funde abgearbeitet.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
