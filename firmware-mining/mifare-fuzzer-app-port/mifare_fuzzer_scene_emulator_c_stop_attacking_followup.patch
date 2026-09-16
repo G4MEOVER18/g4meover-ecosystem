@@ -1,0 +1,19 @@
+--- a/applications_user/mifare_fuzzer/scenes/mifare_fuzzer_scene_emulator.c
++++ b/applications_user/mifare_fuzzer/scenes/mifare_fuzzer_scene_emulator.c
+@@ -167,8 +167,15 @@
+ 
+                 if(!found_valid_line) {
+                     // No usable UID line anywhere in the file: stop cleanly
+-                    // instead of emulating stale/empty uid_str data.
++                    // instead of emulating stale/empty uid_str data. Also
++                    // clear is_attacking (view + tick handler), otherwise the
++                    // tick handler still sees emulator->is_attacking == true
++                    // and re-sends MifareFuzzerEventStartAttack every
++                    // ticks_between_cards, hitting this same abort branch
++                    // forever, and the view keeps showing "Stop"/the progress
++                    // bar despite nothing actually running.
+                     iso14443_3a_free(nfc_data);
++                    mifare_fuzzer_emulator_stop_attacking(emulator);
+                     notification_message(app->notifications, &sequence_blink_stop);
+                     consumed = true;
+                     return consumed;

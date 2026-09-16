@@ -1832,6 +1832,33 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Port-Skizze-Abschnitt aktualisiert). Damit ist der Mifare-Fuzzer-Port-Vorschlag
       vollständig abgearbeitet (beide eigenen Funde dokumentiert bzw. gepatcht); restlicher
       NFC-Werkzeug-Cluster weiterhin nur `chameleon`/`nfc_relay` (Fremd-/Zweitgerät).
+- [x] Aus der vorigen Mifare-Fuzzer-Sitzung vorgemerkten Fund-2-Folgepunkt aufgegriffen: das
+      `is_attacking`-Flag der Emulator-View nach dem Fund-2-Abbruchzweig ("Load UIDs from file"
+      ohne gültige Zeile) aktiv zurückgesetzt. Echte, unveränderte `views/mifare_fuzzer_emulator.c`/
+      `.h` frisch von `raw.githubusercontent.com` (`RogueMaster/flipperzero-firmware-wPlugins`,
+      Branch `420`) bezogen: das view-interne `is_attacking` (Emulator-Struct-Feld, vom Tick-Handler
+      im Scene-Code direkt gelesen, und das separate, private `MifareFuzzerEmulatorModel::
+      is_attacking`, das nur die Anzeige steuert) ließ sich vom Scene-Handler aus bislang nicht
+      zurücksetzen — ohne Fix feuert der Tick-Handler bei laufendem Angriff gegen eine durchgehend
+      ungültige Datei weiterhin regelmäßig `MifareFuzzerEventStartAttack`, trifft zwar den
+      bestehenden, sauberen Abbruchzweig statt zu hängen, aber die UI bleibt dauerhaft auf
+      "Stop"+Fortschrittsleiste stehen und meldet wiederholt "Stop" statt einmalig abzubrechen und
+      "Start" zu zeigen. Fix: neue, öffentliche Setter-Funktion `mifare_fuzzer_emulator_stop_attacking()`
+      in `views/mifare_fuzzer_emulator.c`/`.h` (zieht exakt das bereits vorhandene, korrekte
+      Reset-Muster aus `mifare_fuzzer_emulator_enter_callback()` nach, nur als eigenständig
+      aufrufbarer Setter statt nur intern beim View-Eintritt), vom Scene-Handler direkt im
+      Abbruchzweig aufgerufen. Mit Host-Repro (Zustandsmodell aus Emulator-Flag, View-Model-Flag und
+      Tick-Nachtrigger-Logik, 47 simulierte Ticks) verifiziert: ALT trifft den Abbruchzweig 10× statt
+      1× und endet mit `model.is_attacking=true` ("Stop" hängen geblieben), NEU trifft ihn genau 1×
+      und endet korrekt bei `model.is_attacking=false` ("Start") — als drei Unified-Diffs gegen die
+      echte Quelle (zwei für die View-Dateien, einer für den bereits Fund-2-gepatchten Stand von
+      `mifare_fuzzer_scene_emulator.c`) in `firmware-mining/mifare-fuzzer-app-port/
+      mifare_fuzzer_emulator_c.patch` / `mifare_fuzzer_emulator_h.patch` /
+      `mifare_fuzzer_scene_emulator_c_stop_attacking_followup.patch`, jeweils `patch --dry-run -p1`
+      vorab verifiziert, real angewendet und Byte-für-Byte abgeglichen. Details in
+      `firmware-mining/mifare-fuzzer-app-port.md` aktualisiert. Damit ist auch dieser zuletzt
+      vorgemerkte Rückstellpunkt abgeschlossen; restlicher NFC-Werkzeug-Cluster weiterhin nur
+      `chameleon`/`nfc_relay` (Fremd-/Zweitgerät).
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.

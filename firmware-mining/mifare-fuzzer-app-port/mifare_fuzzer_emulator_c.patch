@@ -1,0 +1,22 @@
+--- a/applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.c
++++ b/applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.c
+@@ -310,3 +310,19 @@
+         { model->tick_num = tick_num; },
+         true);
+ }
++
++/// @brief Force the view back to its non-attacking state (e.g. after a scene
++/// handler aborts an attack on its own, without going through the OK-key
++/// toggle in mifare_fuzzer_emulator_input_callback()). Mirrors the reset
++/// already done in mifare_fuzzer_emulator_enter_callback().
++/// @param mifare_fuzzer_emulator
++void mifare_fuzzer_emulator_stop_attacking(MifareFuzzerEmulator* mifare_fuzzer_emulator) {
++    furi_assert(mifare_fuzzer_emulator);
++
++    mifare_fuzzer_emulator->is_attacking = false;
++    with_view_model(
++        mifare_fuzzer_emulator->view,
++        MifareFuzzerEmulatorModel * model,
++        { model->is_attacking = false; },
++        true);
++}

@@ -88,9 +88,11 @@ Neu, aus der Quelle übernehmbar (eigenständiger externer App-Ordner):
 - `applications_user/mifare_fuzzer/mifare_fuzzer_worker.c` / `.h` (unverändert, Referenzmuster
   für den Fix)
 - `applications_user/mifare_fuzzer/scenes/*` — `mifare_fuzzer_scene_emulator.c` **mit den unten
-  beschriebenen Fixes** (Fund 1 als Sketch in Schritt 2, Fund 2 als eigener Patch in Schritt 6
-  der Port-Skizze), alle übrigen Szenen unverändert
-- `applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.c` / `.h` (unverändert)
+  beschriebenen Fixes** (Fund 1 als Sketch in Schritt 2, Fund 2 als eigener Patch in Schritt 6,
+  Fund-2-Folge-Fix als eigener Patch in Schritt 7 der Port-Skizze), alle übrigen Szenen
+  unverändert
+- `applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.c` / `.h` **mit dem in Schritt 7
+  beschriebenen Fund-2-Folge-Fix** (neue Funktion `mifare_fuzzer_emulator_stop_attacking()`)
 - `applications_user/mifare_fuzzer/resources/mifare_fuzzer/example_uids04.txt` / `example_uids07.txt`
   (Beispiel-UID-Listen, keine echten Kartendaten — reine Testwerte wie `11:22:33:44`)
 - `applications_user/mifare_fuzzer/images/*`
@@ -119,15 +121,34 @@ Firmware-Kernänderung).
   unten): reiner Kontrollfluss-Fix an derselben Schleife, keine neue Speicherzugriffsstelle. Der
   Abbruchzweig gibt `nfc_data` frei (sonst identisch zum bereits dokumentierten Fund-1-Leck) und
   meldet über dieselbe `sequence_blink_stop`-Notification ab wie der bestehende
-  `MifareFuzzerEventStopAttack`-Zweig. Bewusst nicht mitgeliefert: das `is_attacking`-Flag der
-  Emulator-View bleibt dabei unverändert `true` (dieses Flag lebt ausschließlich in
-  `views/mifare_fuzzer_emulator.c`, außerhalb der hier geänderten Datei) — bei laufendem Angriff
-  mit durchgehend ungültiger Datei feuert der Tick-Handler `MifareFuzzerEventStartAttack` daher
-  weiterhin in regelmäßigen Abständen erneut, trifft aber jedes Mal denselben sauberen,
-  sofort zurückkehrenden Abbruchzweig statt zu hängen — kein Hang mehr, nur eine wiederholte
-  "Stop"-Benachrichtigung, bis der Nutzer manuell stoppt. Für ein echtes Zurücksetzen des
-  Anzeige-Zustands wäre eine Erweiterung von `views/mifare_fuzzer_emulator.c` nötig — als kleinerer
-  Folgepunkt vorgemerkt (siehe Port-Skizze).
+  `MifareFuzzerEventStopAttack`-Zweig.
+- **Fund 2, Folge-Fix (jetzt geliefert):** der ursprüngliche Fund-2-Patch ließ das
+  `is_attacking`-Flag der Emulator-View unverändert `true` (dieses Flag lebt ausschließlich in
+  `views/mifare_fuzzer_emulator.c`, außerhalb der von Fund 2 geänderten Datei, und war von dort
+  aus bislang nicht zurücksetzbar) — bei laufendem Angriff mit durchgehend ungültiger Datei feuerte
+  der Tick-Handler (`SceneManagerEventTypeTick` in `mifare_fuzzer_scene_emulator_on_event()`) daher
+  weiterhin in regelmäßigen Abständen `MifareFuzzerEventStartAttack`, traf dabei zwar jedes Mal
+  denselben sauberen, sofort zurückkehrenden Abbruchzweig statt zu hängen (kein Hang mehr), aber
+  zwei sichtbare Nebenwirkungen blieben: (a) eine wiederholte "Stop"-Benachrichtigung bei jedem
+  erreichten `ticks_between_cards`-Intervall, bis der Nutzer manuell stoppt, und (b) das
+  Emulator-Display zeigt weiter den "Stop"-Button plus die Fortschrittsleiste, obwohl faktisch
+  kein Angriff mehr läuft — der Nutzer sieht keinen Hinweis darauf, dass die Datei keine gültige
+  Zeile enthält. Fix: neue, öffentliche Setter-Funktion `mifare_fuzzer_emulator_stop_attacking()`
+  in `views/mifare_fuzzer_emulator.c`/`.h`, die exakt das bereits vorhandene, korrekte Muster aus
+  `mifare_fuzzer_emulator_enter_callback()` (View-(Wieder-)Eintritt) nachzieht (`is_attacking` im
+  `MifareFuzzerEmulator`-Struct auf `false`, `model->is_attacking` im View-Model ebenfalls über
+  `with_view_model()` auf `false`), aber als eigenständig aufrufbarer Setter statt nur intern beim
+  View-Eintritt. Der Scene-Handler ruft diesen neuen Setter direkt im Abbruchzweig auf — er greift
+  an anderer Stelle in derselben Funktion (`SceneManagerEventTypeTick`- und den
+  Increment/DecrementTicks-Zweigen) ohnehin schon direkt auf `emulator->is_attacking` zu, eine neue
+  Abhängigkeit auf das View-Modul ist also keine Erweiterung der Kopplung, nur ein zusätzlicher
+  Aufruf einer bereits vorhandenen Art von Setter-Funktion (`set_nfc_data`/
+  `set_ticks_between_cards`/`set_tick_num` folgen demselben Muster). Mit Host-Repro (Zustandsmodell
+  aus Emulator-Flag + View-Model-Flag + Tick-Handler-Nachtrigger-Logik, 47 simulierte Ticks nach
+  dem ersten Abbruch) verifiziert: ALT trifft den Abbruchzweig 10× (statt nur 1×) und zeigt am Ende
+  weiterhin `model.is_attacking=true` ("Stop"+Fortschrittsleiste), NEU trifft ihn genau 1× und
+  endet korrekt bei `model.is_attacking=false` ("Start"/t-1/t+1) — siehe
+  `firmware-mining/repro-mifare-fuzzer-stop-attacking-after-abort/repro.c`.
 
 ## Port-Skizze
 1. App-Ordner `mifare_fuzzer` (alle unter „Betroffene Dateien" gelisteten Dateien) aus
@@ -170,11 +191,15 @@ Firmware-Kernänderung).
    (`iso14443_3a_free(nfc_data)` + dieselbe `sequence_blink_stop`-Benachrichtigung wie der
    bestehende Stop-Zweig), statt endlos zu spulen. Getrennt vom Fund-1-Patch anwendbar (andere
    Zeilen derselben Datei, `patch -p1` prüft beide unabhängig gegeneinander).
-7. Restlicher, aus Fund 2 bewusst nicht mitgelieferter Punkt (siehe Risiko-Abschnitt): das
-   `is_attacking`-Flag in `views/mifare_fuzzer_emulator.c` nach dem Abbruchzweig aktiv
-   zurückzusetzen, damit die UI nach einer ungültigen Datei nicht weiter "läuft" — für eine
-   künftige Sitzung vorgemerkt, da das eine zweite Datei anfasst statt der hier gehaltenen
-   Ein-Datei-Änderung.
+7. Fund-2-Folge-Fix jetzt geliefert (drei Dateien, unabhängig von den Fund-1/Fund-2-Patches
+   anwendbar): `mifare_fuzzer_emulator_c.patch` und `mifare_fuzzer_emulator_h.patch` ergänzen die
+   neue Funktion `mifare_fuzzer_emulator_stop_attacking()` in
+   `views/mifare_fuzzer_emulator.c`/`.h`; `mifare_fuzzer_scene_emulator_c_stop_attacking_followup.patch`
+   ruft sie im bereits durch Fund 2 eingeführten Abbruchzweig auf (Basis: `scenes/
+   mifare_fuzzer_scene_emulator.c` **nach** Anwendung von `mifare_fuzzer_scene_emulator_c.patch`
+   — dieser dritte Patch setzt also den Fund-2-Patch voraus, nicht die unveränderte Originaldatei).
+   Alle drei mit `patch --dry-run -p1` gegen die entsprechende Basis vorab verifiziert, real
+   angewendet und Byte-für-Byte gegen separat editierte Fassungen abgeglichen — identisch.
 
 ## Testhinweis (lokal nachvollzogen)
 Zwei host-kompilierbare Mini-Repros, beide ohne Flipper-/NFC-Abhängigkeiten:
@@ -242,6 +267,36 @@ Sanitizer-Meldung.
 angewendet und Byte-für-Byte gegen die separat erstellte, editierte Fassung abgeglichen —
 identisch.
 
+**Fund-2-Folge-Fix (`is_attacking` nach Abbruch zurücksetzen, Fix jetzt geliefert)** —
+`firmware-mining/repro-mifare-fuzzer-stop-attacking-after-abort/repro.c` bildet drei Dinge
+zusammen nach: das `MifareFuzzerEmulator::is_attacking`-Feld (vom Tick-Handler direkt gelesen),
+das separate, view-interne `MifareFuzzerEmulatorModel::is_attacking` (steuert nur die Anzeige)
+und die `SceneManagerEventTypeTick`-Nachtrigger-Logik (erneutes `MifareFuzzerEventStartAttack`
+sobald `tick_counter >= ticks_between_cards`). Simuliert wird ein laufender Angriff gegen eine
+durchgehend ungültige Datei (jeder `MifareFuzzerEventStartAttack`-Versuch trifft den
+Fund-2-Abbruchzweig) über 47 Ticks bei `ticks_between_cards = 5`:
+
+```
+gcc -std=c11 -O1 -Wall -Wextra -fsanitize=address,undefined -o repro repro.c && ./repro
+```
+
+Tatsächliches Ergebnis (lokal ausgeführt):
+```
+[ALT (hang fix only, no follow-up)] abort branch hit 10 time(s) over 47 ticks; emulator.is_attacking=true model.is_attacking=true (UI shows "Stop"+progress bar)
+[NEU (with mifare_fuzzer_emulator_stop_attacking())] abort branch hit 1 time(s) over 47 ticks; emulator.is_attacking=false model.is_attacking=false (UI shows "Start"/t-1/t+1)
+```
+ALT trifft den Abbruchzweig nach dem ersten manuellen Start-Versuch noch neun weitere Male
+automatisch (bei jedem erreichten `ticks_between_cards`-Intervall) und endet mit einer UI, die
+weiterhin "Stop" plus Fortschrittsleiste zeigt; NEU trifft ihn nur einmal und die UI kehrt korrekt
+zu "Start"/t-1/t+1 zurück — 0-Exit-Code, keine Sanitizer-Meldung.
+
+**Patch-Verifikation (Fund-2-Folge-Fix)** — alle drei Patches (`mifare_fuzzer_emulator_c.patch`,
+`mifare_fuzzer_emulator_h.patch`, `mifare_fuzzer_scene_emulator_c_stop_attacking_followup.patch`)
+mit `patch --dry-run -p1` gegen ihre jeweilige Basis (frische Originalquelle für die beiden
+View-Dateien, die bereits Fund-2-gepatchte `mifare_fuzzer_scene_emulator.c` für den dritten Patch)
+vorab geprüft, danach real angewendet und Byte-für-Byte gegen separat editierte Fassungen
+abgeglichen — identisch.
+
 ## Quelle
 - `RogueMaster/flipperzero-firmware-wPlugins` (Branch `420`, Sparse-Checkout, Stand dieser
   Sitzung): `applications/external/mifare_fuzzer/`, `fap_author` "spheeere98 Sil333033",
@@ -259,6 +314,14 @@ identisch.
   Unified-Diff gegen die echte, unveränderte Quelle
   (`firmware-mining/mifare-fuzzer-app-port/mifare_fuzzer_scene_emulator_c.patch`,
   `patch --dry-run -p1` vorab verifiziert, real angewendet und Byte-für-Byte abgeglichen).
+- Eigener Fund-2-Folge-Fix (`is_attacking` nach Abbruch zurücksetzen, Fix geliefert):
+  `views/mifare_fuzzer_emulator.c`/`.h` (neue Funktion `mifare_fuzzer_emulator_stop_attacking()`)
+  plus Aufrufstelle im Fund-2-Abbruchzweig, mit Host-Repro bestätigt (siehe
+  `firmware-mining/repro-mifare-fuzzer-stop-attacking-after-abort/repro.c`) und als drei
+  Unified-Diffs gegen die echte Quelle
+  (`firmware-mining/mifare-fuzzer-app-port/mifare_fuzzer_emulator_c.patch`,
+  `mifare_fuzzer_emulator_h.patch`, `mifare_fuzzer_scene_emulator_c_stop_attacking_followup.patch`,
+  letzterer auf dem bereits Fund-2-gepatchten Stand aufbauend).
 - Restlicher NFC-Werkzeug-Cluster aus demselben Rückstellpunkt weiterhin offen: `nfctools`,
   `uhf_rfid`, `nfc_comparator`, `simultaneous_rfid_reader` (letztere zwei vermutlich
   Fremdhardware-Fall, externes UHF-Lesegerät nötig, noch nicht abschließend bestätigt).

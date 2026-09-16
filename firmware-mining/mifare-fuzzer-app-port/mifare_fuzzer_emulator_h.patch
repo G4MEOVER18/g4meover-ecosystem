@@ -1,0 +1,8 @@
+--- a/applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.h
++++ b/applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.h
+@@ -73,3 +73,5 @@
+ void mifare_fuzzer_emulator_set_tick_num(
+     MifareFuzzerEmulator* mifare_fuzzer_emulator,
+     uint8_t tick_num);
++
++void mifare_fuzzer_emulator_stop_attacking(MifareFuzzerEmulator* mifare_fuzzer_emulator);
