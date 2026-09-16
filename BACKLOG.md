@@ -750,6 +750,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       angewendet werden soll — beide fügen ihre neuen Enum-Werte an derselben Stelle ein) und
       Testhinweis in `firmware-mining/mfultralight-ntag210-212-type-detect.md`. Damit sind alle
       vier ursprünglich beim UL-AES-Phase-2-Port zurückgestellten Funde abgearbeitet.
+- [x] Official-dev seit `a55e3939` gegengeprüft: nur drei neue, sicherheitsirrelevante Commits
+      (Lizenz-Check-Deaktivierung im PVS-Tooling, PR-Template, ein Include-Tippfehler in
+      `furi_hal_bt.c`, eine Doku-Ergänzung) — kein Portkandidat. Unleashed dafür zwischenzeitlich
+      um **unlshd-093** ergänzt (55 neue Commits seit `unlshd-092`); daraus `cc2d85278`
+      (PR #1105, "SubGhz: guard final upload buffer write") geprüft — betrifft
+      `subghz_protocol_blocks_get_upload_from_bit_array()` in `lib/subghz/blocks/encoder.c`,
+      bei mir byteidentisch zum Unleashed-Vorher-Stand vorhanden und aktuell von zwei
+      Protokoll-Encodern genutzt (`bin_raw.c`, `chamberlain_code.c`). Zwei voneinander
+      unabhängige Off-by-eins-Schreibzugriffe hinter das Ende des vom Aufrufer exakt
+      `max_size_upload` Elemente großen `upload[]`-Arrays gefunden: eine zu lasche
+      Schleifen-Prüfung (`size_upload > max_size_upload` statt `>=`) sowie ein völlig
+      ungeprüfter abschließender Flush-Schreibzugriff nach der Schleife, der bei genau
+      `max_size_upload` gesammelten Einträgen still einen weiteren, nicht mehr gültigen Eintrag
+      schreibt, ohne dass je ein `furi_crash()` greift. Bei `bin_raw.c` (Protokoll "BinRAW", für
+      nicht klassifizierte SubGHz-Aufnahmen, `upload[]` mit 2560 Elementen) mit einer
+      geladenen `.sub`-Datei erreichbar, deren Bitmuster genügend Pegelwechsel enthält — keine
+      Sendehardware nötig. Mit Host-Repro (ALT/NEU-Vergleich der beiden real kompilierten
+      Funktionen, fork-isolierte Testfälle je Grenzfall, `furi_crash()` auf einen
+      unterscheidbaren Exit-Code gestubbt) unter ASan/UBSan verifiziert: ALT löst in beiden
+      Fällen exakt an der erwarteten Zeile einen `heap-buffer-overflow`-Schreibzugriff aus, NEU
+      löst stattdessen sauber den (bestehenden bzw. neu ergänzten) Guard aus, ein realistischer
+      24-Bit-Regressionsfall bleibt bei ALT und NEU byte-für-byte identisch — Port-Vorschlag
+      (1:1 Unleasheds Fix übernommen) in
+      `firmware-mining/subghz-encoder-upload-buffer-overflow.md`. Aus derselben
+      `unlshd-093`-Reihe für künftige Sitzungen vorgemerkt: `51a56fc40` (NFC: reject oversized
+      FeliCa Lite dumps, #1106), `4b3c614c8` (F7: reject sentinel for expansion callbacks,
+      #1108), `c742dfe6c` (HID: bound stealth jiggler movement, #1111), `cc3a1bc79` (NFC: CUID
+      dictionary pass end marker, #1115 — verwandt zum bereits gelieferten
+      `nfc-unified-key-dictionary.md`-Port), `95c35fb82` (NFC: MIFARE-Classic-Schlüssel in
+      Nutzer-Dictionary speichern, #1118 — Feature), `104d96f86` (SubGHz: Superrollo/GW60,
+      KeeLoq HCS361, #1068 — neues Protokoll, eigener Portaufwand).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

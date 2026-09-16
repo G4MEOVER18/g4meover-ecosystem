@@ -1,0 +1,21 @@
+--- a/lib/subghz/blocks/encoder.c	2026-09-16 06:25:42.959344516 +0000
++++ b/lib/subghz/blocks/encoder.c	2026-09-16 06:25:42.961503842 +0000
+@@ -40,7 +40,7 @@
+         if(last_bit == subghz_protocol_blocks_get_bit_array(data_array, index_bit)) {
+             duration += duration_bit;
+         } else {
+-            if(size_upload > max_size_upload) {
++            if(size_upload >= max_size_upload) {
+                 furi_crash("SubGhz: Encoder buffer overflow");
+             }
+             upload[size_upload++] = level_duration_make(
+@@ -50,6 +50,9 @@
+         }
+         index_bit++;
+     }
++    if(size_upload >= max_size_upload) {
++        furi_crash("SubGhz: Encoder buffer overflow");
++    }
+     upload[size_upload++] = level_duration_make(
+         subghz_protocol_blocks_get_bit_array(data_array, index_bit - 1), duration);
+     return size_upload;
