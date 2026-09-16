@@ -366,18 +366,80 @@ dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden über
   - Verifikation: nur lokal (Flipper-Display-Ausgabe visuell prüfbar).
 - [ ] P2.4 **BLE-Transport zum Flipper**: Pi (BlueZ Central) + Windows steuern den Flipper auch über dessen
   Serial-over-BLE/RPC (radio_mode=Stack ist aktiv) — kabellose Flipper-Steuerung.
+  - [ ] P2.4a **Wichtige Abgrenzung, damit keine doppelte Protokoll-Arbeit entsteht:** P2.4 meint
+    Flippers eigenes, bereits vorhandenes BLE-RPC (Serial-over-BLE, dieselbe Schnittstelle wie
+    qFlipper/die offizielle Mobile-App — Protobuf-Requests über GATT, aktiviert per Settings →
+    Bluetooth → `radio_mode=BLE`) — **nicht** das in `UKFE-RF-V2-SPEC.md` Abschnitt 5 entworfene
+    neue `ukfe_rf`-v2-BLE-Mapping (eigene Service-UUID `f47ac9c1-…-e600`) für V3/V4/LilyGo/WROOM.
+    Zwei getrennte BLE-Protokoll-Familien im selben Ökosystem: `ukfe_rf`-v2-BLE muss erst gebaut
+    werden (Firmware-Patch, P8.1), Flippers RPC-über-BLE existiert bereits in der Basis-Firmware
+    und muss hier nur als Client (Pi/Windows) angesprochen werden.
+  - [ ] P2.4b **Lokal, nicht aus der Cloud lieferbar:** die exakten GATT-Service-/Characteristic-
+    UUIDs und das Protobuf-Nachrichtenformat für Flippers RPC-über-BLE stehen nur in der echten
+    Firmware-/Client-Quelle (`applications/services/bt`, die Protobuf-Definitionen bzw. die
+    offiziellen `flipperzero-protobuf`-Python-Bindings) — dieses Repo hat dazu keinen Zugriff
+    (analog P1.2b/P2.1b: nur `g4meover-ecosystem` im Scope dieser Cloud-Sitzung). Hier keine
+    UUID/Nachrichtenform raten, sondern lokal gegen die reale Quelle verifizieren, bevor ein
+    Client geschrieben wird.
+  - [ ] P2.4c Pi-seitiger BLE-Central-Client: `bleak` (async, plattformübergreifend Linux/Windows)
+    statt `bluepy` (Linux-only, unmaintained) — direkt wiederverwendbar für K2 (Pi als BLE-Central
+    allgemein), dieselbe Scan-/Verbindungs-Logik nicht zweimal bauen.
+  - [ ] P2.4d Windows-seitiger Client: `bleak` deckt auch Windows ab (WinRT-Backend) — ein
+    gemeinsames Python-Modul für P2.4c/d statt zweier getrennter Implementierungen je Plattform.
+  - Verifikation: nur lokal (echte BLE-Verbindung Pi/Windows↔Flipper, RPC-Antwort sichtbar).
 
 ### Phase 2b — KONNEKTIVITÄTS-MATRIX (neu, 2026-08-26): alles spricht mit allem
 Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur über den V4.
 - [ ] K1 **Pi ↔ Flipper**: USB ✅(Engine) + BLE (P2.4).
+  - Deckt sich vollständig mit P2.4 (Flippers eigenes RPC-über-BLE) — kein eigener Unterschritt
+    nötig, hier nur als Matrix-Zeile geführt.
 - [ ] K2 **Pi ↔ BLE allgemein**: Pi als BLE-Central (bluepy/bleak) — scannt/verbindet BLE-Geräte (V4, Flipper, DogyTag).
+  - [ ] K2a **Zwei getrennte Protokoll-Ziele hinter dieser einen Zeile**, nicht mit einer
+    Implementierung abzudecken: Flipper spricht sein eigenes RPC-über-BLE (siehe P2.4a); V4/V3/
+    LilyGo sprechen (sobald P8.1 gebaut ist) das neue `ukfe_rf`-v2-BLE (`UKFE-RF-V2-SPEC.md`
+    Abschnitt 5). DogyTag hat laut Geräte-Inventar (Abschnitt 1) **kein** BLE-Transport (nur
+    LoRaWAN/GPS) — als Ziel hier vermerkt, aber ohne bestätigten BLE-Chip/-Firmware-Support aktuell
+    nicht umsetzbar; vor Weiterarbeit gegen das DogyTag-Datenblatt/-Firmware klären statt anzunehmen.
+  - [ ] K2b Gemeinsamer `bleak`-basierter Scan-/Verbindungs-Layer (aus P2.4c/d übernehmen), der beide
+    Protokoll-Ziele (Flipper-RPC, `ukfe_rf`-v2-BLE) über dasselbe Discovery/Connect-Modul bedient und
+    nur die Nachrichtenschicht (Codec) je nach erkanntem Geräte-Typ (`devices.json`-`id`) umschaltet.
 - [ ] K3 **Flipper ↔ BLE**: Flipper-BLE (RPC/Serial-over-BLE) als Ziel für Pi-Central **und** Android.
+  - Identisch zu P2.4a/K1 (Flippers eigenes RPC-über-BLE) plus Android als zweiter Client (siehe K4)
+    — kein drittes Protokoll, nur ein zweiter Client für dasselbe RPC.
 - [ ] K4 **APK ↔ Flipper direkt** (BLE, wie offizielle Flipper-App) — Steuerung + Ergebnis am Handy.
+  - Nutzt dasselbe Flipper-RPC-über-BLE wie P2.4/K1/K3, nur mit Android/Flutter als Client statt
+    Python/`bleak` — dieselbe Abgrenzung wie P2.4a gilt, kein neues Protokoll für die APK entwerfen.
 - [ ] K5 **APK ↔ Pi direkt**: BLE-GATT **und** WiFi/TCP (Pi-Dienst) — APK erreicht den Pi kabellos.
+  - [ ] K5a Drittes, eigenständiges Protokoll-Ziel (weder Flipper-RPC noch `ukfe_rf`-v2-BLE): der Pi
+    selbst müsste hierfür als BLE-**Peripheral** auftreten (nicht Central wie in K2), z. B. über
+    BlueZ' GATT-Server-Rolle — technisch anderer Code-Pfad als K2/P2.4 (Central), nicht
+    wiederverwendbar, erst zu entwerfen sobald diese Phase ansteht.
+  - [ ] K5b WiFi/TCP-Alternative ist der einfachere erste Schritt (Pi als normaler TCP/HTTP-Server im
+    LAN, keine BLE-Peripheral-Rolle nötig) — Vorschlag für die Umsetzungsreihenfolge: zuerst WiFi/TCP,
+    BLE-GATT-Peripheral erst danach falls kabellos ohne LAN gebraucht wird.
 - [ ] K6 **APK ↔ V4** (BLE, P8.1). ⇒ Ergebnis: Win/Kali/APK/Flipper/On-Device × USB/UART/ESP-NOW/BLE/WiFi/LoRaWAN vollvermascht.
+  - Vollständig blockiert auf P8.1 (`ukfe_rf`-v2-BLE-Firmware-Patch auf V4) — kein eigenständiger
+    Unterschritt vor P8.1 sinnvoll.
 
 ### Phase 3 — Heltec V3/V4: OLED-Multipage + BOOT-Bedienung
 - [ ] P3.1 OLED-Seiten-Framework (Blättern): Status · LoRaWAN · ESP-NOW-Peers · Letztes-Cmd/Resultat · GPS · Szenario.
+  - [ ] P3.1a **Lokal, nicht aus der Cloud lieferbar:** welche OLED-Zeichenroutinen/-Library
+    (`u8g2` o. ä.) `heltec-v4-hub`/`heltec-ukfe-rx` aktuell nutzen, ist nur in deren Firmware-Quelle
+    sichtbar (außerhalb des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung, analog P1.2b/P2.1b/P2.4b)
+    — hier keine Zeichenroutine entwerfen, ohne sie gegen die echte Basis zu prüfen.
+  - [ ] P3.1b Architektur-Vorschlag (protokoll-/hardwareunabhängig, lokal nur noch zu übertragen):
+    `enum Page {Status, LoRaWAN, EspNowPeers, LastResult, Gps, Szenario}` plus ein Dispatch-Array
+    `render_fn[Page]`, `current_page` als einzige globale Zustandsvariable — BOOT-Taste (P3.2)
+    inkrementiert nur `current_page` und ruft `render_fn[current_page]()`; trennt Seitenverwaltung
+    von der jeweiligen Datenquelle je Seite.
+  - [ ] P3.1c Datenverfügbarkeit ist pro Seite unterschiedlich weit: Status/LoRaWAN/ESP-NOW-Peers
+    haben lokal bereits laufende Firmware-Zustände als Datenquelle, **GPS** hängt bereits an echter
+    Hardware am V4-Hub; **Letztes-Cmd/Resultat** braucht das Ergebnis-Envelope aus P0.4
+    (`ORIGIN_ID`/`RESULT_CODE`, `UKFE-RF-V2-SPEC.md` Abschnitt 4) für eine saubere Quell-Anzeige —
+    bis P0.4f live ist, dort nur die rohe letzte Antwort ohne Herkunfts-Feld zeigen (dasselbe
+    Fallback-Muster wie P1.5c/P1.6b/P2.3a); **Szenario** hängt an Phase 7 (Visualizer) und bleibt
+    bis dahin ein Platzhaltertext „noch nicht verfügbar" statt erfundener Daten.
+  - Verifikation: nur lokal (Display-Ausgabe an echter Hardware).
 - [ ] P3.2 BOOT-Taste: kurz=Seite blättern, lang=Aktion des aktuellen Kontexts ausführen, doppelt=Menü.
 - [ ] P3.3 Ergebnis-Anzeige direkt am Gerät (Resultat der on-device-getriggerten Aktion).
 - [ ] P3.4 V4 nach jeder FW-Änderung **per SSH am Pi flashen** (P0.1-Workflow).
@@ -577,6 +639,35 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   unverändert kein Treffer. Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt
   19 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert).
   Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-16 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- und
+  Phase-2-Kette (P1.2-P1.7, P2.1-P2.3) bewusst unverändert gelassen (weitere Textmenge dort wäre
+  Wiederholung, siehe Log 2026-09-11ff.) — stattdessen den nächsten unverfeinerten Tier
+  aufgegriffen: P2.4 (BLE-Transport zum Flipper) und Phase 2b (K1-K6) in Abschnitt 4 in
+  Unterschritte zerlegt, dabei Phase 3/P3.1 als drittes Stück ebenfalls begonnen. Echter
+  Architektur-Fund dabei (nicht nur Textmenge): P2.4 und die BLE-Zeilen in Phase 2b vermischten
+  bisher zwei komplett getrennte BLE-Protokoll-Familien unter derselben Überschrift — Flippers
+  eigenes, bereits vorhandenes RPC-über-BLE (Serial-over-BLE, wie qFlipper/die offizielle
+  Mobile-App es nutzen) einerseits, und das in `UKFE-RF-V2-SPEC.md` Abschnitt 5 neu entworfene
+  `ukfe_rf`-v2-BLE-Mapping für V3/V4/LilyGo/WROOM andererseits. Jetzt in P2.4a explizit
+  auseinandergezogen und in K1-K6 pro Zeile vermerkt, welches der beiden Protokolle jeweils gilt
+  (K1/K3/K4 = Flipper-RPC, K2 = beide je nach Ziel-Gerät, K5 = drittes, eigenständiges Ziel
+  [Pi als BLE-Peripheral statt Central], K6 = reines `ukfe_rf`-v2-BLE via P8.1) — ohne diese
+  Trennung hätte eine spätere lokale Sitzung riskiert, einen Client für das falsche Protokoll zu
+  bauen oder beide unnötig doppelt zu implementieren. P2.4b (exakte GATT-UUIDs/Protobuf-Format für
+  Flippers RPC) als „lokal, nicht aus der Cloud lieferbar" markiert — dieselbe Begründung wie
+  P1.2b/P2.1b (Firmware-Quelle außerhalb des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung), `bleak`
+  statt `bluepy` als Client-Bibliothek vorgeschlagen (deckt Linux **und** Windows aus einem
+  Codepfad ab, spart P2.4c/d als getrennte Implementierungen). P3.1 (OLED-Seiten-Framework) bekam
+  einen protokollunabhängigen Architektur-Vorschlag (Page-Enum + Dispatch-Array, siehe P3.1b) plus
+  eine Einordnung, welche der sechs Seiten schon heute Daten hätte und welche noch an P0.4f/Phase 7
+  hängen (P3.1c) — die eigentliche Zeichenroutine bleibt lokal (P3.1a), analog P1.2b. Repo-
+  Sichtbarkeit erneut per GitHub-API geprüft (`visibility`-Feld): weiterhin `private`. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/
+  `flipper_ctl.py`/`g4meover_resume.py`) erneut gegen `git log --all --diff-filter=A` geprüft:
+  unverändert kein Treffer. Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27,
+  jetzt 20 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
+  eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
+  geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -617,11 +708,22 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 19 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 20 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
    Neuklonen aller bestehenden Checkouts) steht jetzt unter Risiken unten — nur noch auszuführen.
+6. Sobald Phase 2 (P2.1-P2.3) erledigt ist: P2.4 (BLE-Transport zum Flipper) und Phase 2b (K1-K6)
+   sind jetzt ebenfalls in Unterschritte zerlegt. Zuerst P2.4a lesen (Abgrenzung Flipper-eigenes
+   RPC-über-BLE vs. neues `ukfe_rf`-v2-BLE) — vermeidet, das falsche Protokoll zu implementieren.
+   Danach P2.4b (GATT-UUIDs/Protobuf-Format gegen die echte Firmware-/Client-Quelle verifizieren,
+   nicht raten) vor P2.4c/d (Python-`bleak`-Client Pi+Windows in einem Modul). K2a/K5a klären dabei
+   zwei offene lokale Fragen: ob DogyTag überhaupt BLE-fähig ist (gegen Datenblatt/Firmware prüfen,
+   nicht annehmen) und dass K5 (APK↔Pi) einen eigenständigen BLE-Peripheral-Codepfad braucht, der
+   nicht aus K2/P2.4 (BLE-Central) wiederverwendbar ist. Phase 3/P3.1 (OLED-Seiten-Framework) hat
+   jetzt ebenfalls einen Architektur-Vorschlag (P3.1b, Page-Enum + Dispatch-Array) — kann parallel
+   zu Phase 1/2 lokal vorbereitet werden, sobald Zeit ist, ist aber nicht auf deren Abschluss
+   blockiert.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
@@ -655,7 +757,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 19 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 20 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -725,25 +827,24 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-15):** komplette Phase-1-TODO-Kette (P1.2-P1.7)
-bewusst unverändert gelassen (weitere Textmenge wäre Wiederholung); stattdessen Phase 2, P2.1-P2.3
-in Abschnitt 4 in Unterschritte zerlegt (Transport-Entscheidung Reverse-Kanal P2.1b, Moduswechsel-
-Frage P2.2a gegen `FLEET-COMMANDS.md` geprüft, P2.3 auf bestehendes SRC_ID-Fallback-Muster verwiesen —
-Details siehe FORTSCHRITT-Log oben). Dabei einen echten Repo-Zustand korrigiert: lokaler `main`-Branch
-dieses Checkouts war 29 Commits hinter `origin/main` (rein lokaler Branch-Zeiger-Stand, `git push`
-bestätigte „Everything up-to-date" — kein tatsächlicher Datenverlust). Blocker „referenzierte
-Tool-Dateien fehlen im Repo" erneut geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per
-GitHub-API geprüft: weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 19 Tage — keine
-erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
+**Cloud hat in dieser Sitzung erledigt (2026-09-16):** P2.4 (BLE-Transport zum Flipper) und
+Phase 2b (K1-K6) in Abschnitt 4 in Unterschritte zerlegt, Phase 3/P3.1 (OLED-Seiten-Framework)
+als drittes Stück begonnen. Echter Architektur-Fund: P2.4/Phase-2b vermischten bisher zwei
+getrennte BLE-Protokoll-Familien (Flippers eigenes RPC-über-BLE vs. das neue `ukfe_rf`-v2-BLE aus
+`UKFE-RF-V2-SPEC.md`) — jetzt in P2.4a explizit getrennt und pro K-Zeile vermerkt, welches
+Protokoll gilt (Details siehe FORTSCHRITT-Log oben). Blocker „referenzierte Tool-Dateien fehlen im
+Repo" erneut geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per GitHub-API geprüft:
+weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 20 Tage — keine erneute
+Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
 versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-14):** Phase-1-TODO-Kette letzten Schritt fortgesetzt: P1.6
-(Log-Panel) und P1.7 (Packaging) in Unterschritte zerlegt. Zwei reale Funde: (1) P1.7c braucht ein
-bisher komplett fehlendes Icon-/Branding-Asset; (2) der Blocker „Cloud-Umgebung hängt Co-Authored-By-
-Trailer automatisch an" ist veraltet (0 von 35 Commits seit der Git-Identitäts-Setzung am 2026-09-11
-tragen noch einen Trailer, betrifft nur die 15 historischen Commits bis 2026-09-10). Repo-Sichtbarkeit
-weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, damals 18 Tage. Kein Hardware-Zugriff
-versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-15):** komplette Phase-1-TODO-Kette (P1.2-P1.7) bewusst
+unverändert gelassen (weitere Textmenge wäre Wiederholung); stattdessen Phase 2, P2.1-P2.3 in
+Abschnitt 4 in Unterschritte zerlegt. Dabei einen echten Repo-Zustand korrigiert: lokaler
+`main`-Branch dieses Checkouts war 29 Commits hinter `origin/main` (rein lokaler
+Branch-Zeiger-Stand, `git push` bestätigte „Everything up-to-date" — kein tatsächlicher
+Datenverlust). Repo-Sichtbarkeit weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, damals
+19 Tage. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
