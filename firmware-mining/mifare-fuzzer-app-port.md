@@ -40,8 +40,8 @@ jedem UID-Wechsel-Tick (`SceneManagerEventTypeTick`-Handler in derselben Datei, 
 Standard-Angriffe ganz ohne Datei, leckt damit jeder einzelne UID-Wechsel während eines
 laufenden Angriffs eine weitere `Iso14443_3aData`.
 
-**2. Unbegrenzte Schleife bei "Load UIDs from file" ohne gültige Zeile (dokumentiert,
-zurückgestellt):** Derselbe Handler sucht im Dateimodus die nächste gültige UID-Zeile in einer
+**2. Unbegrenzte Schleife bei "Load UIDs from file" ohne gültige Zeile (Fix jetzt geliefert,
+siehe Patch unten):** Derselbe Handler sucht im Dateimodus die nächste gültige UID-Zeile in einer
 `while(true)`-Schleife, die bei `stream_read_line()`-Fehlschlag (Dateiende) per
 `stream_rewind()` unbedingt von vorne beginnt:
 
@@ -87,8 +87,9 @@ Neu, aus der Quelle übernehmbar (eigenständiger externer App-Ordner):
   `mifare_fuzzer_i.h`, `mifare_fuzzer_custom_events.h`
 - `applications_user/mifare_fuzzer/mifare_fuzzer_worker.c` / `.h` (unverändert, Referenzmuster
   für den Fix)
-- `applications_user/mifare_fuzzer/scenes/*` — `mifare_fuzzer_scene_emulator.c` **mit dem unten
-  beschriebenen Fix**, alle übrigen Szenen unverändert
+- `applications_user/mifare_fuzzer/scenes/*` — `mifare_fuzzer_scene_emulator.c` **mit den unten
+  beschriebenen Fixes** (Fund 1 als Sketch in Schritt 2, Fund 2 als eigener Patch in Schritt 6
+  der Port-Skizze), alle übrigen Szenen unverändert
 - `applications_user/mifare_fuzzer/views/mifare_fuzzer_emulator.c` / `.h` (unverändert)
 - `applications_user/mifare_fuzzer/resources/mifare_fuzzer/example_uids04.txt` / `example_uids07.txt`
   (Beispiel-UID-Listen, keine echten Kartendaten — reine Testwerte wie `11:22:33:44`)
@@ -114,8 +115,19 @@ Firmware-Kernänderung).
   mehr referenziert wird (kein Double-Free, da nirgends sonst freigegeben). Kein Einfluss auf
   Timing, Protokoll oder emulierte Daten.
 - **Fund 2 (Endlosschleife)**: nur bei einer semantisch leeren/ungültigen Nutzerdatei auslösbar,
-  nicht bei den mitgelieferten Beispiel-Listen — als Härtung für eine spätere Sitzung
-  vorgemerkt (Fix-Skizze unten), diese Sitzung bewusst auf Fund 1 begrenzt.
+  nicht bei den mitgelieferten Beispiel-Listen. Fix jetzt als eigener Patch geliefert (siehe
+  unten): reiner Kontrollfluss-Fix an derselben Schleife, keine neue Speicherzugriffsstelle. Der
+  Abbruchzweig gibt `nfc_data` frei (sonst identisch zum bereits dokumentierten Fund-1-Leck) und
+  meldet über dieselbe `sequence_blink_stop`-Notification ab wie der bestehende
+  `MifareFuzzerEventStopAttack`-Zweig. Bewusst nicht mitgeliefert: das `is_attacking`-Flag der
+  Emulator-View bleibt dabei unverändert `true` (dieses Flag lebt ausschließlich in
+  `views/mifare_fuzzer_emulator.c`, außerhalb der hier geänderten Datei) — bei laufendem Angriff
+  mit durchgehend ungültiger Datei feuert der Tick-Handler `MifareFuzzerEventStartAttack` daher
+  weiterhin in regelmäßigen Abständen erneut, trifft aber jedes Mal denselben sauberen,
+  sofort zurückkehrenden Abbruchzweig statt zu hängen — kein Hang mehr, nur eine wiederholte
+  "Stop"-Benachrichtigung, bis der Nutzer manuell stoppt. Für ein echtes Zurücksetzen des
+  Anzeige-Zustands wäre eine Erweiterung von `views/mifare_fuzzer_emulator.c` nötig — als kleinerer
+  Folgepunkt vorgemerkt (siehe Port-Skizze).
 
 ## Port-Skizze
 1. App-Ordner `mifare_fuzzer` (alle unter „Betroffene Dateien" gelisteten Dateien) aus
@@ -150,12 +162,19 @@ Firmware-Kernänderung).
    schnellerer Heap-Druck); freien Heap vor/nach dem Fix vergleichen (Debug-Log/Heap-Anzeige) —
    vor dem Fix sinkt der freie Heap kontinuierlich mit jedem UID-Wechsel, nach dem Fix bleibt er
    stabil. Reader-Reaktion auf die UID-Wechsel selbst ist vom Fix unberührt.
-6. Fund 2 (Endlosschleife bei leerer/ungültiger UID-Datei) bewusst nicht in diesem Port
-   enthalten — Fix-Skizze für eine künftige Sitzung: im `MifareFuzzerAttackLoadUidsFromFile`-
-   Zweig einen `found_any_this_pass`-Merker mitführen und bei `stream_read_line()`-Fehlschlag
-   ohne Treffer seit dem letzten `stream_rewind()` den Angriff sauber abbrechen
-   (`mifare_fuzzer_worker_stop()` + Benachrichtigung) statt erneut zu spulen — Referenz-
-   Kontrollfluss bereits als `neu_select_line()` im zweiten Repro-Ordner unten vorhanden.
+6. Fund 2 (Endlosschleife bei leerer/ungültiger UID-Datei) jetzt als eigener Patch geliefert:
+   `firmware-mining/mifare-fuzzer-app-port/mifare_fuzzer_scene_emulator_c.patch` — trägt im
+   `MifareFuzzerAttackLoadUidsFromFile`-Zweig einen `found_valid_line`-Merker (identischer
+   Kontrollfluss zum bereits vorhandenen `neu_select_line()`-Referenzcode im zweiten
+   Repro-Ordner) nach und bricht bei einem vollständigen Durchlauf ohne Treffer sauber ab
+   (`iso14443_3a_free(nfc_data)` + dieselbe `sequence_blink_stop`-Benachrichtigung wie der
+   bestehende Stop-Zweig), statt endlos zu spulen. Getrennt vom Fund-1-Patch anwendbar (andere
+   Zeilen derselben Datei, `patch -p1` prüft beide unabhängig gegeneinander).
+7. Restlicher, aus Fund 2 bewusst nicht mitgelieferter Punkt (siehe Risiko-Abschnitt): das
+   `is_attacking`-Flag in `views/mifare_fuzzer_emulator.c` nach dem Abbruchzweig aktiv
+   zurückzusetzen, damit die UI nach einer ungültigen Datei nicht weiter "läuft" — für eine
+   künftige Sitzung vorgemerkt, da das eine zweite Datei anfasst statt der hier gehaltenen
+   Ein-Datei-Änderung.
 
 ## Testhinweis (lokal nachvollzogen)
 Zwei host-kompilierbare Mini-Repros, beide ohne Flipper-/NFC-Abhängigkeiten:
@@ -187,21 +206,41 @@ Exiting now -- ASan LeakSanitizer will report anything still allocated.
 Exit-Code: 0
 ```
 
-**Fund 2 (Endlosschleife, dokumentiert)** —
+**Fund 2 (Endlosschleife, Fix jetzt geliefert)** —
 `firmware-mining/repro-mifare-fuzzer-load-uids-no-valid-line-hang/repro.c` bildet die
 Zeilenauswahl-Schleife mit einer In-Memory-Zeilenliste nach (Stellvertreter für
 `stream_read_line()`/`stream_rewind()`), mit einer Iterationsobergrenze, um ein Hängenbleiben
-messbar statt den Testlauf selbst blockierend zu machen:
+messbar statt den Testlauf selbst blockierend zu machen. Der darin enthaltene
+`neu_select_line()`-Kontrollfluss (`found_any_this_pass`-Merker) ist identisch zu dem, was der
+tatsächliche Patch (`found_valid_line`-Merker) in `mifare_fuzzer_scene_emulator.c` umsetzt:
 
 ```
-gcc -O1 -Wall -Wextra -fsanitize=address,undefined -o repro repro.c && ./repro
+gcc -std=c11 -O1 -Wall -Wextra -fsanitize=address,undefined -o repro repro.c && ./repro
 ```
 
-Ergebnis: bei einer Datei mit mindestens einer gültigen Zeile terminieren ALT und NEU
-gleichermaßen in wenigen Iterationen (Regressions-Check: NEU verändert den Normalfall nicht);
-bei leerer Datei, reiner Kommentardatei oder ausschließlich falsch-langen Zeilen terminiert ALT
-nie (Iterationsobergrenze erreicht), NEU bricht nach einem vollständigen Durchlauf ohne Treffer
-sauber ab.
+Tatsächliches Ergebnis (lokal ausgeführt):
+```
+[valid-file] ALT: terminated after 2 iterations
+[valid-file] NEU: terminated with a UID after 2 iterations
+[comment-only-file] ALT: DID NOT TERMINATE (hang) after 1000001 iterations (hit iteration cap)
+[comment-only-file] NEU: terminated with 'no usable line' (attack stopped, no hang) after 3 iterations
+[empty-file] ALT: DID NOT TERMINATE (hang) after 1000001 iterations (hit iteration cap)
+[empty-file] NEU: terminated with 'no usable line' (attack stopped, no hang) after 1 iterations
+[wrong-length-only-file] ALT: DID NOT TERMINATE (hang) after 1000001 iterations (hit iteration cap)
+[wrong-length-only-file] NEU: terminated with 'no usable line' (attack stopped, no hang) after 2 iterations
+```
+Bei einer Datei mit mindestens einer gültigen Zeile terminieren ALT und NEU gleichermaßen in
+wenigen Iterationen (Regressions-Check: NEU verändert den Normalfall nicht); bei leerer Datei,
+reiner Kommentardatei oder ausschließlich falsch-langen Zeilen terminiert ALT nie
+(Iterationsobergrenze erreicht), NEU bricht nach einem vollständigen Durchlauf ohne Treffer sauber
+ab. `ALL CHECKS PASSED`-Äquivalent hier: `0`-Exit-Code aller vier Fälle unter ASan/UBSan, keine
+Sanitizer-Meldung.
+
+**Patch-Verifikation (Fund 2)** — `patch --dry-run -p1` gegen eine frische Kopie der echten
+`mifare_fuzzer_scene_emulator.c` (per `raw.githubusercontent.com` von
+`RogueMaster/flipperzero-firmware-wPlugins`, Branch `420`, bezogen) vorab geprüft, danach real
+angewendet und Byte-für-Byte gegen die separat erstellte, editierte Fassung abgeglichen —
+identisch.
 
 ## Quelle
 - `RogueMaster/flipperzero-firmware-wPlugins` (Branch `420`, Sparse-Checkout, Stand dieser
@@ -214,9 +253,12 @@ sauber ab.
   `MifareFuzzerEventStartAttack`-Zweig, gegen `mifare_fuzzer_worker.c` als Referenz für das
   korrekte Muster verifiziert, mit Host-Repro unter AddressSanitizer/LeakSanitizer bestätigt
   (siehe `firmware-mining/repro-mifare-fuzzer-startattack-nfc-data-leak/repro.c`).
-- Eigener Fund 2 (Endlosschleife, dokumentiert/zurückgestellt): dieselbe Datei,
+- Eigener Fund 2 (Endlosschleife, Fix geliefert): dieselbe Datei,
   `MifareFuzzerAttackLoadUidsFromFile`-Zweig, mit Host-Repro bestätigt (siehe
-  `firmware-mining/repro-mifare-fuzzer-load-uids-no-valid-line-hang/repro.c`).
+  `firmware-mining/repro-mifare-fuzzer-load-uids-no-valid-line-hang/repro.c`) und als
+  Unified-Diff gegen die echte, unveränderte Quelle
+  (`firmware-mining/mifare-fuzzer-app-port/mifare_fuzzer_scene_emulator_c.patch`,
+  `patch --dry-run -p1` vorab verifiziert, real angewendet und Byte-für-Byte abgeglichen).
 - Restlicher NFC-Werkzeug-Cluster aus demselben Rückstellpunkt weiterhin offen: `nfctools`,
   `uhf_rfid`, `nfc_comparator`, `simultaneous_rfid_reader` (letztere zwei vermutlich
   Fremdhardware-Fall, externes UHF-Lesegerät nötig, noch nicht abschließend bestätigt).

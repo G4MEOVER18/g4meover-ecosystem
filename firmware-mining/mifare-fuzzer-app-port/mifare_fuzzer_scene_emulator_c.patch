@@ -1,0 +1,46 @@
+--- a/applications_user/mifare_fuzzer/scenes/mifare_fuzzer_scene_emulator.c	2026-09-16 12:21:51.368019834 +0000
++++ b/applications_user/mifare_fuzzer/scenes/mifare_fuzzer_scene_emulator.c	2026-09-16 12:21:45.012607565 +0000
+@@ -142,15 +142,18 @@
+                     }
+                 }
+             } else if(app->attack == MifareFuzzerAttackLoadUidsFromFile) {
+-                //bool end_of_list = false;
+-                // read stream
++                // read stream: at most one full pass over the file: give up
++                // instead of spinning forever if it has no usable UID line at
++                // all (empty file, comments-only, or only wrong-length lines)
++                bool found_valid_line = false;
+                 while(true) {
+                     furi_string_reset(app->uid_str);
+                     if(!stream_read_line(app->uids_stream, app->uid_str)) {
+-                        // restart from beginning on empty line
++                        if(!found_valid_line) break;
++                        // restart from beginning once this pass used a line
+                         stream_rewind(app->uids_stream);
++                        found_valid_line = false;
+                         continue;
+-                        //end_of_list = true;
+                     }
+                     // Skip comments
+                     if(furi_string_get_char(app->uid_str, 0) == '#') continue;
+@@ -158,11 +161,18 @@
+                     if((furi_string_size(app->uid_str) != 9) &&
+                        (furi_string_size(app->uid_str) != 15))
+                         continue;
++                    found_valid_line = true;
+                     break;
+                 }
+ 
+-                // TODO: stop on end of list?
+-                //if(end_of_list) break;
++                if(!found_valid_line) {
++                    // No usable UID line anywhere in the file: stop cleanly
++                    // instead of emulating stale/empty uid_str data.
++                    iso14443_3a_free(nfc_data);
++                    notification_message(app->notifications, &sequence_blink_stop);
++                    consumed = true;
++                    return consumed;
++                }
+ 
+                 // parse string to UID
+                 // TODO: a better validation on input?

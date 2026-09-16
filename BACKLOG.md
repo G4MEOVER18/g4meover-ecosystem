@@ -1807,6 +1807,31 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       mitgeprüft, kein weiterer Fund. Damit ist der Rückstellpunkt "Sektor-Analyse-Restumfang"
       abgeschlossen; restlicher NFC-Werkzeug-Cluster nur noch `chameleon`/`nfc_relay`
       (Fremd-/Zweitgerät, außerhalb reiner Quelltextprüfung).
+- [x] Mitgeschleppten Rückstellpunkt aus der Mifare-Fuzzer-Sitzung aufgegriffen: Fund 2
+      (Endlosschleife bei "Load UIDs from file" ohne gültige Zeile) geliefert. Echte,
+      unveränderte `mifare_fuzzer_scene_emulator.c` per `raw.githubusercontent.com` von
+      `RogueMaster/flipperzero-firmware-wPlugins` (Branch `420`) erneut bezogen und gegen den
+      bereits dokumentierten Fund gegengeprüft: unverändert vorhanden. Fix trägt exakt den
+      bereits als `neu_select_line()` vorbereiteten Referenz-Kontrollfluss
+      (`found_valid_line`-Merker: höchstens ein vollständiger Dateidurchlauf, danach sauberer
+      Abbruch statt endlosem `stream_rewind()`) in die reale Funktion nach, ergänzt um Freigabe
+      des bereits allozierten `nfc_data` sowie dieselbe `sequence_blink_stop`-Benachrichtigung
+      wie der bestehende Stop-Zweig. Als Unified-Diff gegen eine frische Kopie der echten Quelle
+      (`patch --dry-run -p1` vorab verifiziert, real angewendet und Byte-für-Byte gegen die
+      editierte Fassung abgeglichen) in
+      `firmware-mining/mifare-fuzzer-app-port/mifare_fuzzer_scene_emulator_c.patch`. Der bereits
+      vorhandene Host-Repro (`firmware-mining/repro-mifare-fuzzer-load-uids-no-valid-line-hang/repro.c`)
+      erneut unter ASan/UBSan gebaut und ausgeführt: ALT hängt bei leerer, reiner
+      Kommentar- und ausschließlich falsch-langer Testdatei jeweils an der Iterationsobergrenze,
+      NEU bricht sauber ab, Regressionsfall (gültige Datei) unverändert. Bewusst nicht
+      mitgeliefert: das `is_attacking`-Flag der Emulator-View aktiv zurückzusetzen (lebt in einer
+      zweiten Datei, `views/mifare_fuzzer_emulator.c`) — ohne diesen Fix bleibt der Angriff bei
+      dauerhaft ungültiger Datei "aktiv" und der Abbruchzweig wird bei jedem Tick erneut sauber
+      getroffen (kein Hang mehr, nur wiederholte Stop-Benachrichtigung) — für eine künftige
+      Sitzung vorgemerkt. Details in `firmware-mining/mifare-fuzzer-app-port.md` (Risiko-/
+      Port-Skizze-Abschnitt aktualisiert). Damit ist der Mifare-Fuzzer-Port-Vorschlag
+      vollständig abgearbeitet (beide eigenen Funde dokumentiert bzw. gepatcht); restlicher
+      NFC-Werkzeug-Cluster weiterhin nur `chameleon`/`nfc_relay` (Fremd-/Zweitgerät).
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
