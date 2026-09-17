@@ -870,6 +870,46 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `unlshd-093`-Restliste weiterhin offen: CUID-Dictionary-Zähler (#1115),
       MIFARE-Classic-Schlüssel-Dictionary-Feature (#1118), Superrollo/GW60-SubGHz-Protokoll
       (#1068).
+- [x] Aus derselben `unlshd-093`-Restliste weiterverfolgt: `cc3a1bc79` (PR #1115, "NFC: keep the
+      CUID dictionary pass end marker out of the sector counter") geprüft — bei mir existiert
+      Unleasheds betroffene Datei (`mf_classic_extra_scenes.c`) nicht; meine NFC-App hat eine
+      eigene, älter strukturierte MF-Classic-Dict-Attack-Szene
+      (`applications/main/nfc/scenes/nfc_scene_mf_classic_dict_attack.c`) mit eigenem,
+      Bitmap-basiertem CUID-Dictionary-Ansatz — kein 1:1-Diff übernehmbar. Die zugrunde liegende
+      Fehlerklasse aber unabhängig gefunden und exakt identisch: `current_key_idx / 2` (Anzahl
+      durchprobierter Schlüssel A/B je Sektor) läuft im `NextSector`-Handler eine Sektornummer
+      über die letzte echte hinaus, sobald der CUID-Pass zu Ende ist — dieser Marker-Wert, den der
+      Poller (`mf_classic_poller_handler_next_sector()` in
+      `lib/nfc/protocols/mf_classic/mf_classic_poller.c`) als Ende-Signal zurückliest, wurde bei
+      mir ungeprüft auch in das reine Anzeigefeld `current_sector` übernommen (z. B. Anzeige
+      "16" auf einer 1K-Karte mit nur 16 gültigen Sektoren 0–15 — exakt der von Unleashed im
+      PR-Titel genannte Fall). Zusätzlich setzt `nfc_scene_mf_classic_dict_attack_prepare_view()`
+      bei jedem der drei Dictionary-Phasenwechsel (CUID → User → System) `dict_keys_total`/
+      `dict_keys_current` zurück, nirgends aber `current_sector` — ein Reset existiert bei mir nur
+      beim Verlassen der gesamten Szene (`on_exit`), sodass der Marker-Wert bis zum ersten echten
+      Sektorwechsel der nächsten Phase sichtbar stehen bleibt. Kein Speicherfehler (`current_sector`
+      ist `uint8_t`, der Marker-Wert bleibt für jeden Kartentyp im gültigen `uint8_t`-Bereich),
+      rein ein UI-Korrektheitsfehler, reproduzierbar bei jedem vollständigen CUID-Dictionary-Lauf
+      über eine eigene, bereits gespeicherte CUID-Dictionary-Datei. Mit Host-Repro (verbatim
+      ALT-/NEU-Ausdrücke, reale Feldtypen aus `nfc_app_i.h`, vollständiger Sweep über alle drei
+      echten MIFARE-Classic-Sektorzahlen — Mini 5, 1K 16, 4K 40 — statt nur der 1K-Stichprobe aus
+      dem Commit-Titel, plus separater Phasenübergangs-Check) unter ASan/UBSan verifiziert: ALT
+      erreicht bei allen drei Kartentypen den ungültigen Marker-Wert und lässt ihn beim
+      simulierten Phasenwechsel unverändert stehen, NEU bleibt im gesamten Sweep aller drei
+      Kartentypen durchgehend im gültigen Bereich und setzt beim Phasenwechsel korrekt auf 0
+      zurück; ein Regressionsblock bestätigt, dass der unveränderte Nicht-CUID-Zweig von der
+      Änderung unberührt bleibt — `ALL CHECKS PASSED` (344 Checks), keine ASan-/UBSan-Meldungen,
+      identisches Ergebnis unter `-O0` gegengeprüft. Eigener Fix nach Unleasheds Prinzip (Marker
+      weiterhin unbedingt ans Poller-Event publizieren, aber nur bei `next_sector <
+      sectors_total` in die Anzeige übernehmen; Anzeige-Sektor bei jedem Phasenwechsel auf 0
+      zurücksetzen), an meine tatsächliche Codestruktur angepasst — Port-Vorschlag in
+      `firmware-mining/mf-classic-cuid-dict-sector-cursor-fix.md`, Patch gegen meine unveränderte
+      `mntm-012`-Basis (`patch --dry-run -p1` vorab verifiziert, real angewendet und
+      Byte-für-Byte abgeglichen) in
+      `firmware-mining/mf-classic-cuid-dict-sector-cursor-fix/nfc_scene_mf_classic_dict_attack_c.patch`,
+      Repro in `firmware-mining/repro-mf-classic-cuid-dict-sector-cursor-fix/repro.c`. Aus
+      derselben `unlshd-093`-Restliste weiterhin offen: MIFARE-Classic-Schlüssel-
+      Dictionary-Feature (#1118), Superrollo/GW60-SubGHz-Protokoll (#1068).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
