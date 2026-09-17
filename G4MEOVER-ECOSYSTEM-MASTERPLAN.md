@@ -441,8 +441,41 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     bis dahin ein Platzhaltertext „noch nicht verfügbar" statt erfundener Daten.
   - Verifikation: nur lokal (Display-Ausgabe an echter Hardware).
 - [ ] P3.2 BOOT-Taste: kurz=Seite blättern, lang=Aktion des aktuellen Kontexts ausführen, doppelt=Menü.
+  - [ ] P3.2a **Lokal, nicht aus der Cloud lieferbar:** welche Button-Read-/Debounce-Mechanik
+    (`furi_hal_gpio`/Input-Service oder eigene Polling-Schleife) `heltec-v4-hub`/`heltec-ukfe-rx`
+    für die BOOT-Taste bereits nutzen, ist nur in deren Firmware-Quelle sichtbar (außerhalb des
+    GitHub-Zugriffs-Scopes dieser Cloud-Sitzung, dieselbe Begründung wie P3.1a) — hier keine
+    Debounce-/Timing-Routine entwerfen, ohne sie gegen die echte Basis zu prüfen.
+  - [ ] P3.2b Architektur-Vorschlag (protokoll-/hardwareunabhängig, lokal nur noch zu übertragen):
+    drei Ereignisklassen aus einer einzigen Press/Release-Zeitmessung ableiten statt drei separater
+    Handler — kurz (<~400 ms), lang (Halten >~800 ms), doppelt (zwei kurze Presses innerhalb
+    <~400 ms Pause); konkrete Schwellwerte lokal gegen Tastergefühl/Prellverhalten der echten Taste
+    kalibrieren, hier nur als Ausgangswerte markiert. Mapping auf den P3.1b-Dispatch: kurz →
+    `current_page = (current_page + 1) % PageCount`; doppelt → eigener Overlay-Zustand „Menü" (kein
+    neuer `Page`-Enum-Wert, da sich das Menü über jede Seite legt statt sie zu ersetzen); lang →
+    kontextabhängige Aktion der aktuell sichtbaren Seite (siehe P3.2c).
+  - [ ] P3.2c „Aktion des aktuellen Kontexts" (lang) ist pro Seite unterschiedlich weit: für
+    **LastResult** ergibt „letzten Befehl erneut senden" den meisten Sinn (Datenquelle bereits
+    vorhanden); für **Status** ein manueller Status-Refresh/Broadcast; für
+    **LoRaWAN/ESP-NOW-Peers/GPS** ist noch keine sinnvolle On-Device-Aktion (nur Anzeige, kein
+    Trigger) definiert — als offene lokale Entscheidung markiert statt hier für jede Seite eine
+    Aktion zu erfinden; **Szenario** bleibt analog P3.1c ohne Aktion, solange Phase 7 nicht steht.
+  - Verifikation: nur lokal (Taster-Druckdauer/-Doppelklick an echter Hardware, Debounce-Verhalten).
 - [ ] P3.3 Ergebnis-Anzeige direkt am Gerät (Resultat der on-device-getriggerten Aktion).
+  - [ ] P3.3a Nutzt dieselbe **LastResult**-OLED-Seite aus P3.1a/c — kein zweiter, separat
+    gepflegter Anzeige-Pfad für on-device- vs. remote-getriggerte Ergebnisse; einziger Unterschied
+    ist die Quelle des Triggers (P3.2c Lang-Press vs. eingehender Frame über
+    868-FSK/ESP-NOW/UART/BLE).
+  - [ ] P3.3b Herkunfts-Kennzeichnung „selbst ausgelöst" vs. „extern ausgelöst" setzt dasselbe
+    `ORIGIN_ID`/`SRC_ID`-Envelope aus P0.4f voraus (Gerät vergleicht `ORIGIN_ID`/`SRC_ID` mit der
+    eigenen `devices.json`-`id`); bis P0.4f live ist, dasselbe Fallback-Muster wie
+    P1.5c/P1.6b/P2.3a nutzen (Ergebnis ohne Herkunfts-Unterscheidung zeigen, kein erfundenes Feld).
+  - Verifikation: nur lokal (Display-Ausgabe nach echtem BOOT-Tasten-Trigger vs. echtem
+    Remote-Befehl).
 - [ ] P3.4 V4 nach jeder FW-Änderung **per SSH am Pi flashen** (P0.1-Workflow).
+  - Reiner Prozessschritt, kein eigener Entwurf nötig: nutzt den bereits validierten
+    P0.1-Workflow (`ecosystem/tools/pi_flash_v4.py`, sobald der Blocker „referenzierte
+    Tool-Dateien fehlen im Repo" geklärt ist) unverändert für jeden Patch aus P3.1/P3.2/P0.4f.
 
 ### Phase 4 — LoRaWAN massiv + LoRa-Sniffing
 - [ ] P4.1 LoRaWAN-Tab (Win/Kali): Join/Uplink/Downlink-Queue/Session-Status/Live-Events (TTN-API), Duty-Cycle-Anzeige.
@@ -668,6 +701,29 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   jetzt 20 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
   eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
   geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-17 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- und
+  Phase-2-Kette (P1.2-P1.7, P2.1-P2.4, K1-K6) bewusst unverändert gelassen (weitere Textmenge dort
+  wäre Wiederholung, siehe Log 2026-09-11ff.) — stattdessen Phase 3 fertig zerlegt: P3.2
+  (BOOT-Taste kurz/lang/doppelt) bekam eine Zeitschwellen-basierte Ereignis-Ableitung (ein
+  Press/Release-Timer statt drei getrennter Handler, Schwellwerte kurz <~400 ms/lang >~800 ms/
+  doppelt <~400 ms Pause) mit Mapping auf den P3.1b-Dispatch, sowie eine Einordnung, welche
+  OLED-Seiten überhaupt eine sinnvolle Lang-Press-Aktion haben (LastResult/Status ja,
+  LoRaWAN/ESP-NOW-Peers/GPS noch offene lokale Entscheidung, Szenario analog P3.1c erst mit
+  Phase 7) — hier bewusst nicht für jede Seite eine Aktion erfunden. P3.3 (Ergebnis-Anzeige am
+  Gerät) verweist jetzt explizit auf dieselbe LastResult-Seite aus P3.1 (kein zweiter
+  Anzeige-Pfad) und auf das etablierte Quell-ID-Fallback-Muster (P1.5c/P1.6b/P2.3a) bis P0.4f live
+  ist. P3.4 als reiner Prozessschritt markiert (nutzt den P0.1-Workflow unverändert, kein eigener
+  Entwurf nötig) — damit ist Phase 3 vollständig in Unterschritte zerlegt. Vor der Textarbeit einen
+  echten Repo-Zustand korrigiert: der lokale `main`-Branch dieses Checkouts zeigte wieder auf einen
+  veralteten Stand (`abbebb8`, 7 Commits hinter `origin/main`/`47012fb` — dieselbe Art
+  Ref-Zeiger-Drift wie am 2026-09-15 dokumentiert), per Fast-Forward nachgezogen, kein
+  Datenverlust. Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut gegen
+  `git log --all --diff-filter=A` geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per
+  GitHub-API geprüft (`visibility`-Feld): weiterhin `private`. Zugangsdaten-Rotation weiterhin
+  unverändert offen (seit 2026-08-27, jetzt 21 Tage) — keine erneute Push-Notification ohne neuen
+  Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein
+  Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -720,10 +776,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    nicht raten) vor P2.4c/d (Python-`bleak`-Client Pi+Windows in einem Modul). K2a/K5a klären dabei
    zwei offene lokale Fragen: ob DogyTag überhaupt BLE-fähig ist (gegen Datenblatt/Firmware prüfen,
    nicht annehmen) und dass K5 (APK↔Pi) einen eigenständigen BLE-Peripheral-Codepfad braucht, der
-   nicht aus K2/P2.4 (BLE-Central) wiederverwendbar ist. Phase 3/P3.1 (OLED-Seiten-Framework) hat
-   jetzt ebenfalls einen Architektur-Vorschlag (P3.1b, Page-Enum + Dispatch-Array) — kann parallel
-   zu Phase 1/2 lokal vorbereitet werden, sobald Zeit ist, ist aber nicht auf deren Abschluss
-   blockiert.
+   nicht aus K2/P2.4 (BLE-Central) wiederverwendbar ist. Phase 3 (OLED-Seiten-Framework P3.1,
+   BOOT-Taste P3.2, Geräte-Ergebnisanzeige P3.3, Flash-Prozess P3.4) ist jetzt vollständig in
+   Unterschritte zerlegt (P3.1b Page-Enum + Dispatch-Array, P3.2b Zeitschwellen-Ereignisableitung
+   mit Mapping auf denselben Dispatch, P3.3a verweist auf dieselbe LastResult-Seite) — kann
+   parallel zu Phase 1/2 lokal vorbereitet werden, sobald Zeit ist, ist aber nicht auf deren
+   Abschluss blockiert.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
@@ -827,24 +885,26 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-16):** P2.4 (BLE-Transport zum Flipper) und
-Phase 2b (K1-K6) in Abschnitt 4 in Unterschritte zerlegt, Phase 3/P3.1 (OLED-Seiten-Framework)
-als drittes Stück begonnen. Echter Architektur-Fund: P2.4/Phase-2b vermischten bisher zwei
-getrennte BLE-Protokoll-Familien (Flippers eigenes RPC-über-BLE vs. das neue `ukfe_rf`-v2-BLE aus
-`UKFE-RF-V2-SPEC.md`) — jetzt in P2.4a explizit getrennt und pro K-Zeile vermerkt, welches
-Protokoll gilt (Details siehe FORTSCHRITT-Log oben). Blocker „referenzierte Tool-Dateien fehlen im
+**Cloud hat in dieser Sitzung erledigt (2026-09-17):** Phase 3 vollständig in Unterschritte
+zerlegt — P3.2 (BOOT-Taste) bekam eine Zeitschwellen-basierte Ereignis-Ableitung (ein
+Press/Release-Timer statt drei Handler) mit Mapping auf den P3.1b-Dispatch sowie eine Einordnung,
+welche OLED-Seiten überhaupt eine sinnvolle Lang-Press-Aktion haben; P3.3 verweist jetzt auf
+dieselbe LastResult-Seite aus P3.1 statt eines zweiten Anzeige-Pfads; P3.4 als reiner
+Prozessschritt markiert (Details siehe FORTSCHRITT-Log oben). Lokaler `main`-Branch-Zeiger dieses
+Checkouts war erneut veraltet (7 Commits hinter `origin/main`, dieselbe Art Drift wie 2026-09-15) —
+per Fast-Forward nachgezogen, kein Datenverlust. Blocker „referenzierte Tool-Dateien fehlen im
 Repo" erneut geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per GitHub-API geprüft:
-weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 20 Tage — keine erneute
+weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 21 Tage — keine erneute
 Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
 versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-15):** komplette Phase-1-TODO-Kette (P1.2-P1.7) bewusst
-unverändert gelassen (weitere Textmenge wäre Wiederholung); stattdessen Phase 2, P2.1-P2.3 in
-Abschnitt 4 in Unterschritte zerlegt. Dabei einen echten Repo-Zustand korrigiert: lokaler
-`main`-Branch dieses Checkouts war 29 Commits hinter `origin/main` (rein lokaler
-Branch-Zeiger-Stand, `git push` bestätigte „Everything up-to-date" — kein tatsächlicher
-Datenverlust). Repo-Sichtbarkeit weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, damals
-19 Tage. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-16):** P2.4 (BLE-Transport zum Flipper) und Phase 2b (K1-K6) in
+Abschnitt 4 in Unterschritte zerlegt, Phase 3/P3.1 (OLED-Seiten-Framework) als drittes Stück
+begonnen. Echter Architektur-Fund: P2.4/Phase-2b vermischten bisher zwei getrennte
+BLE-Protokoll-Familien (Flippers eigenes RPC-über-BLE vs. das neue `ukfe_rf`-v2-BLE aus
+`UKFE-RF-V2-SPEC.md`) — in P2.4a explizit getrennt und pro K-Zeile vermerkt, welches Protokoll
+gilt. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation damals 20 Tage offen. Kein
+Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
