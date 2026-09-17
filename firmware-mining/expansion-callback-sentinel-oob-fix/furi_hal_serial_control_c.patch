@@ -1,0 +1,11 @@
+--- a/targets/f7/furi_hal/furi_hal_serial_control.c
++++ b/targets/f7/furi_hal/furi_hal_serial_control.c
+@@ -377,7 +377,7 @@
+     FuriHalSerialId serial_id,
+     FuriHalSerialControlExpansionCallback callback,
+     void* context) {
+-    furi_check(serial_id <= FuriHalSerialIdMax);
++    furi_check(serial_id < FuriHalSerialIdMax);
+     furi_check(furi_hal_serial_control);
+ 
+     FuriHalSerialControlMessageExpCallback message_input = {

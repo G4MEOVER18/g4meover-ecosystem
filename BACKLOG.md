@@ -781,6 +781,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `nfc-unified-key-dictionary.md`-Port), `95c35fb82` (NFC: MIFARE-Classic-Schlüssel in
       Nutzer-Dictionary speichern, #1118 — Feature), `104d96f86` (SubGHz: Superrollo/GW60,
       KeeLoq HCS361, #1068 — neues Protokoll, eigener Portaufwand).
+- [x] Aus derselben `unlshd-093`-Restliste weiterverfolgt: `4b3c614c8` (PR #1108, "F7: reject
+      sentinel for expansion callbacks") geprüft — `furi_hal_serial_control_set_expansion_callback()`
+      in `targets/f7/furi_hal/furi_hal_serial_control.c` prüft `serial_id <= FuriHalSerialIdMax`
+      statt `<`, lässt also den reinen Sentinel-Wert `FuriHalSerialIdMax` selbst durch; der
+      nachgelagerte Handler indiziert damit ungeprüft `handles[FuriHalSerialIdMax]`, ein Element
+      hinter dem nur `FuriHalSerialIdMax` Elemente großen `handles[]`-Array. Da dieses Array nur das
+      erste Feld einer größeren Struct ist, führt der Zugriff zu keinem Fault, sondern überschreibt
+      still das direkt danach liegende Feld `queue` — den `FuriMessageQueue*`, von dem der
+      Serial-Control-Worker-Thread selbst abhängt. Copy-Paste-Fehler aus der Nachbarfunktion
+      (Logging-ID-Prüfung, dieselbe Datei), die ihr eigenes `<=` korrekt behält, da dort
+      `FuriHalSerialIdMax` als "Logging deaktivieren"-Sentinel tatsächlich gültig ist — der
+      Expansion-Callback-Setter hat keine solche Semantik, deaktiviert wird nur über
+      `callback == NULL`. Bei mir (`mntm-012`) Datei byteidentisch zum Unleashed-Vorher-Stand
+      verifiziert. Erreichbarkeit eingeordnet: die vier Aufrufstellen im eigenen `expansion`-Dienst
+      übergeben ausschließlich bereits geprüfte IDs, die Lücke ist nur über die öffentliche
+      HAL-Funktion selbst erreichbar (API-Vertragsfehler bei Aufrufer-Fehlgebrauch, z. B. in einer
+      eigenen Erweiterungsport-App). Mit Host-Repro (rekonstruierte Struct-Feldreihenfolge inkl.
+      `offsetof`-Beleg, dass `queue` lückenlos auf `handles[]` folgt; fork-isolierte ALT/NEU-Aufrufe)
+      unter ASan/UBSan verifiziert: ALT lässt den Sentinel durch und korrumpiert `queue` sichtbar,
+      NEU weist ihn per `furi_check` ab, bevor `queue` je berührt wird, zwei Regressionsfälle (echte
+      IDs 0/1) unverändert in beiden Varianten — Port-Vorschlag inkl. 1:1 übernommenem Fix (`<=` →
+      `<`) in `firmware-mining/expansion-callback-sentinel-oob-fix.md`, Patch gegen meine
+      unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab verifiziert, real angewendet und
+      Byte-für-Byte abgeglichen) in
+      `firmware-mining/expansion-callback-sentinel-oob-fix/furi_hal_serial_control_c.patch`, Repro in
+      `firmware-mining/repro-expansion-callback-sentinel-oob-fix/repro.c`. Aus derselben
+      `unlshd-093`-Restliste weiterhin offen: FeliCa-Lite-Dateilade-Bounds (#1106),
+      Stealth-Jiggler-Bounds (#1111), CUID-Dictionary-Zähler (#1115),
+      MIFARE-Classic-Schlüssel-Dictionary-Feature (#1118), Superrollo/GW60-SubGHz-Protokoll (#1068).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
