@@ -810,6 +810,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `unlshd-093`-Restliste weiterhin offen: FeliCa-Lite-Dateilade-Bounds (#1106),
       Stealth-Jiggler-Bounds (#1111), CUID-Dictionary-Zähler (#1115),
       MIFARE-Classic-Schlüssel-Dictionary-Feature (#1118), Superrollo/GW60-SubGHz-Protokoll (#1068).
+- [x] Aus derselben `unlshd-093`-Restliste weiterverfolgt: `51a56fc40` (PR #1106, "NFC: reject
+      oversized FeliCa Lite dumps") geprüft — `felica_load()` in
+      `lib/nfc/protocols/felica/felica.c`, Zweig `FelicaLite`, liest `"Blocks total"`/`"Blocks
+      read"` als `uint32_t` direkt aus der `.nfc`-Datei und weist sie ungeprüft (nach Cast auf
+      `uint8_t`, wirksamer Maximalwert 255) `data->blocks_total`/`data->blocks_read` zu; die
+      anschließende Ladeschleife schreibt `data->blocks_total` × `sizeof(FelicaBlock)` (18 Byte)
+      in `data->data.dump[]`, ein nur 504 Byte großes Feld (`FELICA_BLOCKS_TOTAL_COUNT` = 28
+      Blöcke) innerhalb der heap-allokierten, insgesamt 544 Byte großen `FelicaData`
+      (`malloc()` in `felica_alloc()`) — bei `blocks_total` = 255 ein 4590-Byte-Schreibversuch,
+      weit über das Ende der gesamten Allokation hinaus. Bei mir (`mntm-012`) bis auf die
+      unabhängige `felica_data_format_version`-Differenz (2 statt 3) byteidentisch zum
+      Unleashed-Vorher-Stand vorhanden — kein Kartenkontakt nötig, allein das Öffnen einer
+      präparierten `.nfc`-Datei mit `Device type: FeliCa` löst die Überschreibung aus, gleiches
+      Bedrohungsmodell wie beim bereits portierten EMV-`.nfc`-Loader-Fund. Mit Host-Repro
+      (nachgebildete `FelicaData`-Feldreihenfolge/-Größen, heap-alloziert wie in
+      `felica_alloc()`, fork-isolierte ALT/NEU-Fälle; da ASan hier standardmäßig ohne
+      `abort_on_error=1` per `exit(1)` statt per Signal beendet, zählt sowohl Signal als auch ein
+      von Null verschiedener Exitcode als erkannter Fund — direkt gegengeprüft) unter ASan/UBSan
+      verifiziert: ALT überschreibt bei `blocks_total` = 255 die gesamte Allokation über ihr Ende
+      hinaus (separat mit vollem `stderr` bestätigt: Schreibzugriff exakt "0 bytes after
+      544-byte region"), NEU (1:1 Unleasheds Grenzprüfung übernommen) lehnt den Ladevorgang vorher
+      kontrolliert ab, ein realistischer 28-Blöcke-Regressionsfall bleibt bei ALT und NEU
+      identisch — Port-Vorschlag in `firmware-mining/felica-lite-blocks-total-oob-fix.md`, Patch
+      gegen meine unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab verifiziert, real
+      angewendet und Byte-für-Byte abgeglichen) in
+      `firmware-mining/felica-lite-blocks-total-oob-fix/felica_c.patch`, Repro in
+      `firmware-mining/repro-felica-lite-blocks-total-oob-write/repro.c`. Aus derselben
+      `unlshd-093`-Restliste weiterhin offen: Stealth-Jiggler-Bounds (#1111),
+      CUID-Dictionary-Zähler (#1115), MIFARE-Classic-Schlüssel-Dictionary-Feature (#1118),
+      Superrollo/GW60-SubGHz-Protokoll (#1068).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
