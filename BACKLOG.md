@@ -840,6 +840,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `unlshd-093`-Restliste weiterhin offen: Stealth-Jiggler-Bounds (#1111),
       CUID-Dictionary-Zähler (#1115), MIFARE-Classic-Schlüssel-Dictionary-Feature (#1118),
       Superrollo/GW60-SubGHz-Protokoll (#1068).
+- [x] Aus derselben `unlshd-093`-Restliste weiterverfolgt: `c742dfe6c` (PR #1111, "HID: bound
+      stealth jiggler movement") geprüft — `hid_mouse_jiggler_stealth_timer_callback()` in
+      `applications/system/hid_app/views/hid_mouse_jiggler_stealth.c` berechnet `move_x`/`move_y`
+      als `int` im Bereich `-1000`..`1000`, übergibt sie aber an
+      `hid_hal_mouse_move(Hid*, int8_t dx, int8_t dy)` — eine wertebereichsverletzende, implizite
+      Konvertierung an der Aufrufgrenze, die auf dem realen GCC/ARM-Pfad still auf die unteren
+      8 Bit kappt statt zu clampen. Bei mir (`mntm-012`) in den relevanten Zeilen byteidentisch
+      zum Unleashed-Vorher-Stand (umgebende Datei weicht an anderen, für diesen Fund irrelevanten
+      Stellen ab — ältere UI-Feinheiten, die bei mir fehlen; die drei betroffenen Zeilen gesondert
+      byteweise gegengeprüft: identisch). Rein funktionaler Fund (kein Speicherfehler, der
+      `int8_t`-Parameter bleibt über seinen vollen Wertebereich gültig) — läuft aber dem Zweck der
+      "Stealth"-Variante zuwider: die tatsächlich gesendete Bewegung kann durch die Kappung jeden
+      Wert im vollen `int8_t`-Bereich annehmen, unabhängig vom beabsichtigten Wert. Mit Host-Repro
+      (verbatim ALT-/NEU-Ausdrücke aus beiden Quellzuständen, reale
+      `hid_hal_mouse_move`-Parametersignatur als Kappungsgrenze, vollständige Domänenüberdeckung
+      beider Fassungen statt Stichprobe) unter ASan/UBSan verifiziert: ALT weicht bei 1745 von
+      2001 möglichen Zügen (87,2 %, analytisch hergeleitet und exakt gegengeprüft) vom
+      beabsichtigten Wert ab (Beispiele: beabsichtigt +1000 kommt als -24 an, -1000 als +24, +900
+      als -124), NEU weicht bei keinem der 255 möglichen Züge ab — der Fix beseitigt den Fund
+      vollständig, verkleinert ihn nicht nur. Zum Vergleich den normalen (nicht-stealth)
+      Mouse-Jiggler geprüft: verwendet bereits eine feste, `int8_t`-taugliche Schrittweite
+      (`MOUSE_MOVE_SHORT`), vom selben Fund nicht betroffen — Port-Vorschlag in
+      `firmware-mining/hid-jiggler-stealth-move-bounds-fix.md`, Patch (1:1 Unleasheds Fix
+      übernommen) gegen meine unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab
+      verifiziert, real angewendet und Byte-für-Byte abgeglichen) in
+      `firmware-mining/hid-jiggler-stealth-move-bounds-fix/hid_mouse_jiggler_stealth_c.patch`,
+      Repro in `firmware-mining/repro-hid-jiggler-stealth-move-bounds-fix/repro.c`. Aus derselben
+      `unlshd-093`-Restliste weiterhin offen: CUID-Dictionary-Zähler (#1115),
+      MIFARE-Classic-Schlüssel-Dictionary-Feature (#1118), Superrollo/GW60-SubGHz-Protokoll
+      (#1068).
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
