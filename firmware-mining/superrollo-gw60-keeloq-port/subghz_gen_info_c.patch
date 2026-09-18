@@ -1,0 +1,19 @@
+--- a/applications/main/subghz/helpers/subghz_gen_info.c	2026-09-18 06:25:25.093055169 +0000
++++ b/applications/main/subghz/helpers/subghz_gen_info.c	2026-09-18 06:25:25.094743838 +0000
+@@ -543,6 +543,16 @@
+             .keeloq.cnt = 0x03,
+             .keeloq.manuf = "DoorHan"};
+         break;
++    case SetTypeSuperrollo_433_92:
++        gen_info = (GenInfo){
++            .type = GenKeeloq,
++            .mod = "AM650",
++            .freq = 433920000,
++            .keeloq.serial = key & 0x0FFFFFFF,
++            .keeloq.btn = 0x0A,
++            .keeloq.cnt = 0x03,
++            .keeloq.manuf = "Superrollo"};
++        break;
+     case SetTypeDoorHan_315_00:
+         gen_info = (GenInfo){
+             .type = GenKeeloq,

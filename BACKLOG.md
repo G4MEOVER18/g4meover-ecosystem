@@ -943,6 +943,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/mf-classic-save-keys-to-dict-port.md`. Aus derselben
       `unlshd-093`-Restliste weiterhin offen: Superrollo/GW60-SubGHz-Protokoll (#1068, neues
       Protokoll, eigener Portaufwand) — damit letzter noch offener Punkt dieser Restliste.
+- [x] Letzten offenen Punkt der `unlshd-093`-Restliste geliefert: `104d96f86` (PR #1068,
+      "SubGHz: Add Superrollo (GW60) roller-shutter protocol (KeeLoq HCS361)") geprüft und
+      portiert. Kein neues Protokollmodul — regulärer HCS361-KeeLoq mit eigenem Rahmen
+      (asymmetrische Te/2Te-Präambel, 10×Te-Sync, 67-Bit-Frame = 64 Nutzdaten-Bit + VLOW +
+      2-Bit-CRC statt der üblichen 64+2 Statusbits), ausschließlich in
+      `lib/subghz/protocols/keeloq.c` plus drei kleinen App-Dateien für den neuen "Add
+      Manually"-Menüpunkt. Drei der vier Dateien
+      (`subghz_custom_event.h`/`subghz_gen_info.c`/`subghz_scene_set_type.c`) bei mir an der
+      betroffenen Stelle byteidentisch zum Unleashed-Vorher-Stand, Unleasheds Original-Hunks 1:1
+      anwendbar; `keeloq.c` dagegen strukturell abweichend (eigener Stand ohne Unleasheds
+      `bypass`/ältere `ProgMode`-Zwischenschritte, andere Funktionsnamen, `te_delta=140` statt
+      `180`) — kein 1:1-Diff möglich, dieselbe zugrunde liegende Idee (asymmetrische
+      Präambel-Erkennung im Decoder, 10×Te-Sync-Übergang, Toleranzfenster
+      `min_count_bit_for_found+2`→`+3`, CRC-Framing im Encoder) 1:1 aus Unleashed übernommen,
+      aber an meine eigene Zustandsautomat-/Encoder-Struktur angepasst. Mit Host-Repro (reale
+      Decoder-Zustandsmaschine samt Konstanten nachgebaut, CRC-/Framing-Logik aus dem
+      Encoder-Zweig fast wörtlich extrahiert, vier Testgruppen: CRC-Werteabdeckung über 200
+      Zufallsnutzlasten, 500 synthetische Superrollo-Frames ALT-vs-NEU inkl. Bit-Korrektheit,
+      500 Standard-KeeLoq-Frames als Regressionstest) unter ASan/UBSan verifiziert: ALT erkennt
+      0/500 Superrollo-Frames, NEU 500/500 mit durchgehend korrekten 64 Nutzdaten-Bit, 0/500
+      Abweichungen bei bestehenden KeeLoq-Herstellern — ALL CHECKS PASSED (1206 Checks). Als
+      vier Unified-Diffs gegen meine unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab
+      verifiziert, real angewendet und Byte-für-Byte abgeglichen) in
+      `firmware-mining/superrollo-gw60-keeloq-port/`, Repro in
+      `firmware-mining/repro-superrollo-gw60-keeloq-port/repro.c`, Details inkl. Hinweis zum
+      separat zu prüfenden Normal-Learning-Schlüssel (Unleasheds `keeloq_mfcodes`-Ressourcendiff
+      bewusst nicht mitübernommen, eigenes Format) in
+      `firmware-mining/superrollo-gw60-keeloq-port.md`. Damit ist die gesamte
+      `unlshd-093`-Restliste (Expansion-Callback-Sentinel #1108, FeliCa-Lite-Bounds #1106,
+      Stealth-Jiggler-Bounds #1111, CUID-Dictionary-Zähler #1115,
+      MIFARE-Classic-Schlüssel-Dictionary-Feature #1118, Superrollo/GW60 #1068) abgearbeitet.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

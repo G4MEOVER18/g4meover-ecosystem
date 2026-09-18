@@ -1,0 +1,93 @@
+--- a/lib/subghz/protocols/keeloq.c	2026-09-18 06:25:25.085594019 +0000
++++ b/lib/subghz/protocols/keeloq.c	2026-09-18 06:25:25.087611469 +0000
+@@ -524,6 +524,55 @@
+         return false;
+     }
+ 
++    // Superrollo GW60 (HCS361) uses its own framing instead of the generic
++    // KeeLoq header/status bits: an asymmetric preamble (Te HIGH / 2Te LOW),
++    // a 10*Te sync pulse, and a 67-bit frame (64 payload bits + VLOW + 2-bit
++    // CRC). The crypto and per-bit PWM timings are unmodified KeeLoq, only
++    // the framing around the 64 payload bits differs.
++    if(strcmp(instance->manufacture_name, "Superrollo") == 0) {
++        const uint32_t t = 450;
++        size_t sr_size_upload = 9 * 2 + 2 + 67 * 2 + 2;
++        if(sr_size_upload > instance->encoder.size_upload) {
++            FURI_LOG_E(TAG, "Size upload exceeds allocated encoder buffer.");
++            return false;
++        }
++        instance->encoder.size_upload = sr_size_upload;
++
++        size_t sr_index = 0;
++        for(uint8_t i = 0; i < 9; i++) { // preamble: 9x (Te HIGH / 2Te LOW)
++            instance->encoder.upload[sr_index++] = level_duration_make(true, t);
++            instance->encoder.upload[sr_index++] = level_duration_make(false, t * 2);
++        }
++        instance->encoder.upload[sr_index++] = level_duration_make(true, t * 10); // sync HIGH
++        instance->encoder.upload[sr_index++] = level_duration_make(false, t * 10); // sync LOW
++
++        // 2-bit CRC over the 64 payload bits in transmission order (MSB first)
++        // plus a trailing VLOW(=1) bit, matching the reference implementation.
++        uint64_t data_tx_order = subghz_protocol_blocks_reverse_key(instance->generic.data, 64);
++        uint8_t crc0 = 0;
++        uint8_t crc1 = 0;
++        for(uint8_t i = 0; i < 65; i++) {
++            uint8_t din = (i < 64) ? (uint8_t)((data_tx_order >> i) & 1) : 1;
++            uint8_t next_crc1 = crc0 ^ din;
++            crc0 = (next_crc1 ^ crc1) & 1;
++            crc1 = next_crc1 & 1;
++        }
++
++        // 64 data bits (MSB first) + VLOW + CRC0 + CRC1; PWM 1=Te/2Te, 0=2Te/Te
++        for(uint8_t i = 67; i > 0; i--) {
++            uint8_t bit = (i > 3)  ? bit_read(instance->generic.data, i - 4) :
++                          (i == 3) ? 1 :
++                          (i == 2) ? crc0 :
++                                     crc1;
++            instance->encoder.upload[sr_index++] = level_duration_make(true, bit ? t : t * 2);
++            instance->encoder.upload[sr_index++] = level_duration_make(false, bit ? t * 2 : t);
++        }
++        instance->encoder.upload[sr_index++] = level_duration_make(true, t); // trailing HIGH
++        instance->encoder.upload[sr_index++] = level_duration_make(false, t * 18); // guard
++
++        return true;
++    }
++
+     size_t index = 0;
+     size_t size_upload = 11 * 2 + 2 + (instance->generic.data_count_bit * 2) + 4;
+     if(size_upload > instance->encoder.size_upload) {
+@@ -729,11 +778,23 @@
+                           subghz_protocol_keeloq_const.te_delta) {
+             instance->decoder.parser_step = KeeloqDecoderStepCheckPreambula;
+             instance->header_count++;
++        } else if(
++            (level) && (instance->header_count > 2) &&
++            (DURATION_DIFF(duration, subghz_protocol_keeloq_const.te_short * 10) <
++             subghz_protocol_keeloq_const.te_delta * 10)) {
++            // Superrollo GW60 (HCS361): 10*Te HIGH sync pulse takes the place of
++            // another preamble bit -- hand off to CheckPreambula so the following
++            // 10*Te LOW sync gap is recognized as "Found header" below.
++            instance->decoder.parser_step = KeeloqDecoderStepCheckPreambula;
+         }
+         break;
+     case KeeloqDecoderStepCheckPreambula:
+-        if((!level) && (DURATION_DIFF(duration, subghz_protocol_keeloq_const.te_short) <
+-                        subghz_protocol_keeloq_const.te_delta)) {
++        if((!level) &&
++           ((DURATION_DIFF(duration, subghz_protocol_keeloq_const.te_short) <
++             subghz_protocol_keeloq_const.te_delta) ||
++            // Superrollo GW60: asymmetric preamble, LOW half is 2*Te instead of Te
++            (DURATION_DIFF(duration, subghz_protocol_keeloq_const.te_short * 2) <
++             subghz_protocol_keeloq_const.te_delta))) {
+             instance->decoder.parser_step = KeeloqDecoderStepReset;
+             break;
+         }
+@@ -764,7 +825,7 @@
+                 if((instance->decoder.decode_count_bit >=
+                     subghz_protocol_keeloq_const.min_count_bit_for_found) &&
+                    (instance->decoder.decode_count_bit <=
+-                    subghz_protocol_keeloq_const.min_count_bit_for_found + 2)) {
++                    subghz_protocol_keeloq_const.min_count_bit_for_found + 3)) {
+                     if(instance->generic.data != instance->decoder.decode_data) {
+                         instance->generic.data = instance->decoder.decode_data;
+                         instance->generic.data_count_bit =

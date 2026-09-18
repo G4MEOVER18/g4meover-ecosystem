@@ -1,0 +1,10 @@
+--- a/applications/main/subghz/helpers/subghz_custom_event.h	2026-09-18 06:25:25.089574190 +0000
++++ b/applications/main/subghz/helpers/subghz_custom_event.h	2026-09-18 06:25:25.091377478 +0000
+@@ -84,6 +84,7 @@
+     SetTypeHCS101_433_92,
+     SetTypeDoorHan_315_00,
+     SetTypeDoorHan_433_92,
++    SetTypeSuperrollo_433_92,
+     SetTypeBeninca433,
+     SetTypeBeninca868,
+     SetTypeComunello433,

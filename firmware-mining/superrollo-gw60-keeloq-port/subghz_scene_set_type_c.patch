@@ -1,0 +1,10 @@
+--- a/applications/main/subghz/scenes/subghz_scene_set_type.c	2026-09-18 06:25:25.096408816 +0000
++++ b/applications/main/subghz/scenes/subghz_scene_set_type.c	2026-09-18 06:25:25.098216997 +0000
+@@ -23,6 +23,7 @@
+     [SetTypeHCS101_433_92] = "KL: HCS101 433MHz",
+     [SetTypeDoorHan_315_00] = "KL: DoorHan 315MHz",
+     [SetTypeDoorHan_433_92] = "KL: DoorHan 433MHz",
++    [SetTypeSuperrollo_433_92] = "KL: Superrollo 433MHz",
+     [SetTypeBeninca433] = "KL: Beninca 433MHz",
+     [SetTypeBeninca868] = "KL: Beninca 868MHz",
+     [SetTypeComunello433] = "KL: Comunello 433MHz",
