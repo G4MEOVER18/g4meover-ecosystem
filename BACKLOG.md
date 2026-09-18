@@ -1766,6 +1766,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       quelltextlich vollständig abgearbeitet — offen bleiben ausschließlich die
       reverse-engineerten TEA-Krypto-Konstanten selbst, weiterhin ohne verifizierte
       Referenzimplementierung bewusst zurückgestellt.
+- [x] **lora-ukfe**: den zuletzt offenen Rückstellpunkt "`command_catalog.h`, restliche
+      `scenes/`" aufgegriffen — `command_catalog.h` selbst (reine Daten) sowie alle bis dahin
+      ungeprüften Scenes (`scene_handlers.c`, `scene_mode_menu.c`, `scene_menu.c`,
+      `scene_status.c`, `scene_settings.c`, `scene_log.c`, `scene_payload_list.c`) gelesen. Fund
+      in `scene_menu.c`, `send_fn()`: baut für jeden Katalog-Eintrag mit `has_arg==true`
+      pauschal einen 1-Byte-Arg-Frame — passt für sieben der acht `has_arg`-Einträge (je 1 Byte
+      laut `rf/ukfe_rf.h`), aber nicht für `UkfeRfCmdTrigger` (`FN_PAYLOAD[0]`, "Trigger [V3]"),
+      dessen eigener Kommentar in `rf/ukfe_rf.h:24` 5 Byte (`uint8 id, uint32 delay_ms` LE)
+      verlangt. Der Katalog-Menüpunkt sendet dadurch einen für sich genommen gültigen (MAC/CRC
+      korrekt), aber um die vollen 4 `delay_ms`-Bytes zu kurzen `ukfe_rf`-Frame — still, ohne
+      Fehlermeldung. Die korrekte Baufunktion existiert bereits (`ukfe_rf_make_trigger()`,
+      `rf/ukfe_rf.c:125`), wird aber im gesamten Baum nirgends aufgerufen — derselbe
+      Unverdrahtet-Fund-Muster wie schon bei `rf_comm_counter()` und dem `UkfeRfRespPayload`-
+      Dispatch aus den letzten beiden Sitzungen. Mit Host-Repro gegen den echten, unveränderten
+      `rf/ukfe_rf.c`/`.h` (verbatim kopiert, reine Protokolllogik ohne `furi`-Abhängigkeit,
+      direkt host-kompilierbar) über echten `ukfe_rf_build_frame()`/`ukfe_rf_parse_frame()` mit
+      Test-Secret verifiziert: ALT liefert einen 16-Byte-Frame (`arg_len=1`), NEU einen
+      korrekten 20-Byte-Frame (`arg_len=5`), 7 `id`/`delay_ms`-Randfall-Kombinationen
+      verlustfrei rundgelaufen, ein 1-Byte- und ein 0-Byte-Katalog-Eintrag als Regression
+      ALT==NEU bestätigt — Fix (gezielter `UkfeRfCmdTrigger`-Sonderfall vor dem unveränderten
+      generischen Pfad, nutzt die bereits vorhandene `ukfe_rf_make_trigger()`) in
+      `app-improvements/lora-ukfe/catalog-trigger-arg-format-mismatch-fix.md`, Repro in
+      `app-improvements/lora-ukfe/repro-catalog-trigger-arg-format-mismatch/repro.c`. Unter
+      `gcc -std=c11 -O1 -Wall -Wextra -fsanitize=address,undefined`: alle vier Szenarien
+      bestanden, keine ASan-/UBSan-Meldungen. Der Nachbar-Eintrag `FN_PAYLOAD[1]`
+      ("Payload-Run [V3]") hat dasselbe feste `arg=0` (kann praktisch nur Index 0 auslösen),
+      aber kein Protokollfehler — bewusst nicht mitgefixt, als Bedienungs-Rückstellpunkt
+      vermerkt. `lora-ukfe`-Code damit bis auf UI-seitige Vervollständigung (id-/delay_ms-Eingabe
+      im Katalog-Menü, `Payload-Run`-Index-Auswahl) vollständig geprüft.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:
