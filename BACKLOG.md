@@ -2052,6 +2052,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/mifare-fuzzer-app-port.md` aktualisiert. Damit ist auch dieser zuletzt
       vorgemerkte Rückstellpunkt abgeschlossen; restlicher NFC-Werkzeug-Cluster weiterhin nur
       `chameleon`/`nfc_relay` (Fremd-/Zweitgerät).
+- [x] Den in der MIFARE-Plus-Phase-2-Sitzung zurückgestellten Punkt "SL0-vs-SL3-Erkennung"
+      aufgegriffen: Unleasheds Erweiterung von `mf_plus_get_type_from_version()`/
+      `mf_plus_get_type_from_iso4()` (`lib/nfc/protocols/mf_plus/mf_plus_i.c`) geprüft — dabei
+      stellt sich heraus, dass die eigentliche SL0-vs-SL3-Unterscheidung selbst keine reine
+      Klassifizierung auf bereits vorhandenen Daten ist, wie ursprünglich vermutet, sondern einen
+      neuen aktiven Poller-Befehl braucht (`mf_plus_poller_probe_security_level()`, echtes
+      Karten-I/O) — fachlich Phase-3-Poller-Gebiet, hardware-blockiert wie der Rest von Phase 3-6.
+      Bewusst auf den tatsächlich host-testbaren Teil derselben Unleashed-Änderung begrenzt:
+      ATS-Produkt-Abgleich von einer festen 4-Werte-Tabelle auf Nibble-Matching umgestellt (erkennt
+      zwei zusätzliche, bei mir bislang abgelehnte MIFARE-Plus-SE-Konfigurationsvarianten aus der
+      NXP-TagInfo-Fingerabdrucktabelle), ein ATQA-basierter Größen-Fallback für ein unbekanntes
+      GetVersion-Storage-Byte ergänzt, sowie zwei eigenständige Korrektheitsfehler in meiner
+      bisherigen SAK-Auswertung behoben: `mf_plus_get_type_from_version()` bildete SAK `0x10`/
+      `0x11` (laut AN10833 Security Level 2) über ein reines Zweiweg-`if/else` fälschlich auf SL1
+      ab (jetzt korrekt SL2, ein nicht erkannter SAK-Wert liefert jetzt `Unknown` statt geratenem
+      SL1), und `mf_plus_get_type_from_iso4()` meldete für SAK `0x10`/`0x11` hartkodiert
+      `MfPlusTypeX` statt des durch die bloße SAK allein tatsächlich belegten generischen
+      `MfPlusTypePlus`. SAK `0x20` bleibt bei mir bewusst weiterhin unbedingt SL3 (unverändert) —
+      keine SL0-Behauptung ohne den nicht mitportierten Probe-Befehl. Als Unified-Diff gegen meine
+      `mntm-012`-Basis (`patch --dry-run -p0` gegen eine frische Basiskopie vorab verifiziert, real
+      angewendet und Byte-für-Byte gegen die host-getestete Fassung abgeglichen — identisch) in
+      `firmware-mining/mfplus-sl0-sl3-detection-port/mf_plus_i.c.patch`, mit sieben Host-
+      Testgruppen (neue TagInfo-SE-Varianten, DESFire-/Nicht-Plus-Ablehnung, ATQA-Größen-Fallback,
+      SAK-Security-Level-Korrektur, generischer-Plus-Typ, SAK-0x20-SL0-Nichtregression, volle
+      Regressionsmatrix über die ursprüngliche Referenztabelle) unter ASan/UBSan verifiziert
+      (`ALL CHECKS PASSED`, 101 von 101 Checks) in
+      `firmware-mining/repro-mfplus-sl0-sl3-detection-port/repro.c` — Details inkl. ehrlicher
+      Scope-Begründung und Testhinweis in `firmware-mining/mfplus-sl0-sl3-detection-port.md`. Damit
+      ist der Backlog-Punkt "SL0-vs-SL3-Erkennung" zum host-testbaren Teil abgeschlossen; die
+      eigentliche SL0-Erkennung selbst bleibt zusammen mit Phase 3-6 des MIFARE-Plus-/
+      Ultralight-AES-Ports offen (braucht echte Hardware).
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
