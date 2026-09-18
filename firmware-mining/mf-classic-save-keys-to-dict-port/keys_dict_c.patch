@@ -1,0 +1,16 @@
+--- a/lib/toolbox/keys_dict.c
++++ b/lib/toolbox/keys_dict.c
+@@ -251,8 +251,12 @@
+ 
+     uint32_t actual_pos = stream_tell(instance->stream);
+ 
++    // Written, not inserted: an insert copies the whole file into a scratch file and back again
++    // (file_stream_delete_and_insert), even with nothing to shift after the seek to end. That is
++    // pure waste here, and quadratic for a caller adding several keys in a loop (MFKey32 writing
++    // back recovered keys, and the new "Save Keys to Dictionary" import).
+     if(stream_seek(instance->stream, 0, StreamOffsetFromEnd) &&
+-       stream_insert_string(instance->stream, key)) {
++       stream_write_string(instance->stream, key) == furi_string_size(key)) {
+         instance->total_keys++;
+         key_added = true;
+     }

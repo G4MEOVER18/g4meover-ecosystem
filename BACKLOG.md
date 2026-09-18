@@ -910,6 +910,39 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Repro in `firmware-mining/repro-mf-classic-cuid-dict-sector-cursor-fix/repro.c`. Aus
       derselben `unlshd-093`-Restliste weiterhin offen: MIFARE-Classic-Schlüssel-
       Dictionary-Feature (#1118), Superrollo/GW60-SubGHz-Protokoll (#1068).
+- [x] Aus derselben `unlshd-093`-Restliste weiterverfolgt: `95c35fb82` (PR #1118, "NFC: Save
+      recovered MIFARE Classic keys to the user dictionary") geprüft und portiert — im
+      Unleashed-Original auf die eigene, generische `nfc_key_dict.c/.h`-Infrastruktur aus PR
+      #1073 aufgesetzt, die ich bei mir nicht habe (eigener Port-Vorschlag dafür,
+      `firmware-mining/nfc-unified-key-dictionary.md`, bislang nur dokumentiert, nicht
+      angewendet, und selbst dort schon auf Classic/Ultralight-C beschränkt, da mir
+      `MfPlusKey`/`MfUltralightAesKey` fehlen). Feature stattdessen direkt gegen meine
+      unveränderte MIFARE-Classic-Szenenstruktur verdrahtet: neuer Menüpunkt "Save Keys to
+      Dictionary" neben "Show Keys" im Read- und Saved-Menü (nur sichtbar bei
+      `key_a_mask | key_b_mask != 0`), neue Szene sammelt gefundene Schlüssel maskenbasiert
+      (deckt CUID-Dictionary, Nested, MFKey32, Handeingabe und Dump-Import über einen
+      gemeinsamen Pfad ab), filtert in je einem Durchlauf gegen System- und Nutzer-Dictionary
+      und hängt neue Schlüssel an — schließt insbesondere die CUID-Sackgasse (per-UID-Schlüssel
+      einer statisch-verschlüsselten Karte überleben jetzt einen Klon-auf-Magic-Tag-Zyklus).
+      Bonus-Fund beim Nachvollziehen: `keys_dict_add_key_str()` fügt bei mir (byteidentisch zum
+      Unleashed-Vorher-Stand) jeden neuen Schlüssel per `stream_insert_string()` ein statt ihn
+      anzuhängen, obwohl zuvor ans Dateiende gesprungen wird — kopiert dabei unnötig die gesamte
+      Datei in eine Scratch-Datei und zurück, quadratisch für einen Aufrufer, der mehrere
+      Schlüssel in einer Schleife schreibt (MFKey32, jetzt zusätzlich dieser Import mit bis zu 80
+      Schlüsseln); von Unleashed im selben PR behoben (`stream_write_string()`), 1:1 übernommen.
+      Mit Host-Repro (drei Kernalgorithmen nahezu wörtlich extrahiert, Array-Nachbau der
+      `KeysDict`-Iterationsschnittstelle statt echter Dateien, sieben Testgruppen: Masken- statt
+      Byte-basiertes Sammeln inkl. Dedup, echter Allnull-Schlüssel vs. nicht gefundener
+      Allnull-Slot, voller 4K-Sweep exakt an der 80er-Obergrenze, Überlauf-Schutz, Abgleich
+      gegen zwei getrennte Dictionaries, leeres Dictionary, voller Zahlenabgleich
+      Kandidaten=Neu+Bekannt) unter ASan/UBSan verifiziert: 14 von 14 Checks bestanden. Als drei
+      Unified-Diffs gegen meine unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab
+      verifiziert, real angewendet und Byte-für-Byte abgeglichen) plus der vollständigen neuen
+      Szenendatei in `firmware-mining/mf-classic-save-keys-to-dict-port/`, Repro in
+      `firmware-mining/repro-mf-classic-save-keys-to-dict/repro.c`, Details in
+      `firmware-mining/mf-classic-save-keys-to-dict-port.md`. Aus derselben
+      `unlshd-093`-Restliste weiterhin offen: Superrollo/GW60-SubGHz-Protokoll (#1068, neues
+      Protokoll, eigener Portaufwand) — damit letzter noch offener Punkt dieser Restliste.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
