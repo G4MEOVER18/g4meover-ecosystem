@@ -2157,6 +2157,45 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       ist der Backlog-Punkt "SL0-vs-SL3-Erkennung" zum host-testbaren Teil abgeschlossen; die
       eigentliche SL0-Erkennung selbst bleibt zusammen mit Phase 3-6 des MIFARE-Plus-/
       Ultralight-AES-Ports offen (braucht echte Hardware).
+- [x] Offenen Punkt "Unleashed dev seit unlshd-093" aufgegriffen: die zuletzt notierten sieben
+      Kandidaten-Hashes (`c873eb5`, `7518dc7`, `a534a72`, `97e088e`, `6c83a67`, `101c20d`,
+      `9148d50`) waren fehlerhaft vorgemerkt — alle sieben sind bereits Vorfahren von `unlshd-093`
+      (per `git merge-base --is-ancestor <hash> unlshd-093` einzeln bestätigt, Commit-Datumsbereich
+      November 2025 bis August 2026), haben mit dem tatsächlichen `dev`-Fenster seit `unlshd-093`
+      nichts zu tun. Stichprobe `c873eb5` ("Fix Ultralight EV1 regression") inhaltlich
+      gegengeprüft: der Fix ist bei mir bereits identisch vorhanden, kein Portaufwand. Das
+      tatsächliche `dev`-Fenster seit `unlshd-093` frisch selbst ermittelt (`git log --oneline
+      unlshd-093..origin/dev`, nur 12 Commits statt der zuvor behaupteten 156): `370ca57bc`
+      (Toolbox SimpleArray-Gleichheitslänge), `7db0c26d0` (MIFARE-Classic-Dictionary-Angriff-
+      Abbruch bei voll gelesener Karte — als erster Fund dieser Sitzung bearbeitet, siehe unten),
+      drei reine "bump apps tag"-Commits sowie `30a1bead8`/`0f09492cd`/`9819755ac`
+      (Formatierung/Changelog/Issue-Template, kein Portinhalt), `37e7db36f` ("sub hertz", noch
+      inhaltlich zu prüfen), `49238e1bd`/`22ce1d9ae`/`946a52a64` (RFID-Schreibfunktionen für
+      EM4100-auf-ID8268/Hitag-S-Klonchips bzw. Chiptyp-Auswahl beim Schreiben, thematisch
+      LF-RFID statt NFC, für eine künftige Sitzung vorgemerkt). Ersetzt den bisherigen,
+      fehlerhaften Kandidaten-Hinweis vollständig.
+- [x] Aus dem soeben korrigierten `dev`-Fenster (seit `unlshd-093`) ersten inhaltlichen Fund
+      bearbeitet: `7db0c26d0` (PR #1151, "NFC: stop the MIFARE Classic dictionary attack once the
+      card is fully read") — bei mir (mntm-012) läuft der Wörterbuch-Angriff bei
+      sektorübergreifend wiederverwendeten Schlüsseln (Werks-/Transit-/Zutrittskarten mit einem
+      Schlüssel für mehrere Sektoren) über eine bereits vollständig gelöste Karte hinaus weiter:
+      der Sektor-Cursor fragt weiterhin jeden restlichen Sektor gegen das komplette Wörterbuch ab,
+      und die Szene startet anschließend unnötig die nächste Wörterbuch-Phase (CUID→User→System)
+      statt direkt zu „Read Success" zu springen. Trotz deutlich anderer NFC-App-Architektur bei
+      mir (eigenständige `nfc_scene_mf_classic_dict_attack.c` statt Unleasheds neuerem
+      `mf_classic_extra_scenes.c`) ist die zugrunde liegende Poller-Zustandsmaschine sowie die
+      Drei-Phasen-Wörterbuchlogik der Szene strukturell identisch — direkte Portierung derselben
+      Guard-Bedingung (`mf_classic_poller_is_card_read()` vor jeder neuen Schlüsselanfrage bzw. vor
+      dem Nested-Einstieg, `card_read`-Prüfung vor jedem Phasenwechsel in der Szene) auf meine
+      eigene Dateilage. Mit Host-Repro (drei Ebenen: Referenzsemantik, Poller-Abfragezähler,
+      Szenen-Phasenwechsel-Zähler, jeweils ALT vs. NEU inkl. Regressionsfälle) verifiziert: ALT
+      320 statt NEU 40 Wörterbuch-Abfragen im Wiederverwendungsfall, ALT startet in allen drei
+      geprüften Fällen eine unnötige Folgephase, NEU nicht — 14/14 Checks bestanden, keine ASan-/
+      UBSan-Meldungen. Zwei Unified-Diffs gegen meine `mntm-012`-Basis (`patch -p1 --dry-run`
+      vorab verifiziert, real angewendet und Byte-für-Byte abgeglichen) in
+      `firmware-mining/mf-classic-dict-attack-stop-on-full-read-port/` — Details inkl. der oben
+      genannten Backlog-Korrektur in
+      `firmware-mining/mf-classic-dict-attack-stop-on-full-read-port.md`.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
