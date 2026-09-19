@@ -479,8 +479,69 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 4 — LoRaWAN massiv + LoRa-Sniffing
 - [ ] P4.1 LoRaWAN-Tab (Win/Kali): Join/Uplink/Downlink-Queue/Session-Status/Live-Events (TTN-API), Duty-Cycle-Anzeige.
+  - [ ] P4.1a Tab-Grundgerüst — **hängt am selben Blocker wie P1.3.0/P1.4.0** (`g4meover_control.py`
+    im Repo nicht auffindbar): erst dort klären/committen, dann hier als weiteren `ttk.Notebook`-Tab
+    im bestehenden Worker-Thread-Muster (P1.1) anlegen statt eines zweiten GUI-Grundgerüsts.
+  - [ ] P4.1b TTN-Zugriff für Join/Uplink/Downlink-Queue/Live-Events: TTN v3 bietet dafür einen MQTT-
+    Broker pro Application (`eu1.cloud.thethings.network:8883`, Topics `v3/<app-id>/devices/<dev-id>/
+    {up,down/push,down/queued,join}`) sowie eine HTTP-Application-API für einmalige Abfragen
+    (Downlink-Queue-Status, Device-Registry) — Live-Events **über MQTT-Subscribe** beziehen (kein
+    Polling), HTTP-API nur für Downlink-Einreihen/-Queue-Abfrage nutzen. Zugangsdaten (API-Key,
+    Application-ID) analog CONSTRAINTS.md Regel 3 nur lokal, nicht im Repo.
+  - [ ] P4.1c Duty-Cycle-Anzeige ist die einzige rein rechnerische Teilaufgabe hier (kein TTN-Zugriff
+    nötig): EU868-Airtime pro Uplink aus SF/BW/Payload-Länge per LoRaWAN-Airtime-Formel (Semtech
+    AN1200.13) berechnen, laufende Summe über das 1-h-Fenster gegen das jeweils gültige Sub-Band-Limit
+    (meist 1 % bei G4MEOVER-typischer EU868-Nutzung, abhängig vom tatsächlich verwendeten Kanal/
+    Sub-Band) führen — reine Client-Logik, als eigenständiges, hardwareunabhängiges Modul umsetzbar,
+    sobald P4.1a existiert; kann parallel zu P4.1b entstehen statt in Reihe.
+  - Verifikation P4.1b/c (Cloud-Teil): Airtime-Formel gegen ein bekanntes SF9/125 kHz-Beispiel aus
+    AN1200.13 gegenrechnen (reine Mathematik, kein Live-TTN-Zugriff nötig). P4.1a/echte TTN-Verbindung:
+    nur lokal (echte Application-Credentials, echtes Gateway).
 - [ ] P4.2 Downlink-Kommandokanal ausbauen (Fleet-Broadcast schon da; Klassen/Ports/Confirmed-Uplink).
+  - [ ] P4.2a „Fleet-Broadcast schon da" bezieht sich auf den Log-Eintrag vom 2026-08-26 („WAN-Downlink-
+    Kanal + RespAck ✅", „WAN→Flotte ✅") — dieser Stand ist wie die anderen als ✅ geführten Tools
+    (P1.1/P2.0/P0.1) im Repo nicht auffindbar (kein Downlink-/Broadcast-Code unter `ecosystem/`,
+    `git log --all` liefert nichts). Vor jeder Erweiterung erst wie beim „referenzierte Tool-Dateien
+    fehlen"-Blocker klären, ob dieser Code lokal existiert und nachzuliefern ist, statt hier auf einer
+    unsichtbaren Basis weiterzubauen.
+  - [ ] P4.2b Geräte-Klassen: nur `heltec-v4-hub` ist laut Geräte-Inventar (Abschnitt 1) dauerhaft
+    stromversorgt (Pi-Peripherie) und käme für Class C (permanenter Downlink-Empfang, kein
+    Empfangsfenster-Timing) infrage; alle batteriebetriebenen Knoten (V3, LilyGo, DogyTag) bleiben
+    Class A (Downlink nur im RX1/RX2-Fenster nach eigenem Uplink) — Klasse ist eine
+    Netzwerkserver-/Device-Registry-Einstellung in TTN, keine reine Firmware-Frage; vor der Umsetzung
+    mit dem tatsächlichen TTN-Device-Profil jedes Geräts abgleichen, nicht neu annehmen.
+  - [ ] P4.2c FPort-Zuordnung: aktuell (v1) trägt der Downlink vermutlich den kompletten `ukfe_rf`-Frame
+    unverändert als FRMPayload auf einem festen Port — für „Klassen/Ports" hier explizit klären
+    (lokal, gegen die echte Netzwerkserver-/Firmware-Konfiguration), ob unterschiedliche Befehlsklassen
+    (Fleet-Broadcast vs. gezielter Einzel-Downlink vs. künftige v2-Envelope-Antworten, siehe P0.4)
+    eigene FPorts bekommen sollen oder ob ein fester Port + das `CMD`-Byte im Payload selbst zur
+    Unterscheidung ausreicht — **nicht** hier vorentscheiden, ohne den bestehenden (aber unsichtbaren,
+    siehe P4.2a) Downlink-Code zu kennen.
+  - [ ] P4.2d Confirmed-Uplink: das bereits erwähnte „RespAck" (2026-08-26) liefert vermutlich schon
+    eine Form von Antwort-Bestätigung: prüfen (lokal, gegen den echten Code aus P4.2a), ob das bereits
+    LoRaWAN-Confirmed-Uplinks (MAC-Layer-ACK) nutzt oder nur eine eigene Anwendungsschicht-Bestätigung
+    ist — falls Letzteres, für kritische Downlink-Kommandos (z. B. Broadcast-Abort) auf echtes
+    Confirmed-Uplink umstellen, um Netzwerkserver-seitige Zustellbestätigung statt nur
+    Anwendungs-ACK zu bekommen.
+  - Verifikation: nur lokal (echte TTN-Device-Profile, echter Downlink-Test je Klasse/Port).
 - [ ] P4.3 LoRa-Sniffer-Modus (SX1262 promiscuous RX) auf V3/V4 → Roh-Frames an GUI; Flipper-Trigger.
+  - [ ] P4.3a **Lokal, nicht aus der Cloud lieferbar:** der SX1262 hat keinen echten Hardware-
+    „Promiscuous"-Modus wie z. B. ein CC1101 im Raw-RX — ein Sniffer-Modus bedeutet hier
+    Dauer-RX mit deaktivierter Adress-/CRC-Filterung auf PHY-Ebene (LoRa-Modem liefert auch Frames mit
+    ungültiger CRC oder fremder DevAddr, statt sie zu verwerfen). Ob/wie das bereits genutzte
+    Funktreiber-Setup (`heltec-v4-hub`/`lora-ukfe`, siehe P0.4-Begründung: außerhalb des
+    GitHub-Zugriffs-Scopes dieser Cloud-Sitzung) diese Filter exponiert (z. B. `SX126x`-Register für
+    `CrcMode`/Adressfilter über die genutzte LoRa-Bibliothek), ist nur gegen die echte Firmware-Quelle
+    zu klären — hier keine Registerbelegung raten.
+  - [ ] P4.3b Sobald P4.3a geklärt ist: Roh-Frame-Weiterleitung an die GUI kann denselben v2-Envelope-
+    Transportpfad nutzen, der ohnehin für Ergebnis-Routing entsteht (P0.4/P1.2b) — kein dritter,
+    separat gepflegter Übertragungsweg nur für Sniff-Daten.
+  - [ ] P4.3c Flipper-Trigger nutzt den in `FLEET-COMMANDS.md` bereits reservierten, aber noch
+    unbelegten Code-Bereich `0x10`–`0x16` (LoRa/SubGHz, Status 📋 „geplant, kein Handler") — Sniffer-
+    Start/-Stop als zwei der dort vorgesehenen Befehle einordnen statt neue Codes zu vergeben; welche
+    der sechs Codes im Detail (Scan/Tx/Jammer/RollForge laut Notiz-Spalte) für Sniff-Start/-Stop
+    passen, lokal gegen die echte `FLEET-COMMANDS.md`-Historie/Firmware klären.
+  - Verifikation: nur lokal (echte SX1262-Hardware, sichtbare Fremd-LoRa-Pakete im RX-Log).
 - [ ] P4.4 LORIX-Bezug: Gateway-Status/Traffic aus LORIX/TTN, optional Raw-Packet-Forwarder-Log am Pi.
 - [ ] P4.5 (Prüfen) LoRa-Sniffing am Flipper (nur mit SX126x-Modul) / am Pi (SX1262-HAT o. LORIX-UDP).
 
@@ -724,6 +785,33 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   unverändert offen (seit 2026-08-27, jetzt 21 Tage) — keine erneute Push-Notification ohne neuen
   Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein
   Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-19 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-3-Kette (P1.2-P1.7, P2.1-P2.4, K1-K6, P3.1-P3.4) bewusst unverändert gelassen (weitere
+  Textmenge dort wäre Wiederholung, siehe Log 2026-09-11ff.) — stattdessen den nächsten
+  unverfeinerten Tier aufgegriffen: Phase 4 (LoRaWAN massiv + Sniffing), P4.1-P4.3 in Abschnitt 4
+  in Unterschritte zerlegt. P4.1 (LoRaWAN-Tab) bekam einen konkreten TTN-v3-Zugriffsweg (MQTT-
+  Subscribe für Live-Events statt Polling, HTTP-API nur für Downlink-Queue) sowie eine rein
+  rechnerische, hardwareunabhängige Duty-Cycle-Teilaufgabe (EU868-Airtime nach Semtech AN1200.13,
+  läuft unabhängig vom TTN-Zugriff). P4.2 (Downlink-Ausbau) bekam einen echten Blocker-Fund: der
+  im Log vom 2026-08-26 als "✅ Fleet-Broadcast/RespAck" geführte Stand ist — wie schon die
+  Tool-Dateien aus dem 2026-09-13-Blocker — im Repo nirgends auffindbar; P4.2b-d (Geräte-Klassen,
+  FPort-Zuordnung, Confirmed-Uplink) verweisen jetzt explizit darauf, das gegen den echten
+  (aber von hier unsichtbaren) Code zu klären statt auf einer angenommenen Basis weiterzubauen.
+  P4.3 (LoRa-Sniffer) als "lokal, nicht aus der Cloud lieferbar" markiert: der SX1262 hat keinen
+  echten Promiscuous-Modus, Sniffing bedeutet Dauer-RX mit deaktivierter CRC-/Adressfilterung —
+  nur gegen die echte Firmware-Quelle (außerhalb des Cloud-Scopes) zu klären, welche Register/
+  Bibliotheksfunktion das exponiert; Flipper-Trigger ordnet sich in den bereits reservierten,
+  unbelegten `0x10`-`0x16`-Codebereich aus `FLEET-COMMANDS.md` ein statt neue Codes zu vergeben.
+  Vor der Textarbeit den Blocker "referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut gegen
+  `git log --all --diff-filter=A` geprüft: unverändert kein Treffer — jetzt zusätzlich derselbe
+  Fund für den P4.2a-Downlink-/Broadcast-Stand bestätigt (siehe oben). Lokaler `main`-Branch-
+  Zeiger dieses Checkouts war wieder veraltet (16 Commits hinter `origin/main`, dieselbe Art
+  Drift wie 2026-09-15/17) — per Fast-Forward nachgezogen, kein Datenverlust. Zugangsdaten-
+  Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt 23 Tage) —
+  keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
+  Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -782,6 +870,15 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    mit Mapping auf denselben Dispatch, P3.3a verweist auf dieselbe LastResult-Seite) — kann
    parallel zu Phase 1/2 lokal vorbereitet werden, sobald Zeit ist, ist aber nicht auf deren
    Abschluss blockiert.
+7. Nach Phase 2b/3: Phase 4 (P4.1–P4.3, Abschnitt 4) ist jetzt ebenfalls in Unterschritte zerlegt.
+   P4.1c (Duty-Cycle-Airtime-Formel) ist der einzige in dieser Kette sofort, ohne TTN-Zugriff und
+   ohne Hardware umsetzbare Teil (reine Mathematik nach Semtech AN1200.13) — kann vorgezogen
+   werden. P4.2a deckt einen neuen Blocker auf: der als „Fleet-Broadcast/RespAck" (Log 2026-08-26)
+   geführte Stand ist im Repo nicht auffindbar, genau wie die vier Tool-Dateien aus dem
+   2026-09-13-Blocker unten — vor P4.2b-d erst klären, ob dieser Code lokal existiert und
+   nachzuliefern ist. P4.3a (LoRa-Sniffer-Register/-Filterung) nur gegen die echte
+   `heltec-v4-hub`/`lora-ukfe`-Firmware zu klären (außerhalb des Cloud-Scopes, dieselbe Begründung
+   wie P1.2b/P2.1b/P2.4b/P3.1a/P3.2a).
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
@@ -885,26 +982,26 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-17):** Phase 3 vollständig in Unterschritte
-zerlegt — P3.2 (BOOT-Taste) bekam eine Zeitschwellen-basierte Ereignis-Ableitung (ein
-Press/Release-Timer statt drei Handler) mit Mapping auf den P3.1b-Dispatch sowie eine Einordnung,
-welche OLED-Seiten überhaupt eine sinnvolle Lang-Press-Aktion haben; P3.3 verweist jetzt auf
-dieselbe LastResult-Seite aus P3.1 statt eines zweiten Anzeige-Pfads; P3.4 als reiner
-Prozessschritt markiert (Details siehe FORTSCHRITT-Log oben). Lokaler `main`-Branch-Zeiger dieses
-Checkouts war erneut veraltet (7 Commits hinter `origin/main`, dieselbe Art Drift wie 2026-09-15) —
-per Fast-Forward nachgezogen, kein Datenverlust. Blocker „referenzierte Tool-Dateien fehlen im
-Repo" erneut geprüft: unverändert kein Treffer. Repo-Sichtbarkeit erneut per GitHub-API geprüft:
-weiterhin `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 21 Tage — keine erneute
-Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff
-versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
-
-**Vorherige Cloud-Sitzung (2026-09-16):** P2.4 (BLE-Transport zum Flipper) und Phase 2b (K1-K6) in
-Abschnitt 4 in Unterschritte zerlegt, Phase 3/P3.1 (OLED-Seiten-Framework) als drittes Stück
-begonnen. Echter Architektur-Fund: P2.4/Phase-2b vermischten bisher zwei getrennte
-BLE-Protokoll-Familien (Flippers eigenes RPC-über-BLE vs. das neue `ukfe_rf`-v2-BLE aus
-`UKFE-RF-V2-SPEC.md`) — in P2.4a explizit getrennt und pro K-Zeile vermerkt, welches Protokoll
-gilt. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation damals 20 Tage offen. Kein
+**Cloud hat in dieser Sitzung erledigt (2026-09-19):** Phase 4 (P4.1–P4.3) in Abschnitt 4 in
+Unterschritte zerlegt — P4.1 bekam einen konkreten TTN-v3-Zugriffsweg (MQTT-Subscribe für
+Live-Events statt Polling) plus eine sofort umsetzbare, rein rechnerische Duty-Cycle-Teilaufgabe
+(EU868-Airtime nach Semtech AN1200.13); P4.2 deckte einen neuen Blocker auf (der als „✅
+Fleet-Broadcast/RespAck" geführte Stand vom 2026-08-26 ist im Repo nicht auffindbar, analog dem
+2026-09-13-Tool-Dateien-Blocker); P4.3 als „lokal, nicht aus der Cloud lieferbar" markiert (SX1262
+hat keinen echten Promiscuous-Modus, Register-/Filter-Klärung nur gegen die echte, außerhalb des
+Cloud-Scopes liegende Firmware-Quelle möglich). Lokaler `main`-Branch-Zeiger dieses Checkouts war
+erneut veraltet (16 Commits hinter `origin/main`, dieselbe Art Drift wie 2026-09-15/17) — per
+Fast-Forward nachgezogen, kein Datenverlust. Blocker „referenzierte Tool-Dateien fehlen im Repo"
+erneut geprüft: unverändert kein Treffer. Zugangsdaten-Rotation weiterhin offen, jetzt 23 Tage —
+keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein
 Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+
+**Vorherige Cloud-Sitzung (2026-09-17):** Phase 3 vollständig in Unterschritte zerlegt — P3.2
+(BOOT-Taste) bekam eine Zeitschwellen-basierte Ereignis-Ableitung mit Mapping auf den
+P3.1b-Dispatch sowie eine Einordnung, welche OLED-Seiten überhaupt eine sinnvolle
+Lang-Press-Aktion haben; P3.3 verweist auf dieselbe LastResult-Seite aus P3.1; P3.4 als reiner
+Prozessschritt markiert. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation damals 21 Tage offen.
+Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
