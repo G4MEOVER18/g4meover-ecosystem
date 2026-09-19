@@ -974,6 +974,30 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `unlshd-093`-Restliste (Expansion-Callback-Sentinel #1108, FeliCa-Lite-Bounds #1106,
       Stealth-Jiggler-Bounds #1111, CUID-Dictionary-Zähler #1115,
       MIFARE-Classic-Schlüssel-Dictionary-Feature #1118, Superrollo/GW60 #1068) abgearbeitet.
+- [x] Unleashed `dev` seit `unlshd-093` weiterverfolgt (noch kein neuer Tag): **MFC-Poller
+      `mf_classic_poller_free()` liest uninitialisierten Speicher als Zeiger**, wenn der Poller
+      noch im `DetectType`-State (vor dem ersten `Start`-Durchlauf, der `mode_ctx` erst nullt)
+      freigegeben wird — `nfc_poller_list_free()` ruft `free()` unbedingt, unabhängig vom
+      internen State. Bei mir strukturell identisch vorhanden (`mf_classic_poller_alloc()` nutzt
+      `malloc()`, kein `calloc()`). Quelle: Unleashed-Commits `093d77e5` (PR #4362, "Fix BusFault
+      in Write to Initial Card") + Nachbesserung `de0e3cf3` (PR #4400, DictAttackCUID im Gate
+      ergänzt), ursprünglich aus der Official-Firmware übernommen. Port fügt ein neues
+      `instance->mode`-Feld hinzu (getrennt vom bereits vorhandenen, nur intern für
+      CUID-Unterscheidung genutzten `dict_attack_ctx.mode`) und geht dabei einen Schritt über
+      Unleasheds eigenen Fix hinaus: `mf_classic_poller_alloc()` initialisiert das neue Feld
+      explizit auf `MfClassicPollerModeRead`, was Unleashed selbst nach beiden Commits noch nicht
+      tut (dort bliebe das neue Feld bei einer Freigabe vor `Start` seinerseits uninitialisiert).
+      Mit Host-Repro (reale Struct-Layouts inkl. `offsetof`-Verifikation nachgebaut,
+      Tracking-Allokator statt echtem `free()` für deterministische Invalid-Free-Erkennung
+      unabhängig vom Heap-Layout, drei Testgruppen: 200 Poison-Bytemuster für den
+      `DetectType`-Freigabefall — ALT 199/199 mit Invalid-Free, NEU 0/200 —, Regressionstest
+      einer echten Dict-Attack-Session, alle drei Dict-Attack-Modi vs. Read/Write) unter
+      ASan/UBSan verifiziert: ALL CHECKS PASSED. Als zwei Unified-Diffs gegen meine unveränderte
+      `mntm-012`-Basis (`patch --dry-run -p1` vorab verifiziert, real angewendet und
+      Byte-für-Byte abgeglichen) in
+      `firmware-mining/mf-classic-poller-free-before-start-uninit-pointer-fix/`, Repro in
+      `firmware-mining/repro-mf-classic-poller-free-before-start-uninit-pointer-fix/repro.c`,
+      Details in `firmware-mining/mf-classic-poller-free-before-start-uninit-pointer-fix.md`.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

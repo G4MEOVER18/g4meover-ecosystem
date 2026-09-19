@@ -1,0 +1,15 @@
+diff --git a/lib/nfc/protocols/mf_classic/mf_classic_poller_i.h b/lib/nfc/protocols/mf_classic/mf_classic_poller_i.h
+--- a/lib/nfc/protocols/mf_classic/mf_classic_poller_i.h
++++ b/lib/nfc/protocols/mf_classic/mf_classic_poller_i.h
+@@ -183,6 +183,11 @@
+ 
+     MfClassicType current_type_check;
+     uint8_t sectors_total;
++    // Valid from mf_classic_poller_alloc() onward (defaults to Read), not just once Start
++    // has run - mf_classic_poller_free() gates its dict-attack-only cleanup on this field so
++    // a poller freed while still in DetectType (e.g. card pulled away or session cancelled
++    // before Start's mode_ctx memset ever executed) never reads mode_ctx as dict_attack_ctx.
++    MfClassicPollerMode mode;
+     MfClassicPollerModeContext mode_ctx;
+ 
+     Crypto1* crypto;
