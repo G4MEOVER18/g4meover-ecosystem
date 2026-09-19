@@ -1,0 +1,17 @@
+--- a/lib/toolbox/args.c
++++ b/lib/toolbox/args.c
+@@ -71,7 +71,13 @@
+     if(furi_string_size(args) > 1 && furi_string_get_char(args, 0) == '\"') {
+         size_t second_quote_pos = furi_string_search_char(args, '\"', 1);
+ 
+-        if(second_quote_pos == 0) {
++        // Missing closing quote: furi_string_search_char returns FURI_STRING_FAILURE
++        // ((size_t)-1), not 0. Checking only "== 0" lets an unterminated quote fall
++        // through: second_quote_pos - 1 clamps harmlessly inside furi_string_set_n()
++        // (m_string_set_n() takes MIN(remaining size, length)), but
++        // second_quote_pos + 1 wraps to 0, so furi_string_right(args, 0) is a
++        // no-op — args is left un-consumed while the function still reports success.
++        if(second_quote_pos == FURI_STRING_FAILURE) {
+             return false;
+         }
+ 

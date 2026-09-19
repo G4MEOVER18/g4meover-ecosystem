@@ -1,0 +1,51 @@
+--- a/applications/services/loader/loader_cli.c
++++ b/applications/services/loader/loader_cli.c
+@@ -48,19 +48,36 @@
+ 
+ static void loader_cli_open(FuriString* args, Loader* loader) {
+     FuriString* app_name = furi_string_alloc();
++    FuriString* app_args = furi_string_alloc();
+ 
+     do {
+         if(!args_read_probably_quoted_string_and_trim(args, app_name)) {
+             printf("No application provided\r\n");
+             break;
+         }
+-        furi_string_trim(args);
+ 
+-        const char* args_str = furi_string_get_cstr(args);
+-        if(strlen(args_str) == 0) {
+-            args_str = NULL;
++        // Application arguments may themselves be a path with spaces. Support both:
++        //   loader open subghz "/ext/subghz/Some File.sub"  (quoted -- preferred)
++        //   loader open subghz /ext/subghz/Some File.sub    (unquoted remainder)
++        // Previously the literal quotes were left in args_str, so "storage" calls
++        // downstream (e.g. subghz app opening the file) received a path that still
++        // contained the quote characters and failed to find the file.
++        if(furi_string_size(args) > 0) {
++            if(furi_string_get_char(args, 0) == '\"') {
++                if(!args_read_probably_quoted_string_and_trim(args, app_args)) {
++                    printf("Invalid application arguments\r\n");
++                    break;
++                }
++                if(furi_string_size(args) > 0) {
++                    furi_string_cat_printf(app_args, " %s", furi_string_get_cstr(args));
++                }
++            } else {
++                furi_string_set(app_args, args);
++            }
+         }
+ 
++        const char* args_str = furi_string_empty(app_args) ? NULL : furi_string_get_cstr(app_args);
++
+         const char* app_name_str = furi_string_get_cstr(app_name);
+ 
+         FuriString* error_message = furi_string_alloc();
+@@ -76,6 +93,7 @@
+         furi_string_free(error_message);
+     } while(false);
+ 
++    furi_string_free(app_args);
+     furi_string_free(app_name);
+ }
+ 

@@ -998,6 +998,27 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/mf-classic-poller-free-before-start-uninit-pointer-fix/`, Repro in
       `firmware-mining/repro-mf-classic-poller-free-before-start-uninit-pointer-fix/repro.c`,
       Details in `firmware-mining/mf-classic-poller-free-before-start-uninit-pointer-fix.md`.
+- [x] Unleashed-Commit `6bf5e4f` (PR #4430, ab Tag `unlshd-090`): **CLI-Quotierung** —
+      `args_read_probably_quoted_string_and_trim()` in `lib/toolbox/args.c` prüft eine fehlende
+      schließende Anführung falsch (`second_quote_pos == 0` statt `== FURI_STRING_FAILURE`,
+      Letzteres ist `(size_t)-1` und kann als Ergebnis dieser Suche nie `0` sein) — meldet bei mir
+      dadurch fälschlich Erfolg statt Fehler und lässt `args` unkonsumiert stehen (betrifft
+      `loader_cli.c`/`infrared_cli.c`/`lfrfid_cli.c`, alle drei nutzen die Funktion bereits
+      unverändert). Kein Speicherfehler (per Quellstudium von `mlib`/`m-string.h` sowie Host-Repro
+      verifiziert: `m_string_set_n()` clamped über `M_MIN`, `m_string_right(args, 0)` ist ein
+      No-op). Zusätzlich nutzen bei mir vier `subghz`-CLI-Befehle
+      (`decode_raw`/`tx_from_file`/`encrypt_keeloq`/`encrypt_raw`) weiterhin die unquoted Variante
+      und schneiden einen in Anführung übergebenen Pfad mit Leerzeichen am ersten Leerzeichen ab;
+      `loader open` ließ Anführungszeichen wörtlich im Argument-String der gestarteten App stehen.
+      Vier Unified-Diffs (`args_c.patch`, `loader_cli_c.patch`, `subghz_cli_c.patch`,
+      `args_test_c.patch`) gegen meine unveränderte `mntm-012`-Basis, `patch --dry-run -p1` vorab
+      verifiziert, real angewendet und Byte-für-Byte abgeglichen, in
+      `firmware-mining/cli-quoted-path-handling-loader-subghz-fix/`. Host-Repro (mlib-Primitive
+      `search_char`/`set_n`/`right` semantiktreu nachgebaut, drei Testgruppen: Regression
+      ALT==NEU, ALT meldet bei 3/3 Fällen fehlender Anführung fälschlich Erfolg vs. NEU 0/3,
+      unquoted- vs. quoted-`subghz`-Aufruf) unter ASan/UBSan: ALLE CHECKS BESTANDEN, in
+      `firmware-mining/repro-cli-quoted-path-handling-loader-subghz-fix/repro.c`, Details in
+      `firmware-mining/cli-quoted-path-handling-loader-subghz-fix.md`.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in
