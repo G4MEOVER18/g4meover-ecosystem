@@ -2197,6 +2197,29 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       genannten Backlog-Korrektur in
       `firmware-mining/mf-classic-dict-attack-stop-on-full-read-port.md`.
 
+- [x] Unleashed `dev` seit `unlshd-093`, letzten offenen SubGHz-Kandidaten aus der Restliste
+      aufgegriffen: `37e7db36f` ("sub hertz") geprüft — behandelt zwei KeeLoq-Hersteller,
+      **Monarch** (bereits vorhanden) und **KEY** (neu). Monarch-Teil bearbeitet: mein
+      hartkodierter Diskriminator `0x100` erkennt einen zweiten, real vorkommenden Diskriminator
+      (`0x280`, u. a. Dorcas 22366CLN) beim Empfang nicht — fällt aktuell nur zufällig über einen
+      eigentlich unabhängigen generischen Rückfallzweig auf „Unknown" statt korrekt erkannt zu
+      werden — und vergisst den tatsächlich empfangenen Wert beim Neusenden/Speichern ohnehin
+      (immer `0x100`). Port-Vorschlag (neue Prüffunktion, seed-basiertes Merken/Neuerzeugen,
+      erweiterte Serialize-Bedingung) in `firmware-mining/keeloq-monarch-discriminator-fix.md`,
+      Unified-Diff in `firmware-mining/keeloq-monarch-discriminator-fix/keeloq_c.patch`
+      (`patch -p1 --dry-run` vorab gegen frische Basiskopie verifiziert, real angewendet und
+      Byte-für-Byte abgeglichen), Host-Repro (Erkennungs-Sweep, Neukodierungs- und
+      Speichern/Laden-Rundlauf, BFT-Regression) unter ASan/UBSan in
+      `firmware-mining/repro-keeloq-monarch-discriminator-fix/repro.c`: 5391/5391 Prüfungen
+      bestanden. KEY-Teil bewusst zurückgestellt: neuer Hersteller, dessen Schlüsselmaterial in
+      der separat ausgelieferten, verschlüsselten `keeloq_mfcodes`-Ressource liegen müsste, die
+      mir aus dem Quellcode-Repo heraus nicht vorliegt (derselbe Grund wie beim
+      Superrollo/GW60-Fund) — für eine künftige Sitzung vorgemerkt, erst lokal prüfen ob `"KEY"`
+      in der eigenen Ressource existiert. Damit ist die unlshd-093-Restliste
+      (`37e7db36f`/"sub hertz") abgearbeitet; aus demselben `dev`-Fenster weiterhin offen:
+      `49238e1bd`/`22ce1d9ae`/`946a52a64` (LF-RFID-Schreibfunktionen), `370ca57bc` (Toolbox
+      SimpleArray).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
