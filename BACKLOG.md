@@ -2219,6 +2219,34 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`37e7db36f`/"sub hertz") abgearbeitet; aus demselben `dev`-Fenster weiterhin offen:
       `49238e1bd`/`22ce1d9ae`/`946a52a64` (LF-RFID-Schreibfunktionen), `370ca57bc` (Toolbox
       SimpleArray).
+- [x] Letzten offenen Kandidaten aus dem unlshd-093-`dev`-Fenster aufgegriffen: `370ca57bc`
+      (PR #1107, "Toolbox: fix SimpleArray equality length") geprüft — `simple_array_is_equal()`
+      vergleicht per `memcmp()` nur `other->count` Byte (Elementanzahl) statt
+      `other->count * type_size` (tatsächliche Puffergröße); bei mir für alle Byte-Array-Nutzer
+      (`type_size == 1`: `iso15693_3`s `block_data`/`block_security`, `type_4_tag`s `ndef_data`)
+      zufällig korrekt, für jeden Nutzer mit größerem Elementtyp (`FelicaSystem`,
+      `MfDesfireApplication`, `MfDesfireFileData`) vergleicht der Aufruf nur einen Bruchteil des
+      tatsächlichen Speichers. Die naheliegende Bytelängen-Korrektur allein wäre eine neue
+      Regression: `FelicaSystem`/`MfDesfireApplication`/`MfDesfireFileData` besitzen selbst
+      Zeiger auf eigene heap-allozierte Unterlisten, ein jetzt vollständiger `memcmp()` verglicht
+      dann diese Zeiger statt der Daten — zwei inhaltlich identische, unabhängig geladene Karten
+      würden fälschlich als „verschieden" gelten (laut Unleashed-Changelog genau der Auslöser für
+      unnötige FeliCa-Shadow-Dateien bei jeder Emulation). Port-Vorschlag übernimmt deshalb beide
+      Teile: die Bytelängen-Korrektur plus je eine neue elementweise Vergleichsfunktion für
+      `felica_is_equal()`/`mf_desfire_is_equal()`, die für ihre besitzenden Elementtypen
+      `simple_array_is_equal()` durch eine strukturbewusste Alternative ersetzen (rekursiv wieder
+      `simple_array_is_equal()` auf die jeweils reinen Unterlisten anwendend). Bei mir gegen
+      `mntm-012` als strukturell identisch bestätigt (`FelicaSystem` bei mir ohne das neuere
+      `key_version`-Feld, entsprechend in der Portierung berücksichtigt). Unified-Diff (acht
+      Stellen in fünf Dateien, `patch -p1 --dry-run` vorab gegen frische Basiskopie verifiziert,
+      real angewendet und Byte-für-Byte abgeglichen) in
+      `firmware-mining/simple-array-equal-element-length-fix/simple_array_equal.patch`,
+      Host-Repro (Byte-Element-Regression, breite Skalar-Elemente mit Unterlängen-Nachweis,
+      besitzende Elemente mit Positiv-/drei Negativproben, Datei-Elemente) unter ASan/UBSan in
+      `firmware-mining/repro-simple-array-equal-element-length-fix/repro.c`: 4744/4744 Prüfungen
+      bestanden. Details in `firmware-mining/simple-array-equal-element-length-fix.md`. Damit ist
+      das gesamte unlshd-093-`dev`-Fenster bis auf die LF-RFID-Schreibfunktionen
+      (`49238e1bd`/`22ce1d9ae`/`946a52a64`) abgearbeitet.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.

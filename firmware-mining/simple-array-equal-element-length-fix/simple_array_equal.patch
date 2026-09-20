@@ -1,0 +1,167 @@
+diff --git a/lib/nfc/protocols/felica/felica.c b/lib/nfc/protocols/felica/felica.c
+index c292d2cb5..f4a4902b1 100644
+--- a/lib/nfc/protocols/felica/felica.c
++++ b/lib/nfc/protocols/felica/felica.c
+@@ -469,7 +469,7 @@ bool felica_is_equal(const FelicaData* data, const FelicaData* other) {
+            memcmp(data->pmm.data, other->pmm.data, sizeof(FelicaPMm)) == 0 &&
+            data->blocks_total == other->blocks_total && data->blocks_read == other->blocks_read &&
+            memcmp(&data->data, &other->data, sizeof(data->data)) == 0 &&
+-           simple_array_is_equal(data->systems, other->systems);
++           felica_system_array_is_equal(data->systems, other->systems);
+ }
+ 
+ const char* felica_get_device_name(const FelicaData* data, NfcDeviceNameType name_type) {
+diff --git a/lib/nfc/protocols/felica/felica_i.c b/lib/nfc/protocols/felica/felica_i.c
+index c5ecdf121..21dbc2b7a 100644
+--- a/lib/nfc/protocols/felica/felica_i.c
++++ b/lib/nfc/protocols/felica/felica_i.c
+@@ -31,6 +31,30 @@ void felica_system_copy(FelicaSystem* system, const FelicaSystem* other) {
+     simple_array_copy(system->public_blocks, other->public_blocks);
+ }
+ 
++static bool felica_system_is_equal(const FelicaSystem* system, const FelicaSystem* other) {
++    return system->system_code == other->system_code &&
++           system->system_code_idx == other->system_code_idx &&
++           simple_array_is_equal(system->services, other->services) &&
++           simple_array_is_equal(system->areas, other->areas) &&
++           simple_array_is_equal(system->public_blocks, other->public_blocks);
++}
++
++// A system owns its nested arrays, so a bytewise compare would only compare their pointers
++bool felica_system_array_is_equal(const SimpleArray* instance, const SimpleArray* other) {
++    furi_check(instance);
++    furi_check(other);
++
++    const uint32_t count = simple_array_get_count(instance);
++    if(count != simple_array_get_count(other)) return false;
++
++    for(uint32_t i = 0; i < count; i++) {
++        if(!felica_system_is_equal(simple_array_cget(instance, i), simple_array_cget(other, i)))
++            return false;
++    }
++
++    return true;
++}
++
+ const SimpleArrayConfig felica_service_array_cfg = {
+     .init = NULL,
+     .copy = NULL,
+diff --git a/lib/nfc/protocols/felica/felica_i.h b/lib/nfc/protocols/felica/felica_i.h
+index d55077c5e..fc75927b2 100644
+--- a/lib/nfc/protocols/felica/felica_i.h
++++ b/lib/nfc/protocols/felica/felica_i.h
+@@ -13,3 +13,5 @@ extern const SimpleArrayConfig felica_system_array_cfg;
+ void felica_system_init(FelicaSystem* system);
+ void felica_system_reset(FelicaSystem* system);
+ void felica_system_copy(FelicaSystem* system, const FelicaSystem* other);
++
++bool felica_system_array_is_equal(const SimpleArray* instance, const SimpleArray* other);
+diff --git a/lib/nfc/protocols/mf_desfire/mf_desfire.c b/lib/nfc/protocols/mf_desfire/mf_desfire.c
+index 42ad4634b..55b96c504 100644
+--- a/lib/nfc/protocols/mf_desfire/mf_desfire.c
++++ b/lib/nfc/protocols/mf_desfire/mf_desfire.c
+@@ -266,7 +266,7 @@ bool mf_desfire_is_equal(const MfDesfireData* data, const MfDesfireData* other)
+                sizeof(MfDesfireKeySettings)) == 0 &&
+            simple_array_is_equal(data->master_key_versions, other->master_key_versions) &&
+            simple_array_is_equal(data->application_ids, other->application_ids) &&
+-           simple_array_is_equal(data->applications, other->applications);
++           mf_desfire_application_array_is_equal(data->applications, other->applications);
+ }
+ 
+ static MfDesfireType mf_desfire_get_type_from_version(const MfDesfireVersion* const version) {
+diff --git a/lib/nfc/protocols/mf_desfire/mf_desfire_i.c b/lib/nfc/protocols/mf_desfire/mf_desfire_i.c
+index b90ef8ccf..b060a4b65 100644
+--- a/lib/nfc/protocols/mf_desfire/mf_desfire_i.c
++++ b/lib/nfc/protocols/mf_desfire/mf_desfire_i.c
+@@ -356,6 +356,48 @@ void mf_desfire_application_copy(MfDesfireApplication* data, const MfDesfireAppl
+     simple_array_copy(data->file_data, other->file_data);
+ }
+ 
++// File data owns a nested array, so a bytewise compare would only compare its pointer
++static bool
++    mf_desfire_file_data_array_is_equal(const SimpleArray* instance, const SimpleArray* other) {
++    const uint32_t count = simple_array_get_count(instance);
++    if(count != simple_array_get_count(other)) return false;
++
++    for(uint32_t i = 0; i < count; i++) {
++        const MfDesfireFileData* data = simple_array_cget(instance, i);
++        const MfDesfireFileData* other_data = simple_array_cget(other, i);
++        if(!simple_array_is_equal(data->data, other_data->data)) return false;
++    }
++
++    return true;
++}
++
++static bool mf_desfire_application_is_equal(
++    const MfDesfireApplication* data,
++    const MfDesfireApplication* other) {
++    return memcmp(&data->key_settings, &other->key_settings, sizeof(MfDesfireKeySettings)) == 0 &&
++           simple_array_is_equal(data->key_versions, other->key_versions) &&
++           simple_array_is_equal(data->file_ids, other->file_ids) &&
++           simple_array_is_equal(data->file_settings, other->file_settings) &&
++           mf_desfire_file_data_array_is_equal(data->file_data, other->file_data);
++}
++
++// Applications own nested arrays, so a bytewise compare would only compare their pointers
++bool mf_desfire_application_array_is_equal(const SimpleArray* instance, const SimpleArray* other) {
++    furi_check(instance);
++    furi_check(other);
++
++    const uint32_t count = simple_array_get_count(instance);
++    if(count != simple_array_get_count(other)) return false;
++
++    for(uint32_t i = 0; i < count; i++) {
++        if(!mf_desfire_application_is_equal(
++               simple_array_cget(instance, i), simple_array_cget(other, i)))
++            return false;
++    }
++
++    return true;
++}
++
+ bool mf_desfire_version_load(MfDesfireVersion* data, FlipperFormat* ff) {
+     return flipper_format_read_hex(
+         ff, MF_DESFIRE_FFF_VERSION_KEY, (uint8_t*)data, sizeof(MfDesfireVersion));
+diff --git a/lib/nfc/protocols/mf_desfire/mf_desfire_i.h b/lib/nfc/protocols/mf_desfire/mf_desfire_i.h
+index ac572ae58..3ce52283d 100644
+--- a/lib/nfc/protocols/mf_desfire/mf_desfire_i.h
++++ b/lib/nfc/protocols/mf_desfire/mf_desfire_i.h
+@@ -16,6 +16,8 @@ extern const SimpleArrayConfig mf_desfire_file_settings_array_config;
+ extern const SimpleArrayConfig mf_desfire_file_data_array_config;
+ extern const SimpleArrayConfig mf_desfire_application_array_config;
+ 
++bool mf_desfire_application_array_is_equal(const SimpleArray* instance, const SimpleArray* other);
++
+ // Parse internal MfDesfire structures
+ 
+ bool mf_desfire_version_parse(MfDesfireVersion* data, const BitBuffer* buf);
+diff --git a/lib/toolbox/simple_array.c b/lib/toolbox/simple_array.c
+index af20444df..c36f8dc83 100644
+--- a/lib/toolbox/simple_array.c
++++ b/lib/toolbox/simple_array.c
+@@ -89,7 +89,8 @@ bool simple_array_is_equal(const SimpleArray* instance, const SimpleArray* other
+ 
+     return (instance->config == other->config) && (instance->count == other->count) &&
+            ((instance->data == other->data) || (instance->data == NULL) || (other->data == NULL) ||
+-            (memcmp(instance->data, other->data, other->count) == 0));
++            (memcmp(instance->data, other->data, other->count * instance->config->type_size) ==
++             0));
+ }
+ 
+ uint32_t simple_array_get_count(const SimpleArray* instance) {
+diff --git a/lib/toolbox/simple_array.h b/lib/toolbox/simple_array.h
+index a608db08d..18f5acb26 100644
+--- a/lib/toolbox/simple_array.h
++++ b/lib/toolbox/simple_array.h
+@@ -90,6 +90,11 @@ void simple_array_copy(SimpleArray* instance, const SimpleArray* other);
+  * Check if another SimpleArray instance is equal (the same object or holds the
+  * same data) to this one.
+  *
++ * The elements are compared byte by byte, so an element type that owns a
++ * pointer to its own nested SimpleArray (or any other heap allocation) will
++ * compare that pointer, not the pointed-to data. Give such a type its own
++ * dedicated, element-aware comparison instead of using this function on it.
++ *
+  * @param [in] instance Pointer to the SimpleArray instance to be compared
+  * @param [in] other Pointer to the SimpleArray instance to be compared
+  * @return True if instances are considered equal, false otherwise
