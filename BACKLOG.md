@@ -2322,6 +2322,41 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       begrenzten Fixes. Der Geschwister-Rückstellpunkt "Payload-Run [V3]" (`arg` ebenfalls fest auf 0,
       aber kein Protokollfehler wie beim Trigger-Fund) bleibt wie in
       `catalog-trigger-arg-format-mismatch-fix.md` vermerkt offen.
+- [x] lora-ukfe: den zuvor zurückgestellten Geschwister-Rückstellpunkt "Payload-Run [V3]"
+      aufgegriffen — auch dieser Katalog-Eintrag (`FN_PAYLOAD[1]`) hatte `arg` fest auf `0`,
+      erreichbar war also nur Payload-Index 0. Anders als beim Trigger-Fund kein
+      Protokollfehler (`UkfeRfCmdPayloadRun` braucht laut `rf/ukfe_rf.h:27` bereits nur 1
+      Arg-Byte, das passt zum generischen Pfad) — reine Bedienungslücke. Dieselbe Lösung wie
+      beim Trigger-Fund portiert, nur einstufig: neue Scene `scene_payload_run_confirm.c`
+      fragt einen Payload-Index (0–255) über die bereits vom Trigger-Fix eingebundene
+      `NumberInput`-View ab und sendet über denselben generischen 1-Byte-Pfad, den `send_fn()`
+      für diesen Eintrag ohnehin nutzt (`cmd=UkfeRfCmdPayloadRun`, `arg_len=1`,
+      `args[0]=idx`) — keine neue Kodierlogik. `scene_menu.c`/`menu_callback()` bekommt dafür
+      einen zweiten gezielten `else if`-Zweig neben dem bestehenden Trigger-Zweig; alle
+      anderen Katalog-Einträge bleiben unverändert. Neue Scene-ID
+      `UkfeScenePayloadRunConfirm` in `scenes.h`/`scene_handlers.c` ergänzt. Back wird nicht
+      konsumiert (kein Zwischenzustand wie beim zweistufigen Trigger-Ablauf, nur ein
+      Eingabeschritt) — Standardnavigation zurück zum Katalog-Menü greift direkt. Mit
+      Host-Repro (kompiliert die echte, unveränderte `scene_payload_run_confirm.c` dieser
+      Sitzung direkt mit, zusammen mit dem unveränderten `rf/ukfe_rf.c/.h`) unter ASan/UBSan
+      verifiziert: Normalablauf inkl. vollem Wire-Rundlauf über
+      `ukfe_rf_build_frame()`/`_parse_frame()`, Back bleibt unkonsumiert, sechs
+      Index-Randfälle (0, 1, 42, 128, 254, 255), wiederholter Scene-Aufruf setzt Callback/
+      Vorbelegung unabhängig vom vorherigen Durchlauf komplett neu — 4/4 Szenarien bestanden,
+      keine ASan-/UBSan-Meldungen. Patch setzt auf dem bereits vorgeschlagenen
+      `trigger_catalog_number_input.patch` auf (wiederverwendet dessen `NumberInput`-
+      Infrastruktur, lokal in dieser Reihenfolge anzuwenden) — `git apply --check` beider
+      Patches nacheinander gegen eine frische Kopie der unveränderten
+      `G4MEOVER18/lora-ukfe`-Basis (`0dba410a`) verifiziert, real angewendet und
+      byte-für-byte abgeglichen — identisch. Unified-Diff in
+      `app-improvements/lora-ukfe/payload-run-catalog-number-input-port/payload_run_catalog_number_input.patch`,
+      Host-Repro in
+      `app-improvements/lora-ukfe/repro-payload-run-catalog-number-input/repro.c`, Details in
+      `app-improvements/lora-ukfe/payload-run-catalog-number-input-port.md`. Bewusst nicht
+      mitgeliefert: keine Namensauswahl aus der vom Hub gemeldeten Payload-Liste
+      (`app->payloads[]`) — bliebe reiner Zahlenwert, da unklar ist, ob das Protokoll-`idx`
+      dieselbe Zählung wie das JSON-`id`-Feld verwendet (nur mit Einblick in die
+      Hub-Firmware sicher klärbar, nicht rein aus diesem Flipper-Quelltext).
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.

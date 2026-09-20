@@ -1,0 +1,117 @@
+diff -ruN '--exclude=.git' base/scenes/scene_handlers.c staged/scenes/scene_handlers.c
+--- a/scenes/scene_handlers.c	2026-09-20 18:21:20.156149249 +0000
++++ b/scenes/scene_handlers.c	2026-09-20 18:21:38.179715814 +0000
+@@ -10,6 +10,7 @@
+     [UkfeSceneStatus]         = scene_status_on_enter,
+     [UkfeScenePayloadList]    = scene_payload_list_on_enter,
+     [UkfeSceneTriggerConfirm] = scene_trigger_confirm_on_enter,
++    [UkfeScenePayloadRunConfirm] = scene_payload_run_confirm_on_enter,
+     [UkfeSceneLog]            = scene_log_on_enter,
+     [UkfeSceneSettings]       = scene_settings_on_enter,
+ };
+@@ -20,6 +21,7 @@
+     [UkfeSceneStatus]         = scene_status_on_event,
+     [UkfeScenePayloadList]    = scene_payload_list_on_event,
+     [UkfeSceneTriggerConfirm] = scene_trigger_confirm_on_event,
++    [UkfeScenePayloadRunConfirm] = scene_payload_run_confirm_on_event,
+     [UkfeSceneLog]            = scene_log_on_event,
+     [UkfeSceneSettings]       = scene_settings_on_event,
+ };
+@@ -30,6 +32,7 @@
+     [UkfeSceneStatus]         = scene_status_on_exit,
+     [UkfeScenePayloadList]    = scene_payload_list_on_exit,
+     [UkfeSceneTriggerConfirm] = scene_trigger_confirm_on_exit,
++    [UkfeScenePayloadRunConfirm] = scene_payload_run_confirm_on_exit,
+     [UkfeSceneLog]            = scene_log_on_exit,
+     [UkfeSceneSettings]       = scene_settings_on_exit,
+ };
+diff -ruN '--exclude=.git' base/scenes/scene_menu.c staged/scenes/scene_menu.c
+--- a/scenes/scene_menu.c	2026-09-20 18:21:20.156160250 +0000
++++ b/scenes/scene_menu.c	2026-09-20 18:21:42.711716083 +0000
+@@ -49,6 +49,10 @@
+                 // "Trigger [V3]": Payload-ID/Delay statt des festen arg=0
+                 // abfragen (siehe scene_trigger_confirm.c).
+                 scene_manager_next_scene(app->scene_manager, UkfeSceneTriggerConfirm);
++            } else if(fn->cmd == UkfeRfCmdPayloadRun && fn->has_arg) {
++                // "Payload-Run [V3]": Payload-Index statt des festen arg=0
++                // abfragen (siehe scene_payload_run_confirm.c).
++                scene_manager_next_scene(app->scene_manager, UkfeScenePayloadRunConfirm);
+             } else {
+                 send_fn(app, fn);
+                 scene_manager_next_scene(app->scene_manager, UkfeSceneLog);
+diff -ruN '--exclude=.git' base/scenes/scene_payload_run_confirm.c staged/scenes/scene_payload_run_confirm.c
+--- a/scenes/scene_payload_run_confirm.c	1970-01-01 00:00:00.000000000 +0000
++++ b/scenes/scene_payload_run_confirm.c	2026-09-20 18:21:51.159716585 +0000
+@@ -0,0 +1,49 @@
++#include "../lora_ukfe.h"
++#include "scenes.h"
++
++// Einschritt-Zahleneingabe fuer den Katalog-Menuepunkt "Payload-Run [V3]"
++// (UkfeRfCmdPayloadRun, command_catalog.h FN_PAYLOAD[1]): bisher lief dieser
++// Eintrag ueber scene_menu.c/send_fn() immer mit fest verdrahtetem arg=0 --
++// jeder Payload-Index ausser 0 war ueber das Katalog-Menue gar nicht
++// erreichbar (siehe "Offen" in
++// app-improvements/lora-ukfe/catalog-trigger-arg-format-mismatch-fix.md).
++//
++// Anders als beim Trigger-Fund (siehe scene_trigger_confirm.c) ist das
++// Wire-Format hier bereits korrekt -- rf/ukfe_rf.h:27 dokumentiert
++// UkfeRfCmdPayloadRun mit genau 1 Arg-Byte ("args: uint8 idx"), das passt
++// exakt zum generischen 1-Byte-Pfad in scene_menu.c/send_fn(). Reine
++// Bedienungsluecke, kein Protokollfehler: nur eine Zahl statt des festen 0
++// abfragen, danach ueber denselben generischen Rahmen senden wie send_fn()
++// es fuer jeden anderen has_arg-Katalog-Eintrag tut.
++
++static void payload_run_idx_cb(void* ctx, int32_t number) {
++    LораUkfeApp* app = ctx;
++
++    UkfeRfMessage m;
++    m.cmd = UkfeRfCmdPayloadRun;
++    m.arg_len = 1;
++    m.args[0] = (uint8_t)number;
++    ukfe_uart_send_rf(app, &m);
++
++    scene_manager_next_scene(app->scene_manager, UkfeSceneLog);
++}
++
++void scene_payload_run_confirm_on_enter(void* ctx) {
++    LораUkfeApp* app = ctx;
++    number_input_set_header_text(app->number_input, "Payload-Idx (0-255)");
++    number_input_set_result_callback(app->number_input, payload_run_idx_cb, app, 0, 0, 255);
++    view_dispatcher_switch_to_view(app->view_dispatcher, UkfeViewNumberInput);
++}
++
++bool scene_payload_run_confirm_on_event(void* ctx, SceneManagerEvent event) {
++    UNUSED(ctx);
++    UNUSED(event);
++    // Back wird nicht konsumiert -> Standardnavigation zurueck zum
++    // Katalog-Menue greift (einziger Eingabeschritt, kein Zwischenzustand
++    // wie bei scene_trigger_confirm.c).
++    return false;
++}
++
++void scene_payload_run_confirm_on_exit(void* ctx) {
++    UNUSED(ctx);
++}
+diff -ruN '--exclude=.git' base/scenes/scenes.h staged/scenes/scenes.h
+--- a/scenes/scenes.h	2026-09-20 18:21:20.156180393 +0000
++++ b/scenes/scenes.h	2026-09-20 18:21:30.419715353 +0000
+@@ -9,6 +9,7 @@
+     UkfeSceneStatus,
+     UkfeScenePayloadList,
+     UkfeSceneTriggerConfirm,
++    UkfeScenePayloadRunConfirm,
+     UkfeSceneLog,
+     UkfeSceneSettings,
+     UkfeSceneCount,
+@@ -42,6 +43,11 @@
+ bool scene_trigger_confirm_on_event(void* ctx, SceneManagerEvent event);
+ void scene_trigger_confirm_on_exit(void* ctx);
+ 
++// ─── scene_payload_run_confirm.c ─────────────────────────────────────────────
++void scene_payload_run_confirm_on_enter(void* ctx);
++bool scene_payload_run_confirm_on_event(void* ctx, SceneManagerEvent event);
++void scene_payload_run_confirm_on_exit(void* ctx);
++
+ // ─── scene_log.c ──────────────────────────────────────────────────────────────
+ void scene_log_on_enter(void* ctx);
+ bool scene_log_on_event(void* ctx, SceneManagerEvent event);
