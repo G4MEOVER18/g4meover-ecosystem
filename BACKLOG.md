@@ -2248,6 +2248,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       das gesamte unlshd-093-`dev`-Fenster bis auf die LF-RFID-Schreibfunktionen
       (`49238e1bd`/`22ce1d9ae`/`946a52a64`) abgearbeitet.
 
+- [x] Offenen Punkt "Unleashed dev seit unlshd-093" abschließend aufgegriffen: letzten verbleibenden
+      Kandidaten `946a52a64` ("merge some rfid related PRs") inhaltlich geprüft statt nur pauschal als
+      "LF-RFID-Schreibfunktionen" vorgemerkt zu lassen — der Commit bündelt tatsächlich drei getrennte
+      PRs, davon zwei nicht host-testbar (Timer-Capture-Ursprung in `furi_hal_rfid.c`, reiner
+      Hardware-Fix; Dolphin-XP-Kosmetik in `nfc_app.c`) und einen dritten, klar host-testbaren:
+      OFW PR 4449, "Keri tags now read correctly" (`lib/lfrfid/protocols/protocol_keri.c`). Bei mir
+      (mntm-012) liegt die Datei byte-identisch zum Unleashed-Vorher-Stand vor. Fund: mein bestehender
+      Decoder versucht den dokumentierten PSK-Skew-Hardwarefehler (Keri-Rahmen nie DC-balanciert, ein
+      Pegel liest systematisch ~135 µs zu lang, der andere zu kurz) mit einer einzigen, richtungsfesten
+      ±120-µs-Korrektur auszugleichen — trifft die Korrekturrichtung zufällig die tatsächliche
+      Skew-Richtung, gleicht sie sie aus, trifft sie die Gegenrichtung, verstärkt sie den Fehler auf
+      eine volle Bitperiode und der betroffene Lauf wird durchgehend falsch decodiert (deckt sich mit
+      dem Unleashed-Hinweis "no genuine Keri card read at all"). Zusätzlich fehlt mir jede
+      Zwei-Rahmen-Konsistenzprüfung (Puffer mit 104 Bit zu klein, um die Nutzlast des zweiten Rahmens
+      überhaupt zu erreichen) — bei einem Protokoll ohne Parität/Prüfsumme die einzige verfügbare
+      Integritätsprüfung. Port-Vorschlag (Puffer auf 128 Bit vergrößert, zwei statt einer
+      Korrekturrichtung parallel versucht, neue Zwei-Rahmen-Übereinstimmungsprüfung) in
+      `firmware-mining/keri-lfrfid-skew-and-frame-check-port.md`, Unified-Diff (`patch -p1 --dry-run`
+      vorab gegen frische Basiskopie verifiziert, real angewendet und Byte-für-Byte gegen den echten
+      Unleashed-Fix abgeglichen — identisch) in
+      `firmware-mining/keri-lfrfid-skew-and-frame-check-port/protocol_keri_c.patch`. Host-Repro
+      (beide Decoder-Fassungen wortgleich transkribiert, synthetischer Zwei-Rahmen-Keri-Strom mit
+      pegelabhängigem Versatz in beiden Richtungen plus direkter Unit-Test der neuen
+      Zwei-Rahmen-Prüfung) unter ASan/UBSan in
+      `firmware-mining/repro-keri-lfrfid-skew-and-frame-check-port/repro.c`: 9/9 Prüfungen bestanden.
+      Bewusst nicht mitportiert: `furi_hal_rfid.c`-Timing-Fix und `nfc_app.c`-Dolphin-XP-Kosmetik aus
+      demselben Commit sowie die beiden Geschwister-Commits `22ce1d9ae` (Chiptyp-Auswahl beim
+      LF-RFID-Schreiben) und `49238e1bd` (EM4100-auf-ID8268-/Hitag-S-Klonchip-Schreibpfad) — für eine
+      künftige Sitzung vorgemerkt. Damit ist das gesamte Unleashed-`dev`-Fenster seit `unlshd-093` bis
+      auf diese beiden verbleibenden Schreibfunktions-Kandidaten abgearbeitet.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
