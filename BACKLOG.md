@@ -2277,7 +2277,51 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       demselben Commit sowie die beiden Geschwister-Commits `22ce1d9ae` (Chiptyp-Auswahl beim
       LF-RFID-Schreiben) und `49238e1bd` (EM4100-auf-ID8268-/Hitag-S-Klonchip-Schreibpfad) — für eine
       künftige Sitzung vorgemerkt. Damit ist das gesamte Unleashed-`dev`-Fenster seit `unlshd-093` bis
-      auf diese beiden verbleibenden Schreibfunktions-Kandidaten abgearbeitet.
+      auf diese beiden verbleibenden Schreibfunktions-Kandidaten abgearbeitet. Beide inhaltlich
+      geprüft (frischer Klon von `DarkFlippers/unleashed-firmware`, `dev`): keine reinen
+      "LF-RFID-Schreibfunktionen", sondern ein größeres, mehrfach review-getriebenes Feature
+      (`22ce1d9ae` bringt eine eigene Plugin-/`.fal`-Infrastruktur samt neuem Settings-Menü für die
+      Chip-Auswahl beim Schreiben mit; `49238e1bd` baut auf genau dieser Infrastruktur auf) — für den
+      hier üblichen Umfang eines einzelnen Sitzungsbeitrags zu groß, für eine künftige, eigens dafür
+      vorgesehene Sitzung vorgemerkt statt überstürzt in Teilen zu portieren.
+
+## App-Verbesserungen
+- [x] lora-ukfe: den in `catalog-trigger-arg-format-mismatch-fix.md` als "Offen" vermerkten
+      Rückstellpunkt aufgegriffen — der Katalog-Menüpunkt "Trigger [V3]" ließ sich im Menü nur mit
+      fest verdrahtetem `arg=0` auslösen (weder Payload-ID noch Verzögerungswert abfragbar). Dabei
+      festgestellt: `scenes/scenes.h` reserviert bereits eine eigene Scene-ID dafür
+      (`UkfeSceneTriggerConfirm`), die `scene_handlers.c` bislang nur als Alias auf
+      `scene_status_on_enter/_on_event/_on_exit` verdrahtet — nie eine eigene Handler-Datei bekommen
+      hat. Neue Scene `scene_trigger_confirm.c` gebaut: Zwei-Schritt-Zahleneingabe (Payload-ID 0-255,
+      danach Delay in ms 0-300000) über das Flipper-Standardmodul `gui/modules/number_input.h`
+      (bislang in dieser App nicht eingebunden), sendet danach direkt über `ukfe_rf_make_trigger()` +
+      `ukfe_uart_send_rf()` einen korrekten 5-Byte-Frame — denselben Builder, den der dort
+      dokumentierte Wire-Format-Fix für `send_fn()`s generischen Pfad vorschlägt. Da der
+      Katalog-Eintrag jetzt vor `send_fn()` abgefangen wird, läuft er nie mehr über dessen generischen
+      1-Byte-Pfad — der dort vorgeschlagene `send_fn()`-Sonderfall wird für diesen Eintrag durch
+      dieses Feature überflüssig. `scene_menu.c`/`menu_callback()` bekommt dafür einen gezielten
+      Sonderfall (`cmd == UkfeRfCmdTrigger && has_arg` → neue Scene statt `send_fn()`), alle anderen
+      Katalog-Einträge bleiben unverändert. Back während der Delay-Eingabe geht einen Schritt zurück
+      zur ID-Eingabe (Wert bleibt vorbelegt und überschreibbar) statt die ganze Scene zu verwerfen.
+      Mit Host-Repro (kompiliert die echte, unveränderte `scene_trigger_confirm.c` dieser Sitzung
+      direkt mit, keine Transkription, zusammen mit dem ebenfalls unveränderten `rf/ukfe_rf.c/.h`;
+      nur `lora_ukfe.h`/`scenes.h` sind schlanke Mock-Header für die sonst furi-/gui-abhängigen Typen)
+      unter ASan/UBSan verifiziert: Normalablauf inkl. vollem Wire-Rundlauf über
+      `ukfe_rf_build_frame()`/`_parse_frame()`, Back-Korrektur (Wert bleibt vorbelegt UND ist
+      überschreibbar, gesendeter Frame trägt den korrigierten statt des verworfenen Werts), Back im
+      ID-Schritt bleibt unkonsumiert (Standardnavigation greift), sechs ID/Delay-Randfälle (0/255,
+      0/300000-Obergrenze) — 4/4 Szenarien bestanden, keine ASan-/UBSan-Meldungen. Unified-Diff gegen
+      die unveränderte `G4MEOVER18/lora-ukfe`-Basis (`git apply --check` vorab gegen eine frische
+      Kopie verifiziert, real angewendet und byte-für-byte abgeglichen — identisch) in
+      `app-improvements/lora-ukfe/trigger-catalog-number-input-port/trigger_catalog_number_input.patch`,
+      Host-Repro in `app-improvements/lora-ukfe/repro-trigger-catalog-number-input/repro.c`, Details
+      in `app-improvements/lora-ukfe/trigger-catalog-number-input-port.md`. Bewusst nicht mitgeliefert:
+      `scene_payload_list.c` bekommt weiterhin keine eigene Delay-ms-Eingabe (separater, bereits
+      funktionierender JSON-Pfad über `ukfe_uart_send_trigger()`, sendet unverändert `delay_ms=0`) —
+      unabhängige Erweiterung eines anderen Menüpfads, nicht Teil dieses auf den Katalog-Eintrag
+      begrenzten Fixes. Der Geschwister-Rückstellpunkt "Payload-Run [V3]" (`arg` ebenfalls fest auf 0,
+      aber kein Protokollfehler wie beim Trigger-Fund) bleibt wie in
+      `catalog-trigger-arg-format-mismatch-fix.md` vermerkt offen.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.

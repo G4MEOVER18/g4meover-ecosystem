@@ -1,0 +1,219 @@
+diff --git a/lora_ukfe.c b/lora_ukfe.c
+index af38c0d..767b8bf 100644
+--- a/lora_ukfe.c
++++ b/lora_ukfe.c
+@@ -92,6 +92,10 @@ static LораUkfeApp* app_alloc(void) {
+     view_dispatcher_add_view(app->view_dispatcher, UkfeViewSettings,
+         variable_item_list_get_view(app->var_list));
+ 
++    app->number_input = number_input_alloc();
++    view_dispatcher_add_view(app->view_dispatcher, UkfeViewNumberInput,
++        number_input_get_view(app->number_input));
++
+     return app;
+ }
+ 
+@@ -102,11 +106,13 @@ static void app_free(LораUkfeApp* app) {
+     view_dispatcher_remove_view(app->view_dispatcher, UkfeViewStatus);
+     view_dispatcher_remove_view(app->view_dispatcher, UkfeViewLog);
+     view_dispatcher_remove_view(app->view_dispatcher, UkfeViewSettings);
++    view_dispatcher_remove_view(app->view_dispatcher, UkfeViewNumberInput);
+ 
+     submenu_free(app->submenu);
+     text_box_free(app->text_box);
+     text_box_free(app->log_box);
+     variable_item_list_free(app->var_list);
++    number_input_free(app->number_input);
+ 
+     scene_manager_free(app->scene_manager);
+     view_dispatcher_free(app->view_dispatcher);
+diff --git a/lora_ukfe.h b/lora_ukfe.h
+index e9c5cd3..ef52d94 100644
+--- a/lora_ukfe.h
++++ b/lora_ukfe.h
+@@ -8,6 +8,7 @@
+ #include <gui/modules/text_box.h>
+ #include <gui/modules/popup.h>
+ #include <gui/modules/variable_item_list.h>
++#include <gui/modules/number_input.h>
+ #include <furi_hal_serial.h>
+ #include <furi_hal_serial_control.h>
+ #include <notification/notification_messages.h>
+@@ -59,6 +60,7 @@ typedef struct {
+     TextBox*        log_box;        // UkfeViewLog (separates Widget!)
+     Popup*          popup;
+     VariableItemList* var_list;
++    NumberInput*    number_input;   // UkfeSceneTriggerConfirm (Payload-ID/Delay-Eingabe)
+ 
+     // UART
+     FuriHalSerialHandle* serial;
+@@ -88,6 +90,7 @@ typedef enum {
+     UkfeViewPayloadList,
+     UkfeViewLog,
+     UkfeViewSettings,
++    UkfeViewNumberInput,
+ } UkfeView;
+ 
+ // ─── Funktionen ───────────────────────────────────────────────────────────────
+diff --git a/scenes/scene_handlers.c b/scenes/scene_handlers.c
+index 6b6b8ef..2e00e4a 100644
+--- a/scenes/scene_handlers.c
++++ b/scenes/scene_handlers.c
+@@ -9,7 +9,7 @@ static void (*const on_enter_handlers[])(void*) = {
+     [UkfeSceneModeMenu]       = scene_mode_menu_on_enter,
+     [UkfeSceneStatus]         = scene_status_on_enter,
+     [UkfeScenePayloadList]    = scene_payload_list_on_enter,
+-    [UkfeSceneTriggerConfirm] = scene_status_on_enter,
++    [UkfeSceneTriggerConfirm] = scene_trigger_confirm_on_enter,
+     [UkfeSceneLog]            = scene_log_on_enter,
+     [UkfeSceneSettings]       = scene_settings_on_enter,
+ };
+@@ -19,7 +19,7 @@ static bool (*const on_event_handlers[])(void*, SceneManagerEvent) = {
+     [UkfeSceneModeMenu]       = scene_mode_menu_on_event,
+     [UkfeSceneStatus]         = scene_status_on_event,
+     [UkfeScenePayloadList]    = scene_payload_list_on_event,
+-    [UkfeSceneTriggerConfirm] = scene_status_on_event,
++    [UkfeSceneTriggerConfirm] = scene_trigger_confirm_on_event,
+     [UkfeSceneLog]            = scene_log_on_event,
+     [UkfeSceneSettings]       = scene_settings_on_event,
+ };
+@@ -29,7 +29,7 @@ static void (*const on_exit_handlers[])(void*) = {
+     [UkfeSceneModeMenu]       = scene_mode_menu_on_exit,
+     [UkfeSceneStatus]         = scene_status_on_exit,
+     [UkfeScenePayloadList]    = scene_payload_list_on_exit,
+-    [UkfeSceneTriggerConfirm] = scene_status_on_exit,
++    [UkfeSceneTriggerConfirm] = scene_trigger_confirm_on_exit,
+     [UkfeSceneLog]            = scene_log_on_exit,
+     [UkfeSceneSettings]       = scene_settings_on_exit,
+ };
+diff --git a/scenes/scene_menu.c b/scenes/scene_menu.c
+index 0cde762..4a01258 100644
+--- a/scenes/scene_menu.c
++++ b/scenes/scene_menu.c
+@@ -44,8 +44,15 @@ static void menu_callback(void* ctx, uint32_t index) {
+         if((int)index < CATALOG_COUNT) { s_cat = (int)index; build_menu(app); }
+     } else {
+         if(index < CATALOG[s_cat].count) {
+-            send_fn(app, &CATALOG[s_cat].fns[index]);
+-            scene_manager_next_scene(app->scene_manager, UkfeSceneLog);
++            const UkfeFn* fn = &CATALOG[s_cat].fns[index];
++            if(fn->cmd == UkfeRfCmdTrigger && fn->has_arg) {
++                // "Trigger [V3]": Payload-ID/Delay statt des festen arg=0
++                // abfragen (siehe scene_trigger_confirm.c).
++                scene_manager_next_scene(app->scene_manager, UkfeSceneTriggerConfirm);
++            } else {
++                send_fn(app, fn);
++                scene_manager_next_scene(app->scene_manager, UkfeSceneLog);
++            }
+         }
+     }
+ }
+diff --git a/scenes/scene_trigger_confirm.c b/scenes/scene_trigger_confirm.c
+new file mode 100644
+index 0000000..6e0ce14
+--- /dev/null
++++ b/scenes/scene_trigger_confirm.c
+@@ -0,0 +1,87 @@
++#include "../lora_ukfe.h"
++#include "scenes.h"
++
++// Zwei-Schritt-Zahleneingabe fuer den Katalog-Menuepunkt "Trigger [V3]"
++// (UkfeRfCmdTrigger, command_catalog.h FN_PAYLOAD[0]): bisher lief dieser
++// Eintrag ueber scene_menu.c/send_fn() immer mit fest verdrahtetem arg=0 --
++// jede Payload-ID ausser 0 sowie ein delay_ms > 0 waren ueber das Katalog-Menue
++// gar nicht erreichbar (siehe "Offen" in
++// app-improvements/lora-ukfe/catalog-trigger-arg-format-mismatch-fix.md).
++// Diese Scene fragt beides ab und baut den Frame direkt ueber
++// ukfe_rf_make_trigger() -- denselben Builder, den der dort dokumentierte
++// Wire-Format-Fix fuer send_fn() vorschlaegt --, macht den dortigen
++// send_fn()-Sonderfall fuer diesen Katalog-Eintrag also ueberfluessig, da er
++// jetzt nie mehr ueber den generischen Pfad laeuft.
++
++// Obergrenze fuer delay_ms im UI: 5 Minuten. UkfeRfCmdTrigger traegt intern
++// ein volles uint32 (siehe rf/ukfe_rf.h), aber NumberInput rechnet mit
++// int32_t -- 5 Minuten deckt jeden realistischen Trigger-Verzug ab und bleibt
++// mit wenigen Tastendruecken eingebbar.
++#define TRIGGER_DELAY_MS_MAX 300000
++
++typedef enum {
++    TriggerStepId = 0,
++    TriggerStepDelay,
++} TriggerStep;
++
++static TriggerStep s_step;
++static uint8_t     s_id;
++
++static void trigger_delay_cb(void* ctx, int32_t number) {
++    LораUkfeApp* app = ctx;
++    uint32_t delay_ms = (uint32_t)number;
++
++    UkfeRfMessage m;
++    ukfe_rf_make_trigger(&m, s_id, delay_ms);
++    ukfe_uart_send_rf(app, &m);
++
++    scene_manager_next_scene(app->scene_manager, UkfeSceneLog);
++}
++
++static void show_delay_step(LораUkfeApp* app, int32_t preset) {
++    s_step = TriggerStepDelay;
++    number_input_set_header_text(app->number_input, "Delay ms (0-300000)");
++    number_input_set_result_callback(
++        app->number_input, trigger_delay_cb, app, preset, 0, TRIGGER_DELAY_MS_MAX);
++}
++
++static void trigger_id_cb(void* ctx, int32_t number) {
++    LораUkfeApp* app = ctx;
++    s_id = (uint8_t)number;
++    show_delay_step(app, 0);
++}
++
++static void show_id_step(LораUkfeApp* app, int32_t preset) {
++    s_step = TriggerStepId;
++    number_input_set_header_text(app->number_input, "Payload-ID (0-255)");
++    number_input_set_result_callback(app->number_input, trigger_id_cb, app, preset, 0, 255);
++}
++
++void scene_trigger_confirm_on_enter(void* ctx) {
++    LораUkfeApp* app = ctx;
++    s_id = 0;
++    show_id_step(app, 0);
++    view_dispatcher_switch_to_view(app->view_dispatcher, UkfeViewNumberInput);
++}
++
++bool scene_trigger_confirm_on_event(void* ctx, SceneManagerEvent event) {
++    LораUkfeApp* app = ctx;
++    bool consumed = false;
++
++    if(event.type == SceneManagerEventTypeBack) {
++        if(s_step == TriggerStepDelay) {
++            // Ein Back waehrend der Delay-Eingabe geht einen Schritt zurueck zur
++            // ID-Eingabe (mit der zuletzt eingegebenen ID vorbelegt) statt die
++            // ganze Scene zu verlassen und beide Eingaben zu verwerfen.
++            show_id_step(app, s_id);
++            consumed = true;
++        }
++        // Back auf der ID-Eingabe: nicht konsumiert -> Standardverhalten
++        // (scene_manager verlaesst die Scene, zurueck zum Katalog-Menue).
++    }
++    return consumed;
++}
++
++void scene_trigger_confirm_on_exit(void* ctx) {
++    UNUSED(ctx);
++}
+diff --git a/scenes/scenes.h b/scenes/scenes.h
+index 3dfaa43..dc399df 100644
+--- a/scenes/scenes.h
++++ b/scenes/scenes.h
+@@ -37,6 +37,11 @@ void scene_payload_list_on_enter(void* ctx);
+ bool scene_payload_list_on_event(void* ctx, SceneManagerEvent event);
+ void scene_payload_list_on_exit(void* ctx);
+ 
++// ─── scene_trigger_confirm.c ──────────────────────────────────────────────────
++void scene_trigger_confirm_on_enter(void* ctx);
++bool scene_trigger_confirm_on_event(void* ctx, SceneManagerEvent event);
++void scene_trigger_confirm_on_exit(void* ctx);
++
+ // ─── scene_log.c ──────────────────────────────────────────────────────────────
+ void scene_log_on_enter(void* ctx);
+ bool scene_log_on_event(void* ctx, SceneManagerEvent event);
