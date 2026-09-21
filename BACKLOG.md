@@ -1019,6 +1019,38 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       unquoted- vs. quoted-`subghz`-Aufruf) unter ASan/UBSan: ALLE CHECKS BESTANDEN, in
       `firmware-mining/repro-cli-quoted-path-handling-loader-subghz-fix/repro.c`, Details in
       `firmware-mining/cli-quoted-path-handling-loader-subghz-fix.md`.
+- [x] Unleashed `dev` seit dem zuletzt geprüften Stand (`c74f6b1d5`, iButton-Write-Target-Fund,
+      bewusst zurückgestellt) gegengeprüft: zwei neue Commits, `8fdb70dd3` (PR #1112, "HID:
+      improve Mouse Jiggler timers and Bluetooth controls") und `9effa4b44` (PR #1149, "RFID:
+      enter cards by facility code and card number, read HID formats and Casi-Rusco badges").
+      Letzterer ist mit 1131 Zeilen über 18 Dateien (neue LFRFID-Manual-Entry-/HID-Format-
+      Infrastruktur) für den hier üblichen Sitzungsumfang erneut zu groß — für eine künftige,
+      eigens dafür vorgesehene Sitzung vorgemerkt, wie schon `c74f6b1d5`. Aus `8fdb70dd3`
+      (bündelt mehrere, teils voneinander abhängige Jiggler-Fixes über vier Dateien) den einen
+      unabhängig portierbaren Teilfund herausgelöst: die Registrierungsreihenfolge von
+      BLE-Advertising-Start und Verbindungsstatus-Callback in `hid_ble_app()`
+      (`applications/system/hid_app/hid.c`) — bei mir (`mntm-012`) byteidentisch zum
+      Unleashed-Vorher-Stand. Eine bereits gekoppelte Gegenstelle kann sich verbinden, bevor der
+      Callback registriert ist; das Verbindungsereignis geht dann verloren, und das
+      Verbindungssymbol jeder BLE-HID-Ansicht (inkl. beider Mouse-Jiggler-Varianten, die es
+      bereits unabhängig von diesem Fund anzeigen) bleibt bis zum nächsten unabhängigen
+      Statuswechsel fälschlich auf "getrennt" stehen. Mit Host-Repro (Bt-Service-Callback-Slot
+      und Advertising-Start-Ereignis minimal nachgebaut, drei Gruppen: kein Race ohne bereits
+      gekoppelte Gegenstelle, Ereignis geht bei ALT verloren/kommt bei NEU an, Regression
+      späterer gewöhnlicher Verbindungswechsel) unter ASan/UBSan verifiziert: ALLE CHECKS
+      BESTANDEN. Zwei-Zeilen-Patch (reine Vertauschung, kein neuer Code) gegen meine
+      unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab verifiziert, real angewendet und
+      Byte-für-Byte abgeglichen — identisch) in
+      `firmware-mining/hid-ble-status-callback-registered-after-advertising-fix/hid_c.patch`,
+      Host-Repro in
+      `firmware-mining/repro-hid-ble-status-callback-registered-after-advertising/repro.c`,
+      Details in `firmware-mining/hid-ble-status-callback-registered-after-advertising-fix.md`.
+      Restlicher Umfang von `8fdb70dd3` (Stop stoppt den Jiggler-Timer nicht wirklich, Verlassen
+      der Ansicht setzt `running` nicht zurück, Stealth-Neubewaffnung-Race, Stealth-Bewegung kann
+      0 sein, Jiggler wartet über BLE nicht auf die Verbindung vor dem Senden) bewusst
+      zurückgestellt — baut sinnvoll auf dem bereits vorgeschlagenen, bei mir noch nicht
+      angewendeten `hid-jiggler-stealth-move-bounds-fix.md` auf, für eine künftige Sitzung
+      vorgemerkt.
 
 ## App-Verbesserungen (reine Logik, ohne HW testbar)
 - [x] **g4meover-magspoof**: Card-String→MagDevice-Parser (aus astro-cyberpaws-Fork, identisch in

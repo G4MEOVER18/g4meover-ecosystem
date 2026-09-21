@@ -1,0 +1,12 @@
+--- a/applications/system/hid_app/hid.c
++++ b/applications/system/hid_app/hid.c
+@@ -338,8 +338,8 @@
+ 
+     furi_check(app->ble_hid_profile);
+ 
+-    furi_hal_bt_start_advertising();
+     bt_set_status_changed_callback(app->bt, bt_hid_connection_status_changed_callback, app);
++    furi_hal_bt_start_advertising();
+ 
+     dolphin_deed(DolphinDeedPluginStart);
+ 
