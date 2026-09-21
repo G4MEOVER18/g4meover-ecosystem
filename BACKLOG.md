@@ -1840,6 +1840,29 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       aber kein Protokollfehler — bewusst nicht mitgefixt, als Bedienungs-Rückstellpunkt
       vermerkt. `lora-ukfe`-Code damit bis auf UI-seitige Vervollständigung (id-/delay_ms-Eingabe
       im Katalog-Menü, `Payload-Run`-Index-Auswahl) vollständig geprüft.
+- [x] **RollJam**: den bereits vorgeschlagenen Puffer-Reset-Fix im aktuellen Stand von
+      `G4MEOVER18/RollJam` bestätigt (`rolljam_capture_pause()`/`_resume()` bereits im
+      Hauptzweig übernommen) und die gesamte App (623 Zeilen über `rolljam_app.c`/`.h`,
+      `rolljam_rf.c`/`.h`, `rolljam_states.h`) erneut vollständig durchgesehen. Fund:
+      `rj_draw_cb()` zeichnet auf dem `ROLLJAM_IDLE`- und dem `ROLLJAM_DONE`-Bildschirm je
+      einen `elements_button_left(canvas, "Exit")`-Hinweis, aber `rj_input_cb()` wertet
+      `InputKeyLeft` an keiner Stelle aus — einzig die separate Hardware-Back-Taste
+      (`InputKeyBack`) löst tatsächlich `app->abort = true` aus. Der angezeigte Hinweis ist
+      auf beiden Bildschirmen wirkungslos. Fix (neuer `InputKeyLeft`-Zweig direkt nach dem
+      bestehenden `InputKeyBack`-Zweig, aktiv nur in `IDLE`/`DONE`, nach demselben Muster wie
+      der bestehende zustandsabhängige `InputKeyRight`-Zweig) in
+      `app-improvements/RollJam/exit-button-left-key-unhandled-fix.md`, Unified-Diff gegen die
+      unveränderte Basis (`git apply --check` vorab gegen eine frische Kopie verifiziert, real
+      angewendet und byte-für-byte abgeglichen — identisch) in
+      `app-improvements/RollJam/exit-button-left-key-unhandled-fix/rolljam_app_c.patch`. Mit
+      Host-Repro (reine Zustands-/Flag-Entscheidungslogik von `rj_input_cb()` nachgebaut, ALT
+      wortgleich der aktuellen Funktion) unter ASan/UBSan verifiziert: 22 Prüfungen — Left-Taste
+      in `IDLE`/`DONE` (ALT wirkungslos, NEU setzt `abort`), Regression Left-Taste in den vier
+      übrigen Zuständen, Regression Back-/Right-Taste in allen sechs Zuständen, Regression
+      Ok-Taste-Zustandsübergänge, Regression `InputTypeLong` — ALL CHECKS PASSED, in
+      `app-improvements/RollJam/repro-exit-button-left-key-unhandled/repro.c`. RF-Layer
+      (`rolljam_rf.c`: Jam-/Capture-/Replay-Callbacks, OTG-Power-Handling, Signalpuffer-Packing,
+      `rolljam_replay_done()`) bei dieser Sitzung ebenfalls durchgesehen, kein weiterer Fund.
 
 ## Ideen-Recherche
 - [x] Kuratierte Liste starker Pentest-Apps (SubGHz/NFC/RFID/BadUSB/2.4G) mit API-87-Status:

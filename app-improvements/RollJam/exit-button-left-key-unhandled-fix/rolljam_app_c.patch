@@ -1,0 +1,22 @@
+diff --git a/rolljam_app.c b/rolljam_app.c
+index 1d956bd..3195f33 100644
+--- a/rolljam_app.c
++++ b/rolljam_app.c
+@@ -105,6 +105,17 @@ static void rj_input_cb(InputEvent* ev, void* ctx) {
+         return;
+     }
+ 
++    // Left button = the "Exit" hint drawn via elements_button_left() on the
++    // IDLE and DONE screens. Without this branch that hint does nothing —
++    // only the (unlabeled) hardware Back key actually exits from those
++    // screens, contradicting what the UI tells the user to press.
++    if(ev->key == InputKeyLeft) {
++        if(app->state == ROLLJAM_IDLE || app->state == ROLLJAM_DONE) {
++            app->abort = true;
++        }
++        return;
++    }
++
+     // Right button = abort during active phases
+     if(ev->key == InputKeyRight) {
+         if(app->state == ROLLJAM_PHASE1_JAMMING ||
