@@ -1,0 +1,17 @@
+--- a/applications/system/hid_app/views/hid_mouse_jiggler.c
++++ b/applications/system/hid_app/views/hid_mouse_jiggler.c
+@@ -106,10 +106,12 @@
+         {
+             if(event->type == InputTypePress && event->key == InputKeyOk) {
+                 model->running = !model->running;
++                // Stop unconditionally first: previously only the "now running" branch touched
++                // the timer, so pressing Stop left it armed and ticking into a no-op callback.
++                furi_timer_stop(hid_mouse_jiggler->timer);
+                 if(model->running) {
+-                    furi_timer_stop(hid_mouse_jiggler->timer);
+                     furi_timer_start(hid_mouse_jiggler->timer, intervals[model->interval_idx]);
+-                };
++                }
+                 consumed = true;
+             }
+             if(event->type == InputTypePress && event->key == InputKeyRight && !model->running &&

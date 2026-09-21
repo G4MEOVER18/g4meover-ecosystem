@@ -2435,6 +2435,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       dieselbe Zählung wie das JSON-`id`-Feld verwendet (nur mit Einblick in die
       Hub-Firmware sicher klärbar, nicht rein aus diesem Flipper-Quelltext).
 
+## Firmware-Feature-Mining (Fortsetzung)
+- [x] Den bei `8fdb70dd3` (PR #1112) zurückgestellten "restlichen Umfang" (siehe oben, Zeile
+      ~1048) aufgegriffen und den ersten der fünf offenen Teilfunde bearbeitet: **Pressing Stop
+      stoppt den Mouse-Jiggler-Timer nicht wirklich**, `hid_mouse_jiggler_input_callback()` in
+      `applications/system/hid_app/views/hid_mouse_jiggler.c` (nicht-stealth Variante) —
+      `furi_timer_stop()`/`_start()` werden ausschließlich im "jetzt läuft"-Zweig aufgerufen, der
+      umgekehrte Übergang (Stop-Druck) fasst den periodischen `FuriTimer` gar nicht an; er bleibt
+      im zuletzt gewählten Intervall bewaffnet und feuert No-op-Ticks (Lock-Aufnahme +
+      `model->running`-Prüfung, sonst nichts), solange die View geöffnet bleibt, obwohl die UI
+      "Start" (gestoppt) anzeigt. Bei mir (`mntm-012`) byteidentisch zum Unleashed-Vorher-Stand.
+      Mit Host-Repro (OK-Druck-Zweige 1:1 nachgebaut, Mock-Timer mit `armed`-Flag statt der
+      opaken `furi_timer_*`-HAL-Aufrufe, vier Gruppen: ALT bleibt nach Stop dauerhaft bewaffnet
+      und bedient 1000/1000 weitere Ticks, NEU bedient 0/1000, 5000-Presses-Regression bestätigt
+      identisches `running`-Umschaltverhalten UND durchgehend `armed == running` bei NEU, ALT
+      bleibt nicht nur für einen Tick hängen sondern dauerhaft) unter ASan/UBSan verifiziert:
+      ALLE CHECKS BESTANDEN. Minimale Änderung (unbedingter `furi_timer_stop()`-Aufruf vor der
+      bestehenden `if(model->running)`-Verzweigung, kein neues Nebenläufigkeitsmuster, bewusst
+      nicht Unleasheds volle Umstrukturierung mit Auslagerung der Timer-Aufrufe aus dem Lock
+      übernommen, da das dortige Wettlauf-Risiko einen selbst-neubewaffnenden One-Shot-Timer
+      voraussetzt, den dieser periodische, nicht-stealth Jiggler nicht hat) gegen meine
+      unveränderte `mntm-012`-Basis (`patch --dry-run -p1` vorab verifiziert, real angewendet und
+      Byte-für-Byte abgeglichen — identisch) in
+      `firmware-mining/hid-jiggler-stop-does-not-stop-timer-fix/hid_mouse_jiggler_c.patch`,
+      Host-Repro in
+      `firmware-mining/repro-hid-jiggler-stop-does-not-stop-timer-fix/repro.c`, Details in
+      `firmware-mining/hid-jiggler-stop-does-not-stop-timer-fix.md`. Restlicher Umfang von
+      `8fdb70dd3` weiterhin offen: Verlassen der Ansicht setzt `running` nicht zurück (führt beim
+      erneuten Öffnen zu fälschlich hervorgehobenem "Stop"), Stealth-Neubewaffnung-Race,
+      Stealth-Bewegung kann 0 sein, Jiggler wartet über BLE nicht auf die Verbindung vor dem
+      Senden — für künftige Sitzungen vorgemerkt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
