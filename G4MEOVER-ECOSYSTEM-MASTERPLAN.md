@@ -543,12 +543,64 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     passen, lokal gegen die echte `FLEET-COMMANDS.md`-Historie/Firmware klären.
   - Verifikation: nur lokal (echte SX1262-Hardware, sichtbare Fremd-LoRa-Pakete im RX-Log).
 - [ ] P4.4 LORIX-Bezug: Gateway-Status/Traffic aus LORIX/TTN, optional Raw-Packet-Forwarder-Log am Pi.
-- [ ] P4.5 (Prüfen) LoRa-Sniffing am Flipper (nur mit SX126x-Modul) / am Pi (SX1262-HAT o. LORIX-UDP).
+  - [ ] P4.4a Gateway-Status/Traffic-Quelle: TTN selbst liefert pro Gateway bereits Live-/Health-Daten
+    über dieselbe MQTT-Verbindung wie P4.1b (Topic `v3/<app-id>/…` ist Application-, nicht
+    Gateway-scope — für Gateway-Metriken stattdessen die TTN-Gateway-API/Console bzw. das
+    LORIX-eigene Web-UI nötig). Zwei unabhängige Quellen, nicht eine: (1) TTN-Sicht (Uplinks
+    beim Gateway angekommen, RSSI/SNR je Uplink — bereits Teil der P4.1b-Uplink-Metadaten, kein
+    zusätzlicher Kanal nötig), (2) LORIX-eigene Sicht (Gateway-Auslastung, Paketforwarder-Status,
+    unabhängig davon ob TTN gerade erreichbar ist) — nur lokal gegen die echte LORIX-Firmware-
+    Version zu klären, ob sie eine JSON-/SNMP-Statusabfrage anbietet oder nur die Web-UI.
+  - [ ] P4.4b Optionales Raw-Packet-Forwarder-Log: nur falls P4.4a (2) keine strukturierte Abfrage
+    hergibt, ersatzweise `journalctl`/Log-Datei des Packet-Forwarder-Diensts per Pi-SSH tailen
+    (`tail -f`/`journalctl -u <dienst> -f`) und roh im GUI-Log-Panel (P1.6) anzeigen — bewusst als
+    Fallback zuletzt, nicht als erster Ansatz, da unstrukturiert.
+  - Verifikation: nur lokal (echtes LORIX-Web-UI/CLI, echte TTN-Console).
+- [ ] P4.5 LoRa-Sniffing: Standort-Entscheidung Flipper (nur mit SX126x-Modul) vs. Pi (SX1262-HAT
+  o. LORIX-UDP) — **kein eigenständiges Feature, sondern dieselbe P4.3-Sniff-Funktion an einem
+  anderen Standort.** P4.3 setzt bereits „auf V3/V4" voraus (beide ESP32-S3+SX1262, siehe
+  Geräte-Inventar); P4.5 fragt zusätzlich, ob derselbe Dauer-RX-Ansatz aus P4.3a auch über ein
+  am Flipper angeschlossenes SX126x-Modul (falls vorhanden — nicht im aktuellen Geräte-Inventar
+  gelistet, erst lokal prüfen ob eines existiert) oder über die LORIX-eigene UDP-Paketforwarder-
+  Schnittstelle (Semtech-UDP-Protokoll, würde am Pi ankommen, kein SX1262-HAT nötig) sinnvoller
+  ist als eine dritte Hardware-Variante. Erst nach P4.3a (Register-/Filter-Klärung) entscheidbar,
+  keine eigene Vorarbeit nötig — als reine Standort-Entscheidung im PREP-Abschnitt vermerkt statt
+  hier eigene Unterschritte zu erfinden.
 
 ### Phase 5 — DogyTag-Integration
 - [ ] P5.1 DogyTag-Tab: Live-Position/Batt/State via TTN-Uplinks (App dogytag-v1) — read-only.
+  - [ ] P5.1a Ingestion-Pfad: denselben MQTT-Subscribe-Ansatz wie P4.1b wiederverwenden (eigene
+    TTN-v3-Application `dogytag-v1` statt der Ökosystem-App, sonst identisches Topic-Schema
+    `v3/dogytag-v1/devices/<dev-id>/up`) — kein zweiter Ingestion-Mechanismus nur für DogyTag.
+  - [ ] P5.1b Uplink-Payload-Decoder (Position/Batt/State aus den rohen FRMPayload-Bytes): **lokal,
+    nicht aus der Cloud lieferbar** — Payload-Format ist entweder in der DogyTag-Firmware selbst
+    oder in der TTN-Payload-Formatter-Konfiguration der App `dogytag-v1` festgelegt, beides
+    außerhalb des Cloud-Zugriffs-Scopes (analog P1.2b/P2.1b/P4.3a); ohne den echten Uplink-Payload
+    zu raten wäre unverifizierte Annahme, kein prüfbares Artefakt.
+  - [ ] P5.1c Tab-Grundgerüst hängt am selben Blocker wie P1.3.0/P4.1a (`g4meover_control.py`
+    im Repo nicht auffindbar) — erst dort klären/committen, dann hier als weiteren Tab anlegen,
+    kein zweites GUI-Grundgerüst.
+  - Verifikation: P5.1a (Cloud-Teil) — MQTT-Topic-Schema ist bereits durch P4.1b belegt, keine
+    weitere Prüfung nötig; P5.1b/c nur lokal (echte App-Credentials, echter Uplink).
 - [ ] P5.2 Konfig-Downlinks (Intervall/Modus) — additiv, Produktion nicht umkonfigurieren.
+  - [ ] P5.2a Baut auf P4.2 (Downlink-Kommandokanal) auf, sobald dessen P4.2a-Blocker (Fleet-
+    Broadcast-Code im Repo nicht auffindbar) geklärt ist — kein eigener Downlink-Pfad nur für
+    DogyTag.
+  - [ ] P5.2b **CONSTRAINTS-Grenze konkretisiert:** „Produktion nicht umkonfigurieren" heißt hier
+    praktisch — kein Downlink-Test gegen das echte, im Feld laufende DogyTag-Gerät, solange kein
+    zweites (Test-)Gerät oder ein Simulator-/Staging-Device auf derselben TTN-Application zur
+    Verfügung steht. Vor der ersten echten Downlink-Sendung lokal klären, ob ein solches
+    Test-Gerät existiert; falls nicht, Konfig-Downlinks nur gegen simulierte/aufgezeichnete
+    Uplinks entwerfen, nicht live gegen das Produktivgerät verifizieren.
+  - Verifikation: nur lokal, und nur gegen ein Test-/Staging-Gerät (siehe P5.2b) — niemals gegen
+    das produktive DogyTag-Feldgerät.
 - [ ] P5.3 MQTT-Bezug (mosquitto 192.168.0.80) additiv auf `dogytag/#`.
+  - [ ] P5.3a Rein additiv heißt hier: **nur `SUBSCRIBE` auf `dogytag/#`, kein `PUBLISH`** —
+    reiner Lesezugriff auf denselben Broker, auf dem ggf. bereits andere Dienste laufen, um deren
+    Zustand nicht zu beeinflussen. `192.168.0.80` ist eine LAN-Adresse und aus der Cloud nicht
+    erreichbar (analog Pi-SSH/LORIX) — nur lokal zu implementieren/testen.
+  - Verifikation: nur lokal (`mosquitto_sub -h 192.168.0.80 -t 'dogytag/#' -v` als erster
+    Praxis-Test, bevor ein GUI-Client entsteht).
 
 ### Phase 6 — Kartenansicht
 - [ ] P6.1 Karten-Tab (Leaflet in QWebEngine, offline-Tiles optional): alle GPS-Geräte live (Dogy, Wardrive-GPS, …).
@@ -812,6 +864,40 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
   Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-09-21 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-3-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — nächsten unverfeinerten
+  Tier aufgegriffen: P4.4/P4.5 (Rest von Phase 4) und Phase 5 (DogyTag, P5.1-P5.3) in Abschnitt 4
+  in Unterschritte zerlegt. P4.4 (LORIX-Bezug) in zwei unabhängige Quellen aufgeteilt (TTN-Sicht
+  bereits über P4.1b abgedeckt, kein zusätzlicher Kanal nötig; LORIX-eigene Gateway-/
+  Paketforwarder-Sicht separat, nur lokal gegen die echte LORIX-Firmware zu klären). P4.5 als das
+  erkannt, was es ist — keine eigene Funktion, sondern dieselbe P4.3-Sniff-Funktion an einem
+  anderen Hardware-Standort (Flipper-SX126x-Modul vs. LORIX-UDP-Paketforwarder) — deshalb bewusst
+  ohne eigene Unterschritte belassen, nur als Standort-Entscheidung nach P4.3a vermerkt, um keine
+  doppelte Planung für dieselbe Sache zu erzeugen. Phase 5: P5.1a verweist auf denselben
+  MQTT-Subscribe-Mechanismus wie P4.1b (nur andere TTN-Application-ID `dogytag-v1`) statt eines
+  zweiten Ingestion-Wegs; P5.1b (Uplink-Payload-Decoder) als „lokal, nicht aus der Cloud
+  lieferbar" markiert (Payload-Format liegt in der DogyTag-Firmware bzw. TTN-Payload-Formatter-
+  Konfiguration, beides außerhalb des Zugriffs-Scopes, analog P1.2b/P4.3a). P5.2b konkretisiert
+  die bestehende CONSTRAINTS-Grenze „Produktion nicht umkonfigurieren" auf eine prüfbare Regel:
+  kein Downlink-Test gegen das echte Feldgerät ohne Test-/Staging-Gerät. P5.3a macht „additiv"
+  bei `dogytag/#` explizit: nur `SUBSCRIBE`, nie `PUBLISH` auf den gemeinsam genutzten
+  Mosquitto-Broker. Vor der Textarbeit geprüft: seit dem letzten Masterplan-Log-Eintrag
+  (2026-09-19) sind 25 weitere Commits auf `main` gelandet, ausschließlich Firmware-Mining-/
+  App-Verbesserungs-Beiträge einer separaten, häufiger laufenden lokalen/Cloud-Routine (siehe
+  `reports/2026-09-20-*.md`, `2026-09-21-0026.md`) — keine davon berührt Abschnitt 4/PREP dieser
+  Datei, daher keine Überschneidung mit der heutigen Verfeinerung. Dabei auch geprüft, ob dieselbe
+  Art lokaler `main`-Branch-Zeiger-Drift wie 2026-09-15/17/19 vorliegt: dieses Mal war der
+  Checkout-Kopf stattdessen (ungewöhnlich) direkt auf demselben Commit wie `origin/main`
+  detached statt auf einem veralteten `main`-Zweig zu stehen — nach `git fetch` bestätigt: kein
+  Rückstand, keine Fast-Forward-Aktion nötig, reine Beobachtung ohne Handlungsbedarf. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/
+  `flipper_ctl.py`/`g4meover_resume.py`) sowie der P4.2a-Fund (Fleet-Broadcast/RespAck-Stand nicht
+  auffindbar) erneut gegen `git log --all --diff-filter=A` geprüft: unverändert kein Treffer.
+  Repo-Sichtbarkeit erneut per GitHub-API geprüft (`visibility`-Feld): weiterhin `private`.
+  Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt
+  25 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
+  eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
+  geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -852,7 +938,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 20 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 25 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -879,6 +965,16 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    nachzuliefern ist. P4.3a (LoRa-Sniffer-Register/-Filterung) nur gegen die echte
    `heltec-v4-hub`/`lora-ukfe`-Firmware zu klären (außerhalb des Cloud-Scopes, dieselbe Begründung
    wie P1.2b/P2.1b/P2.4b/P3.1a/P3.2a).
+8. Rest von Phase 4 (P4.4/P4.5) und Phase 5 (DogyTag) sind jetzt ebenfalls in Unterschritte
+   zerlegt. P4.4 zuerst die TTN-Sicht nutzen (bereits über P4.1b abgedeckt, kein zusätzlicher
+   Kanal) und nur bei Bedarf die LORIX-eigene Gateway-Sicht (P4.4a) bzw. das Log-Tailing als
+   Fallback (P4.4b) ergänzen. P4.5 ist keine eigene Aufgabe, sondern eine Standort-Entscheidung
+   für P4.3 — erst nach P4.3a entscheiden, nicht vorher planen. Phase 5: P5.1a den bestehenden
+   MQTT-Subscribe-Mechanismus aus P4.1b für die App `dogytag-v1` wiederverwenden; P5.1b
+   (Payload-Decoder) erst lokal gegen die echte Firmware/TTN-Formatter-Konfiguration klären. Vor
+   jedem Downlink-Test gegen DogyTag (P5.2b) erst prüfen, ob ein Test-/Staging-Gerät existiert —
+   niemals gegen das produktive Feldgerät senden. P5.3 nur als reiner `SUBSCRIBE` auf
+   `dogytag/#` umsetzen, nie `PUBLISH`.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
@@ -912,7 +1008,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 20 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 25 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -982,26 +1078,30 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-19):** Phase 4 (P4.1–P4.3) in Abschnitt 4 in
-Unterschritte zerlegt — P4.1 bekam einen konkreten TTN-v3-Zugriffsweg (MQTT-Subscribe für
-Live-Events statt Polling) plus eine sofort umsetzbare, rein rechnerische Duty-Cycle-Teilaufgabe
-(EU868-Airtime nach Semtech AN1200.13); P4.2 deckte einen neuen Blocker auf (der als „✅
-Fleet-Broadcast/RespAck" geführte Stand vom 2026-08-26 ist im Repo nicht auffindbar, analog dem
-2026-09-13-Tool-Dateien-Blocker); P4.3 als „lokal, nicht aus der Cloud lieferbar" markiert (SX1262
-hat keinen echten Promiscuous-Modus, Register-/Filter-Klärung nur gegen die echte, außerhalb des
-Cloud-Scopes liegende Firmware-Quelle möglich). Lokaler `main`-Branch-Zeiger dieses Checkouts war
-erneut veraltet (16 Commits hinter `origin/main`, dieselbe Art Drift wie 2026-09-15/17) — per
-Fast-Forward nachgezogen, kein Datenverlust. Blocker „referenzierte Tool-Dateien fehlen im Repo"
-erneut geprüft: unverändert kein Treffer. Zugangsdaten-Rotation weiterhin offen, jetzt 23 Tage —
-keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein
-Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Cloud hat in dieser Sitzung erledigt (2026-09-21):** Rest von Phase 4 (P4.4/P4.5) und Phase 5
+(DogyTag, P5.1–P5.3) in Abschnitt 4 in Unterschritte zerlegt. P4.4 in zwei unabhängige Quellen
+aufgeteilt (TTN-Sicht bereits über P4.1b abgedeckt; LORIX-eigene Gateway-/Paketforwarder-Sicht
+separat, nur lokal zu klären). P4.5 als reine Standort-Entscheidung für P4.3 erkannt (Flipper-
+SX126x-Modul vs. LORIX-UDP), bewusst ohne eigene Unterschritte belassen statt doppelt zu planen.
+P5.1a verweist auf denselben MQTT-Subscribe-Mechanismus wie P4.1b (nur andere TTN-Application
+`dogytag-v1`); P5.1b (Payload-Decoder) als „lokal, nicht aus der Cloud lieferbar" markiert; P5.2b
+konkretisiert „Produktion nicht umkonfigurieren" auf eine prüfbare Regel (kein Downlink-Test ohne
+Test-/Staging-Gerät); P5.3a macht „additiv" explizit (nur `SUBSCRIBE`, nie `PUBLISH`). 25 seit dem
+letzten Masterplan-Log-Eintrag gelandete Commits geprüft — ausschließlich eine separate,
+häufiger laufende Firmware-Mining-/App-Verbesserungs-Routine, keine Überschneidung mit Abschnitt
+4/PREP. Blocker „referenzierte Tool-Dateien fehlen im Repo" sowie P4.2a-Fund erneut geprüft:
+unverändert kein Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation weiterhin offen,
+jetzt 25 Tage — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
+eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-17):** Phase 3 vollständig in Unterschritte zerlegt — P3.2
-(BOOT-Taste) bekam eine Zeitschwellen-basierte Ereignis-Ableitung mit Mapping auf den
-P3.1b-Dispatch sowie eine Einordnung, welche OLED-Seiten überhaupt eine sinnvolle
-Lang-Press-Aktion haben; P3.3 verweist auf dieselbe LastResult-Seite aus P3.1; P3.4 als reiner
-Prozessschritt markiert. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation damals 21 Tage offen.
-Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-19):** Phase 4 (P4.1–P4.3) in Abschnitt 4 in Unterschritte
+zerlegt — P4.1 bekam einen konkreten TTN-v3-Zugriffsweg (MQTT-Subscribe für Live-Events statt
+Polling) plus eine sofort umsetzbare, rein rechnerische Duty-Cycle-Teilaufgabe (EU868-Airtime nach
+Semtech AN1200.13); P4.2 deckte einen neuen Blocker auf (der als „✅ Fleet-Broadcast/RespAck"
+geführte Stand vom 2026-08-26 ist im Repo nicht auffindbar); P4.3 als „lokal, nicht aus der Cloud
+lieferbar" markiert (SX1262 hat keinen echten Promiscuous-Modus). Repo-Sichtbarkeit `private`.
+Zugangsdaten-Rotation damals 23 Tage offen. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+Firmware-/GUI-Code geschrieben.
 
 ---
 
