@@ -2339,6 +2339,28 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Chip-Auswahl beim Schreiben mit; `49238e1bd` baut auf genau dieser Infrastruktur auf) — für den
       hier üblichen Umfang eines einzelnen Sitzungsbeitrags zu groß, für eine künftige, eigens dafür
       vorgesehene Sitzung vorgemerkt statt überstürzt in Teilen zu portieren.
+- [x] Neue Recherche außerhalb bestehender Rückstellpunkte: gezielt nach einer Ergänzung für die
+      bislang nur einen Eintrag (UART Sniff) enthaltende Katalog-Kategorie "GPIO / Serial Bus"
+      gesucht. Fund: **GPIO Logic Analyzer** (g3gg0, aktiv weitergepflegt u. a. über einen
+      `ecopsychologer`-Fork) — 8-Kanal-Logikanalysator über einen zweiten USB-CDC-Kanal, gibt
+      sich per SUMP-Protokoll gegenüber PulseView/sigrok als "Openbench Logic Sniffer" aus.
+      API-87-Status gegen den eigenen `mntm-012`-Header-Stand verifiziert (frischer,
+      blobloser Sparse-Checkout): alle acht referenzierten Erweiterungsport-Pins
+      (`gpio_ext_pc0/pc1/pc3/pb2/pb3/pa4/pa6/pa7`) sowie das USB-CDC-Zweitkanal-Muster
+      (`furi_hal_usb_set_config()`/`usb_cdc_single`/`_dual` aus `cli_vcp.c`,
+      `furi_hal_cdc_set_callbacks()`, `furi_hal_usb_unlock()`, `FuriApiLock`) identisch zu UART
+      Sniffs bereits verifizierter Basis vorhanden; die eigentliche Signalerfassung liest nur
+      STM32-Rohregister (`GPIOx->IDR`), ganz ohne Furi-HAL-Abhängigkeit. Dabei eine für den
+      PulseView-Einsatz relevante Diskrepanz gefunden: `sump_handle_get_metadata()` meldet
+      PulseView unbedingt eine feste 10-MHz-Abtastrate, die tatsächliche Erfassungsschleife
+      tastet aber rein ereignisbasiert (bei jeder Pegeländerung ein Sample) statt im
+      Zeitraster ab — von der eigenen README bereits ehrlich als offene Einschränkung benannt,
+      macht die in PulseView angezeigte Zeitachse für Frequenz-/Baudraten-Messung unzuverlässig,
+      die reine Flankenreihenfolge bleibt aber verwertbar. Kein Speicherzugriffsfehler gefunden.
+      Kuratiert in `ideas/gpio-logic-analyzer-app-status.md`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` ergänzt. Verwandter, noch nicht geprüfter Kandidat aus
+      derselben Suche: `NaejEL/flipperzero-i2ctools` (dedizierter I2C-Scanner/Sniffer/Sender)
+      für eine künftige Sitzung vorgemerkt.
 
 ## App-Verbesserungen
 - [x] lora-ukfe: den in `catalog-trigger-arg-format-mismatch-fix.md` als "Offen" vermerkten
