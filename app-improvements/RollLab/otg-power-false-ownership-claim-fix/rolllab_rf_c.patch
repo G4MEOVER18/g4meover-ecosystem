@@ -1,0 +1,16 @@
+diff --git a/rolllab_rf.c b/rolllab_rf.c
+index 0f5ab85..161fcb2 100644
+--- a/rolllab_rf.c
++++ b/rolllab_rf.c
+@@ -13,6 +13,11 @@ static volatile RollLabApp* s_replay_app = NULL;
+ static bool s_otg_by_app = false;
+ 
+ static void rl_power_on(void) {
++    if(furi_hal_power_is_otg_enabled()) {
++        // Schon von aussen an (Settings > Power "5V on GPIO" oder eine
++        // andere App/ein anderes Modul) -- nicht meine Zustaendigkeit.
++        return;
++    }
+     uint8_t attempts = 0;
+     while(!furi_hal_power_is_otg_enabled() && attempts++ < 5) {
+         furi_hal_power_enable_otg();

@@ -2466,6 +2466,30 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Stealth-Bewegung kann 0 sein, Jiggler wartet über BLE nicht auf die Verbindung vor dem
       Senden — für künftige Sitzungen vorgemerkt.
 
+## App-Verbesserungen (Fortsetzung)
+- [x] Die standalone **RollLab**-App (eigenes Repo, nicht das gleichnamige Modul innerhalb von
+      RollForge) auf denselben Fund geprüft, den ich zuvor in `RollForge/rollforge_rf.c` behoben
+      habe: `rolllab_rf.c` enthält 1:1 dieselbe OTG-Ownership-Buchhaltung für das externe
+      CC1101-Modul (`rl_power_on`/`rl_power_off`, nur umbenannt gegenüber
+      `rf_power_on`/`rf_power_off`) — bei mir vorher extern eingeschaltete 5V-Versorgung
+      (z. B. "5V on GPIO" im Power-Menü) wird beim bloßen Starten von RollLab ohne angeschlossenes
+      externes CC1101-Modul fälschlich als eigenes Eigentum beansprucht und sofort wieder
+      abgeschaltet, ohne Fehlermeldung. Fix identisch zur RollForge-Fassung: frühzeitige Rückkehr
+      in `rl_power_on()`, wenn die Schiene beim Aufruf bereits an ist. Mit Host-Repro (1:1 aus dem
+      bereits verifizierten RollForge-Repro übernommen, nur Funktionsnamen angepasst, drei
+      Szenarien: fälschliche Beanspruchung, echtes EXT-Board-Regression, Fehlerfall-Regression)
+      unter ASan/UBSan verifiziert, alle Fälle wie erwartet. Unified-Diff gegen die unveränderte
+      `G4MEOVER18/RollLab`-Basis (`4ea80481`, `git apply --check` vorab gegen frische Kopie
+      verifiziert, real angewendet und byte-für-byte abgeglichen — identisch) in
+      `app-improvements/RollLab/otg-power-false-ownership-claim-fix/rolllab_rf_c.patch`, Details
+      in `app-improvements/RollLab/otg-power-false-ownership-claim-fix.md`. Dabei zusätzlich
+      geprüft, kein Fund: `subghz_devices_begin(int_dev)`-Aufruf vor der Ext-Erkennung ist laut
+      `mntm-012`-Firmware-Quelle (`.begin = NULL` für das interne Device) ein dokumentierter No-Op,
+      kein Ressourcenleck; die `RLAB_ADVANCE`-Zustands-Restart-Race ist bereits sauber per
+      Zustandsprüfung abgesichert (kein Fund wie bei den bereits behobenen
+      RollForge-/RollJam-Race-Funden); die eigene, frühere Silence-Terminator-Fix ist bereits im
+      aktuellen RollLab-Repo-Stand übernommen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
