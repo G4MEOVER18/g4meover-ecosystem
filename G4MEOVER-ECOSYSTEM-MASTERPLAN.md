@@ -604,7 +604,42 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 6 — Kartenansicht
 - [ ] P6.1 Karten-Tab (Leaflet in QWebEngine, offline-Tiles optional): alle GPS-Geräte live (Dogy, Wardrive-GPS, …).
+  - [ ] P6.1a **Offene Toolkit-Spannung, hier aufgedeckt statt stillschweigend übernommen:** P1.1 hat
+    den tatsächlich gebauten Kali-Cockpit-Prototyp bereits auf Tkinter/`ttk.Notebook` festgelegt
+    (`g4meover_control.py`, siehe Abschnitt 4 P1.1-Log), nicht auf PySide6/Qt — die
+    „GUI-Framework: PySide6 vs. Web"-Entscheidung in Abschnitt 6 galt bislang als weiterhin offen,
+    ist für den Cockpit-Unterbau aber faktisch schon zugunsten Tkinter gefallen. P6.1 setzt jedoch
+    „Leaflet in QWebEngine" voraus (Qt WebEngine, Teil von PySide6) — Tkinter hat kein eingebautes
+    Web-Rendering-Widget, dieser Widerspruch war bisher nicht vermerkt. Optionen für die lokale
+    Entscheidung (hier bewusst nicht vorentschieden): (a) `tkintermapview` (reines
+    Tkinter-Widget, OSM-Tiles, ohne Qt-Abhängigkeit, aber geringerer Funktionsumfang als
+    Leaflet/QWebEngine), (b) `pywebview` als eingebettetes Fenster (reines Python, kein volles Qt),
+    (c) Karten-Tab als eigenständiges PySide6-Fenster neben dem bestehenden Tkinter-Hauptfenster
+    (zwei GUI-Toolkits parallel im selben Prozess), (d) den bisher aufgeschobenen Wechsel des
+    gesamten Cockpits auf PySide6 jetzt vorziehen. Vor jeder weiteren P6.1-Umsetzung erst
+    entscheiden, sonst entsteht doppelte GUI-Arbeit (ein Tab in fremdem Toolkit).
+  - [ ] P6.1b Datenquellen laut Geräte-Inventar (Abschnitt 1): **DogyTag** (LoRaWAN+GPS) über
+    denselben MQTT-Subscribe-Pfad wie P5.1a (TTN-Application `dogytag-v1`) — der
+    Payload-Decoder-Blocker aus P5.1b (lokal, nicht aus der Cloud lieferbar) gilt hier identisch,
+    kein zweiter Decoder nötig. **V4-Hub-GNSS** (eingebaut + sekundäres GPS laut
+    `V4-MASTERPLAN.md`) hat in `FLEET-COMMANDS.md` bereits einen reservierten Code-Bereich
+    (`0x40`–`0x41 GPS`, Status 📋 „geplant", noch kein Handler) — Kartenanbindung ans V4-Hub-GPS ist
+    damit auf die Umsetzung dieses Commands blockiert, nicht neu zu entwerfen. „Wardrive-GPS" (aus
+    der ursprünglichen P6.1-Zeile) ist kein eigenständiges Gerät, sondern GPS-Tagging des
+    Wardrive-Angriffs (`0x26`, an V3 ohne eigenes GPS gebunden laut `FLEET-COMMANDS.md`) — auf dem
+    V4-Hub-GPS-Pfad mitgeführt, kein dritter Datenkanal.
+  - Verifikation: nur lokal (echte GPS-Fixes von DogyTag/V4-Hub, Karten-Rendering visuell prüfbar);
+    P6.1a ist eine reine Architekturentscheidung, ohne Hardware treffbar.
 - [ ] P6.2 Marker mit Geräte-ID, Track-Historie, Klick→Detail/Command.
+  - [ ] P6.2a Blockiert auf P6.1a (Toolkit-Entscheidung) — Marker-/Klick-Interaktion ist pro
+    Kandidat unterschiedlich zu implementieren (`tkintermapview`-Callback vs.
+    Leaflet-JS↔Python-Brücke via QWebChannel vs. natives PySide6-Fenster), kein
+    toolkit-unabhängiger Entwurf möglich.
+  - [ ] P6.2b Track-Historie braucht eine noch offene Persistenz-Entscheidung: reiner
+    In-Memory-Puffer pro Cockpit-Sitzung (einfach, geht bei Neustart verloren) vs. lokale
+    SQLite-/CSV-Ablage (überlebt Neustart, zusätzlicher Schreibpfad) — hier nicht vorentschieden,
+    da sie von der erwarteten Sitzungsdauer/Nutzung abhängt, die nur lokal einzuschätzen ist.
+  - Verifikation: nur lokal, nach P6.1.
 
 ### Phase 7 — Szenario-Visualizer
 - [ ] P7.1 Live-Datenfluss-Diagramm: Geräte=Knoten, Cmd/Data/Resp=animierte Kanten, pro Szenario einfärbbar.
@@ -898,6 +933,37 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   25 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
   eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
   geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-22 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-5-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — nächsten unverfeinerten
+  Tier aufgegriffen: Phase 6 (Kartenansicht, P6.1/P6.2) in Abschnitt 4 in Unterschritte zerlegt.
+  Dabei einen echten Architektur-Widerspruch aufgedeckt (nicht nur Textmenge): P6.1 setzte bisher
+  „Leaflet in QWebEngine" voraus (Qt WebEngine, Teil von PySide6), während der tatsächlich gebaute
+  Kali-Cockpit-Prototyp aus P1.1 auf Tkinter/`ttk.Notebook` läuft — Tkinter hat kein eingebautes
+  Web-Rendering-Widget, dieser Widerspruch war bislang nirgends vermerkt, obwohl die
+  „PySide6 vs. Web"-Frage in Abschnitt 6 offiziell noch als offen geführt wird. Jetzt in P6.1a
+  als vier lokal zu entscheidende Optionen aufgezeigt (`tkintermapview`, `pywebview`-Fenster,
+  paralleles PySide6-Fenster, oder Wechsel des gesamten Cockpits auf PySide6), bewusst nicht
+  vorentschieden. P6.1b ordnet die Datenquellen: DogyTag über denselben MQTT-Pfad wie P5.1a/b
+  (inkl. deren „lokal, nicht aus der Cloud lieferbar"-Payload-Decoder-Blocker), V4-Hub-GNSS über
+  den in `FLEET-COMMANDS.md` bereits reservierten, aber noch unbelegten `0x40`–`0x41`-Code
+  (Status 📋), „Wardrive-GPS" als kein drittes Gerät, sondern GPS-Tagging des bestehenden
+  Wardrive-Angriffs (`0x26`, an V3 gebunden) erkannt — kein separater Datenkanal dafür entworfen.
+  P6.2 verweist auf P6.1a als Blocker für die Marker-Interaktion und markiert die
+  Track-Historie-Persistenz (In-Memory vs. SQLite/CSV) als offene, nur lokal zu treffende Wahl.
+  Vor der Textarbeit den Repo-Zustand geprüft: lokaler `main`-Branch-Zeiger war wieder veraltet
+  (30 Commits hinter `origin/main`, dieselbe Art Drift wie 2026-09-15/17/19), per Fast-Forward
+  nachgezogen, kein Datenverlust (`git push` unnötig, nur lokaler Checkout betroffen). Den
+  jüngsten Report (`reports/2026-09-22-0024.md`, RollLab-OTG-Ownership-Fix) sowie die weiteren seit
+  2026-09-21 gelandeten Commits gesichtet: ausschließlich dieselbe separate, häufiger laufende
+  Firmware-Mining-/App-Verbesserungs-Routine, keine Überschneidung mit Abschnitt 4/PREP dieser
+  Datei. Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) sowie der
+  P4.2a-Fund erneut gegen `git log --all --diff-filter=A` geprüft: unverändert kein Treffer.
+  Repo-Sichtbarkeit erneut per GitHub-API geprüft (`visibility`-Feld): weiterhin `private`.
+  Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt
+  26 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
+  eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
+  geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -938,7 +1004,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 25 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 26 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -975,9 +1041,22 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    jedem Downlink-Test gegen DogyTag (P5.2b) erst prüfen, ob ein Test-/Staging-Gerät existiert —
    niemals gegen das produktive Feldgerät senden. P5.3 nur als reiner `SUBSCRIBE` auf
    `dogytag/#` umsetzen, nie `PUBLISH`.
+9. Phase 6 (Kartenansicht, P6.1/P6.2) ist jetzt ebenfalls in Unterschritte zerlegt. **Zuerst**
+   P6.1a lesen: der Plan setzte bisher „Leaflet in QWebEngine" (Qt) voraus, obwohl der tatsächlich
+   gebaute Cockpit-Prototyp (P1.1) auf Tkinter läuft — vier Optionen stehen zur Wahl
+   (`tkintermapview`, `pywebview`-Fenster, paralleles PySide6-Fenster, oder Wechsel des ganzen
+   Cockpits auf PySide6), hier bewusst nicht vorentschieden; diese Wahl hängt mit der weiterhin
+   offenen „PySide6 vs. Web"-Frage unten zusammen und sollte zusammen mit ihr getroffen werden,
+   nicht isoliert für die Karte allein. Danach P6.1b (Datenquellen: DogyTag über P5.1a/b,
+   V4-Hub-GPS über den reservierten aber unbelegten `0x40`–`0x41`-Code) und P6.2 (Marker/Track,
+   blockiert auf P6.1a plus eine offene Persistenz-Frage für die Track-Historie).
 
 **Offene Entscheidungen:**
-- GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen.
+- GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
+  geworden durch P6.1a (2026-09-22):** der Cockpit-Unterbau ist über P1.1 bereits faktisch auf
+  Tkinter festgelegt; die Karten-Tab-Frage (P6.1) macht die Web/Qt-Entscheidung jetzt praktisch
+  relevant statt rein akademisch — vier konkrete Optionen stehen dort zur Wahl, weiterhin nur
+  lokal zu treffen.
 - APK-Framework: Flutter vs. Kotlin-nativ — siehe Abschnitt 6, weiterhin offen.
 - ukfe_rf-v2: gestaffelter Firmware-Rollout (Vorschlag V4→V3→LilyGo→WROOM) vs. harter Cutover —
   siehe `UKFE-RF-V2-SPEC.md` Abschnitt 7.
@@ -1008,7 +1087,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 25 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 26 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -1078,30 +1157,37 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-21):** Rest von Phase 4 (P4.4/P4.5) und Phase 5
-(DogyTag, P5.1–P5.3) in Abschnitt 4 in Unterschritte zerlegt. P4.4 in zwei unabhängige Quellen
-aufgeteilt (TTN-Sicht bereits über P4.1b abgedeckt; LORIX-eigene Gateway-/Paketforwarder-Sicht
-separat, nur lokal zu klären). P4.5 als reine Standort-Entscheidung für P4.3 erkannt (Flipper-
-SX126x-Modul vs. LORIX-UDP), bewusst ohne eigene Unterschritte belassen statt doppelt zu planen.
-P5.1a verweist auf denselben MQTT-Subscribe-Mechanismus wie P4.1b (nur andere TTN-Application
-`dogytag-v1`); P5.1b (Payload-Decoder) als „lokal, nicht aus der Cloud lieferbar" markiert; P5.2b
-konkretisiert „Produktion nicht umkonfigurieren" auf eine prüfbare Regel (kein Downlink-Test ohne
-Test-/Staging-Gerät); P5.3a macht „additiv" explizit (nur `SUBSCRIBE`, nie `PUBLISH`). 25 seit dem
-letzten Masterplan-Log-Eintrag gelandete Commits geprüft — ausschließlich eine separate,
-häufiger laufende Firmware-Mining-/App-Verbesserungs-Routine, keine Überschneidung mit Abschnitt
-4/PREP. Blocker „referenzierte Tool-Dateien fehlen im Repo" sowie P4.2a-Fund erneut geprüft:
-unverändert kein Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation weiterhin offen,
-jetzt 25 Tage — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
-eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Cloud hat in dieser Sitzung erledigt (2026-09-22):** Phase 6 (Kartenansicht, P6.1/P6.2) in
+Abschnitt 4 in Unterschritte zerlegt. Echter Architektur-Widerspruch aufgedeckt: P6.1 setzte
+bisher „Leaflet in QWebEngine" (Qt) voraus, obwohl der tatsächlich gebaute Cockpit-Prototyp (P1.1)
+auf Tkinter läuft, das kein Web-Rendering-Widget hat — jetzt in P6.1a als vier lokal zu
+entscheidende Optionen aufgezeigt (`tkintermapview`, `pywebview`-Fenster, paralleles
+PySide6-Fenster, oder Cockpit-weiter Wechsel auf PySide6), verknüpft mit der bisher isoliert
+geführten „PySide6 vs. Web"-Entscheidung in Abschnitt 6. P6.1b ordnet die Datenquellen (DogyTag
+über denselben MQTT-Pfad wie P5.1a/b; V4-Hub-GPS über den in `FLEET-COMMANDS.md` bereits
+reservierten, aber unbelegten `0x40`–`0x41`-Code; „Wardrive-GPS" als kein drittes Gerät erkannt).
+P6.2 verweist auf P6.1a als Blocker und markiert die Track-Historie-Persistenz (In-Memory vs.
+SQLite/CSV) als offene lokale Wahl. Lokaler `main`-Branch-Zeiger war wieder veraltet (30 Commits
+hinter `origin/main`, dieselbe Art Drift wie 2026-09-15/17/19/21), per Fast-Forward nachgezogen,
+kein Datenverlust. Den jüngsten Report (`reports/2026-09-22-0024.md`) sowie weitere seit
+2026-09-21 gelandete Commits geprüft — ausschließlich dieselbe separate, häufiger laufende
+Firmware-Mining-/App-Verbesserungs-Routine, keine Überschneidung mit Abschnitt 4/PREP. Blocker
+„referenzierte Tool-Dateien fehlen im Repo" sowie P4.2a-Fund erneut geprüft: unverändert kein
+Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 26 Tage — keine
+erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein
+Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-19):** Phase 4 (P4.1–P4.3) in Abschnitt 4 in Unterschritte
-zerlegt — P4.1 bekam einen konkreten TTN-v3-Zugriffsweg (MQTT-Subscribe für Live-Events statt
-Polling) plus eine sofort umsetzbare, rein rechnerische Duty-Cycle-Teilaufgabe (EU868-Airtime nach
-Semtech AN1200.13); P4.2 deckte einen neuen Blocker auf (der als „✅ Fleet-Broadcast/RespAck"
-geführte Stand vom 2026-08-26 ist im Repo nicht auffindbar); P4.3 als „lokal, nicht aus der Cloud
-lieferbar" markiert (SX1262 hat keinen echten Promiscuous-Modus). Repo-Sichtbarkeit `private`.
-Zugangsdaten-Rotation damals 23 Tage offen. Kein Hardware-Zugriff versucht, nichts geflasht, kein
-Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-21):** Rest von Phase 4 (P4.4/P4.5) und Phase 5 (DogyTag,
+P5.1–P5.3) in Abschnitt 4 in Unterschritte zerlegt. P4.4 in zwei unabhängige Quellen aufgeteilt
+(TTN-Sicht bereits über P4.1b abgedeckt; LORIX-eigene Gateway-/Paketforwarder-Sicht separat, nur
+lokal zu klären). P4.5 als reine Standort-Entscheidung für P4.3 erkannt (Flipper-SX126x-Modul vs.
+LORIX-UDP), bewusst ohne eigene Unterschritte belassen statt doppelt zu planen. P5.1a verweist auf
+denselben MQTT-Subscribe-Mechanismus wie P4.1b (nur andere TTN-Application `dogytag-v1`); P5.1b
+(Payload-Decoder) als „lokal, nicht aus der Cloud lieferbar" markiert; P5.2b konkretisiert
+„Produktion nicht umkonfigurieren" auf eine prüfbare Regel (kein Downlink-Test ohne
+Test-/Staging-Gerät); P5.3a macht „additiv" explizit (nur `SUBSCRIBE`, nie `PUBLISH`).
+Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation damals 25 Tage offen. Kein Hardware-Zugriff
+versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
