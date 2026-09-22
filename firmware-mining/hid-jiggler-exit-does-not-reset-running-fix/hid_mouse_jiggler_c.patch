@@ -1,0 +1,13 @@
+--- a/applications/system/hid_app/views/hid_mouse_jiggler.c
++++ b/applications/system/hid_app/views/hid_mouse_jiggler.c
+@@ -92,6 +92,10 @@
+     furi_assert(context);
+     HidMouseJiggler* hid_mouse_jiggler = context;
+     furi_timer_stop(hid_mouse_jiggler->timer);
++    // Also clear the model flag: otherwise re-entering this view shows "Stop" highlighted
++    // even though the timer above was just stopped, since the model outlives the view exit.
++    with_view_model(
++        hid_mouse_jiggler->view, HidMouseJigglerModel * model, { model->running = false; }, true);
+ }
+ 
+ static bool hid_mouse_jiggler_input_callback(InputEvent* event, void* context) {

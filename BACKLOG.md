@@ -2465,6 +2465,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       erneuten Öffnen zu fälschlich hervorgehobenem "Stop"), Stealth-Neubewaffnung-Race,
       Stealth-Bewegung kann 0 sein, Jiggler wartet über BLE nicht auf die Verbindung vor dem
       Senden — für künftige Sitzungen vorgemerkt.
+- [x] Den nächsten der vier verbliebenen Teilfunde aus `8fdb70dd3` (PR #1112) bearbeitet:
+      **Verlassen der Mouse-Jiggler-View setzt `model->running` nicht zurück**,
+      `hid_mouse_jiggler_exit_callback()` in
+      `applications/system/hid_app/views/hid_mouse_jiggler.c` (nicht-stealth Variante) —
+      stoppt korrekt den `FuriTimer`, fasst `model->running` aber nicht an; da das View-Model
+      erst bei `hid_mouse_jiggler_free()` (App-Ende) freigegeben wird, nicht beim Verlassen der
+      View, bleibt `running == true` stehen, wenn beim Verlassen gerade gejiggelt wurde. Beim
+      erneuten Betreten zeichnet `hid_mouse_jiggler_draw_callback()` sofort wieder die
+      hervorgehobene "Stop"-Box, obwohl der Timer bereits sauber gestoppt ist — ein OK-Druck
+      kippt den Toggle dann nur auf "Start" statt tatsächlich zu starten, erst ein zweiter Druck
+      startet. Bei mir (`mntm-012`) byteidentisch zum Unleashed-Vorher-Stand. Unabhängig vom
+      bereits gelieferten Stop-Timer-Fix (andere Funktion, beide Patches gegen dieselbe
+      unveränderte Basis unabhängig anwendbar). Mit Host-Repro (OK-Toggle inkl. des bereits
+      gelieferten unbedingten `furi_timer_stop()`-Stop-Fixes sowie ALT-/NEU-Fassung von
+      `hid_mouse_jiggler_exit_callback()` nachgebaut, Mock-Timer mit `armed`-Flag: ALT lässt
+      `running=true` nach Quit-während-Laufens stehen und braucht einen zweiten OK-Druck zum
+      tatsächlichen Neustart, NEU räumt `running` synchron zum Timer, Exit-während-Stopp bleibt
+      in beiden Fassungen folgenlos, 5000-Zyklen-Regression bestätigt `running == armed` bei NEU
+      nach jedem Exit) unter ASan/UBSan verifiziert: ALLE CHECKS BESTANDEN. Minimale Änderung
+      (ein zusätzlicher `with_view_model(...)`-Block mit `model->running = false`, dasselbe
+      Zugriffsmuster wie bereits in `hid_mouse_jiggler_set_connected_status()`, kein neues
+      Nebenläufigkeitsmuster) gegen meine unveränderte `mntm-012`-Basis (`patch --dry-run -p1`
+      vorab verifiziert, real angewendet und Byte-für-Byte abgeglichen — identisch) in
+      `firmware-mining/hid-jiggler-exit-does-not-reset-running-fix/hid_mouse_jiggler_c.patch`,
+      Host-Repro in
+      `firmware-mining/repro-hid-jiggler-exit-does-not-reset-running-fix/repro.c`, Details in
+      `firmware-mining/hid-jiggler-exit-does-not-reset-running-fix.md`. Restlicher Umfang von
+      `8fdb70dd3` weiterhin offen: Stealth-Neubewaffnung-Race, Stealth-Bewegung kann 0 sein,
+      Jiggler wartet über BLE nicht auf die Verbindung vor dem Senden — für künftige Sitzungen
+      vorgemerkt.
 
 ## App-Verbesserungen (Fortsetzung)
 - [x] Die standalone **RollLab**-App (eigenes Repo, nicht das gleichnamige Modul innerhalb von
