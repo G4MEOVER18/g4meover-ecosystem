@@ -2549,6 +2549,27 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `8fdb70dd3`-Restumfang weiterhin offen: Stealth-Bewegung kann 0 sein, Jiggler wartet über
       BLE nicht auf die Verbindung vor dem Senden.
 
+## Ideen-Recherche (Fortsetzung)
+- [x] Aus der GPIO-Logic-Analyzer-Sitzung vorgemerkten Kandidaten aufgegriffen:
+      **`NaejEL/flipperzero-i2ctools`** (I2C-Scanner/-Sender über den Erweiterungsport C0/C1 plus
+      passiver Sniffer via GPIO-Interrupts auf denselben Pins). Aktiv gepflegt, im offiziellen
+      Flipper Application Catalog gelistet (letzter Commit 2025-10-25, `fap_version="1.1"`).
+      API-87-Status gegen den eigenen `mntm-012`-Header-Stand verifiziert (frischer, blobloser
+      Sparse-Checkout): alle genutzten I2C-HAL-Funktionen (`furi_hal_i2c_acquire/release/
+      is_device_ready/trx`, `furi_hal_i2c_handle_external`) sowie die genutzten GPIO-Pins/-
+      Funktionen (`gpio_ext_pc0/pc1`, `furi_hal_gpio_init/add_int_callback/remove_int_callback/
+      read`) unverändert vorhanden. Beim Quelltext-Review dabei einen potenziellen
+      Pufferüberlauf im Sniffer gefunden: `SCLcallback()` erhöht `data_index` nach jedem
+      vollständigen Byte unbedingt, ohne Prüfung gegen `MAX_MESSAGE_SIZE` (128) — anders als der
+      bereits geprüfte `frame_index` (der bei Überlauf zurückgesetzt wird) — eine einzelne
+      I2C-Transaktion mit mehr als 128 Byte ohne zwischenzeitliche Stop-/Start-Bedingung schreibt
+      dadurch außerhalb der `data[]`/`ack[]`-Arrays des aktuellen Frames, im EXTI-Interrupt-
+      Kontext. Kein Fix-Vorschlag angelegt (externe Drittanwendung, analog zur bereits
+      dokumentierten Abtastraten-Diskrepanz beim GPIO Logic Analyzer), nur als Einschränkung
+      vermerkt. Kuratiert in `ideas/i2ctools-app-status.md`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` ergänzt. Damit ist die aus der GPIO-Logic-Analyzer-Suche
+      vorgemerkte Kandidatenliste abgearbeitet.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
