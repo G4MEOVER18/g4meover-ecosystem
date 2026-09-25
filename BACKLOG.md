@@ -2520,6 +2520,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       RollForge-/RollJam-Race-Funden); die eigene, frühere Silence-Terminator-Fix ist bereits im
       aktuellen RollLab-Repo-Stand übernommen.
 
+## Firmware-Feature-Mining (Fortsetzung 2)
+- [x] Den nächsten der drei verbliebenen Teilfunde aus `8fdb70dd3` (PR #1112) bearbeitet:
+      **Stealth-Neubewaffnung-Race** — `hid_mouse_jiggler_stealth_exit_callback()` in
+      `applications/system/hid_app/views/hid_mouse_jiggler_stealth.c` ruft `furi_timer_stop()`
+      ungeschützt auf, während sich der Timer-Callback selbst innerhalb desselben Model-Locks,
+      den Exit nie nimmt, per Stop+Start neu bewaffnet — ein echtes Nebenläufigkeitsproblem
+      (nicht nur eine Anzeigeunstimmigkeit wie bei der bereits gefixten nicht-stealth Variante):
+      feuert der Timer gerade beim Verlassen der View, kann Exit's ungeschützter Stop zwischen
+      den Callback-internen Stop- und Start-Aufruf geraten und verliert gegen die anschließende
+      Neubewaffnung — der Stealth-Jiggler bewegt die Maus dann unbemerkt im Hintergrund weiter,
+      bis die App beendet oder die View erneut betreten und der Toggle zweimal gedrückt wird. Mit
+      Host-Repro (explizite Durchzählung aller durch die reale Synchronisation erlaubten
+      Verschachtelungsreihenfolgen statt einer willkürlich herausgegriffenen: ALT 2 von 3
+      möglichen Reihenfolgen lassen den Timer bewaffnet, NEU 0 von 2 möglichen Gesamtreihenfolgen)
+      unter ASan/UBSan verifiziert. Fix (Exit setzt `model->running = false` unter dem Model-Lock,
+      *vor* ihrem eigenen `furi_timer_stop()` — Reihenfolge hier sicherheitsrelevant, anders als
+      bei der bereits gelieferten nicht-stealth-Fassung) minimal auf `exit_callback()` begrenzt,
+      Timer-Callback und Timer-Typ unangetastet; bewusst nicht Unleasheds volle Umstrukturierung
+      (rand()/Mausbewegung außerhalb des Locks, One-Shot-Timer-Typ) übernommen, da für den
+      Race-Fix nicht notwendig. Port-Vorschlag inkl. Fix in
+      `firmware-mining/hid-jiggler-stealth-exit-rearm-race-fix.md`, Unified-Diff (patch
+      --dry-run -p1 vorab gegen frische Kopie verifiziert, real angewendet und byte-für-byte
+      abgeglichen) in
+      `firmware-mining/hid-jiggler-stealth-exit-rearm-race-fix/hid_mouse_jiggler_stealth_c.patch`,
+      Host-Repro in
+      `firmware-mining/repro-hid-jiggler-stealth-exit-rearm-race-fix/repro.c`. Aus demselben
+      `8fdb70dd3`-Restumfang weiterhin offen: Stealth-Bewegung kann 0 sein, Jiggler wartet über
+      BLE nicht auf die Verbindung vor dem Senden.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

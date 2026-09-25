@@ -1,0 +1,18 @@
+--- a/applications/system/hid_app/views/hid_mouse_jiggler_stealth.c	2026-09-25 12:26:09.628489639 +0000
++++ b/applications/system/hid_app/views/hid_mouse_jiggler_stealth.c
+@@ -106,6 +106,15 @@
+ static void hid_mouse_jiggler_stealth_exit_callback(void* context) {
+     furi_assert(context);
+     HidMouseJigglerStealth* hid_mouse_jiggler = context;
++    // Clear the flag under the model lock *before* stopping the timer: the timer callback
++    // below re-arms itself from inside that same lock every time it fires, so unless this
++    // write is committed first, a callback invocation that already read running==true can
++    // still re-arm the timer after this function's furi_timer_stop() has already run.
++    with_view_model(
++        hid_mouse_jiggler->view,
++        HidMouseJigglerStealthModel * model,
++        { model->running = false; },
++        false);
+     furi_timer_stop(hid_mouse_jiggler->timer);
+ }
+ 
