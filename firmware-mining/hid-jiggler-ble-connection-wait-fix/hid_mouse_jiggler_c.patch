@@ -1,0 +1,29 @@
+--- a/applications/system/hid_app/views/hid_mouse_jiggler.c
++++ b/applications/system/hid_app/views/hid_mouse_jiggler.c
+@@ -48,7 +48,15 @@
+     furi_string_free(interval_str);
+ 
+     canvas_set_font(canvas, FontPrimary);
++#ifdef HID_TRANSPORT_BLE
++    if(model->running && !model->connected) {
++        elements_multiline_text(canvas, AlignLeft, 40, "Waiting for\nConnection...");
++    } else {
++        elements_multiline_text(canvas, AlignLeft, 40, "Press Start\nto jiggle");
++    }
++#else
+     elements_multiline_text(canvas, AlignLeft, 40, "Press Start\nto jiggle");
++#endif
+     canvas_set_font(canvas, FontSecondary);
+ 
+     // Ok
+@@ -77,7 +85,9 @@
+         hid_mouse_jiggler->view,
+         HidMouseJigglerModel * model,
+         {
+-            if(model->running) {
++            // Only send into an actual link: over BLE, `connected` tracks the peer link and
++            // a report sent before/without it reaches nothing.
++            if(model->running && hid_model_connected(model)) {
+                 model->counter++;
+                 hid_hal_mouse_move(
+                     hid_mouse_jiggler->hid,

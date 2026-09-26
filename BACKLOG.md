@@ -2642,6 +2642,45 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `mag_scene_file_select.c`, `mag_scene_input_name.c`, `mag_scene_saved_menu.c` u. a.)
       überwiegend reine Navigations-Boilerplate, noch nicht im Detail durchgesehen.
 
+## Firmware-Feature-Mining (Fortsetzung 3)
+- [x] Den letzten verbliebenen Teilfund aus `8fdb70dd3` (PR #1112, "HID: improve Mouse Jiggler
+      timers and Bluetooth controls") bearbeitet: **Jiggler wartet über BLE nicht auf die
+      Verbindung vor dem Senden** — betrifft beide Varianten,
+      `hid_mouse_jiggler_timer_callback()` und `hid_mouse_jiggler_stealth_timer_callback()` in
+      `applications/system/hid_app/views/hid_mouse_jiggler.c` bzw.
+      `hid_mouse_jiggler_stealth.c`. Beide Modelle tragen bei mir (`mntm-012`) bereits ein
+      `connected`-Feld, gepflegt von `hid_ble_app()`s Verbindungsstatus-Callback über
+      `hid_mouse_jiggler_set_connected_status()`/`hid_mouse_jiggler_stealth_set_connected_status()`
+      — vollständig vorhanden und verdrahtet, kein eigener Fund. Beide Draw-Callbacks lesen
+      `model->connected` auch schon, aber ausschließlich für die BLE-Symbol-Auswahl; beide
+      Timer-Callbacks lesen es an keiner Stelle und rufen `hid_hal_mouse_move()` allein aufgrund
+      von `model->running` auf — über BLE, während die Verbindung noch nicht steht (Gerät gerade
+      beworben, Host außer Reichweite, Pairing offen), verläuft das lautlos ins Leere, ohne
+      Fehler und ohne eigenen Hinweis über die bereits vorhandene BLE-Symbol-Anzeige hinaus.
+      Fix: neues Makro `hid_model_connected(model)` in `hid.h` (unter `HID_TRANSPORT_BLE`
+      `model->connected`, sonst `true`, damit USB-Builds exakt das alte Verhalten behalten),
+      Sende-Bedingung beider Timer-Callbacks auf `model->running && hid_model_connected(model)`
+      erweitert, beide Draw-Callbacks zeigen bei laufend-aber-getrennt "Waiting for
+      Connection..." statt "Press Start to jiggle". Mit Host-Repro (Sende-Entscheidung beider
+      Varianten als reine Funktion von Build/`running`/`connected` nachgebaut, erschöpfend über
+      alle 2×2×2 Kombinationen je Variante geprüft) unter ASan/UBSan bei `-O0`/`-O1` verifiziert:
+      16/16 Prüfungen, ALT sendet in beiden Varianten in jeder laufend-BLE-getrennt-Zeile, NEU in
+      keiner mehr, NEU auf USB-Builds in keiner der acht Zeilen von ALT verschieden, ALLE CHECKS
+      BESTANDEN, keine Compiler-Warnungen. Unified-Diffs (`git apply --check` je vorab gegen
+      frische Kopie verifiziert, real angewendet und byte-für-byte abgeglichen; die
+      stealth-Datei gegen den Zustand nach `hid-jiggler-stealth-move-bounds-fix` und
+      `hid-jiggler-stealth-zero-movement-fix`, da alle drei denselben Codeblock berühren) in
+      `firmware-mining/hid-jiggler-ble-connection-wait-fix/hid_h.patch`,
+      `hid_mouse_jiggler_c.patch` und `hid_mouse_jiggler_stealth_c.patch`, Host-Repro in
+      `firmware-mining/repro-hid-jiggler-ble-connection-wait-fix/repro.c`, Details in
+      `firmware-mining/hid-jiggler-ble-connection-wait-fix.md`. Damit ist die gesamte aus
+      `8fdb70dd3` zurückgestellte Fundliste abgearbeitet — kein weiterer Teilfund aus diesem
+      Commit offen. Bewusst nicht mitübernommen: Unleasheds größere Restrukturierungen aus
+      demselben Commit (stealth-Timer auf `FuriTimerTypeOnce` mit Selbst-Rearm unter Lock,
+      `hid_hal_mouse_move()`/`rand()` aus dem Model-Lock heraus bei beiden Varianten,
+      Bool-Flag-Umbau der nicht-stealth Timer-Logik) — eigenständige, größere Änderungen ohne
+      Bezug zu diesem konkreten Fund.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

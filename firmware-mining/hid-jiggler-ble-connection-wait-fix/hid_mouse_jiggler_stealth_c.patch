@@ -1,0 +1,31 @@
+--- a/applications/system/hid_app/views/hid_mouse_jiggler_stealth.c
++++ b/applications/system/hid_app/views/hid_mouse_jiggler_stealth.c
+@@ -64,7 +64,15 @@
+ 
+     // "Press Start to jiggle"
+     canvas_set_font(canvas, FontPrimary);
++#ifdef HID_TRANSPORT_BLE
++    if(model->running && !model->connected) {
++        elements_multiline_text(canvas, AlignLeft, 50, "Waiting for\nConnection...");
++    } else {
++        elements_multiline_text(canvas, AlignLeft, 50, "Press Start\nto jiggle");
++    }
++#else
+     elements_multiline_text(canvas, AlignLeft, 50, "Press Start\nto jiggle");
++#endif
+ 
+     // Ok
+     canvas_draw_icon(canvas, 63, 30, &I_Space_65x18);
+@@ -92,7 +100,11 @@
+         hid_mouse_jiggler->view,
+         HidMouseJigglerStealthModel * model,
+         {
+-            if(model->running) {
++            // Only send into an actual link: over BLE, `connected` tracks the peer link and
++            // a report sent before/without it reaches nothing. Skipping the whole tick while
++            // disconnected is safe: the timer is periodic, so it keeps firing at its last
++            // period and re-checks `connected` on the next tick without needing a restart.
++            if(model->running && hid_model_connected(model)) {
+                 // Generate a random interval in minutes and convert to milliseconds
+                 int randomIntervalMinutes =
+                     model->min_interval + rand() % (model->max_interval - model->min_interval + 1);
