@@ -2548,6 +2548,32 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/repro-hid-jiggler-stealth-exit-rearm-race-fix/repro.c`. Aus demselben
       `8fdb70dd3`-Restumfang weiterhin offen: Stealth-Bewegung kann 0 sein, Jiggler wartet über
       BLE nicht auf die Verbindung vor dem Senden.
+- [x] Den nächsten der zwei verbliebenen Teilfunde aus `8fdb70dd3` (PR #1112) bearbeitet:
+      **Stealth-Bewegung kann 0 sein** — `move_x`/`move_y` in
+      `hid_mouse_jiggler_stealth_timer_callback()` (`applications/system/hid_app/views/
+      hid_mouse_jiggler_stealth.c`) werden (nach Anwendung des bereits vorgeschlagenen
+      `hid-jiggler-stealth-move-bounds-fix`) gleichverteilt aus `-127..127` gezogen — jede Achse
+      kann unabhängig exakt `0` treffen. Mit Host-Repro über den vollständigen
+      Zwei-Achsen-Eingaberaum (255×255 = 65025 Ziehungen) exakt quantifiziert: 1/65025 Ziehungen
+      liefert `(0, 0)` (dieser Timer-Tick bewegt die Maus überhaupt nicht), 508/65025 liefern
+      genau eine Achse als `0`. Ein `(0, 0)`-HID-Report ist für den Host gültig, aber wirkungslos
+      — je nach Idle-Erkennung wird der Inaktivitäts-/Sperr-Timer dadurch nicht zurückgesetzt,
+      was dem alleinigen Zweck des Stealth Mouse Jigglers zuwiderläuft. Fix: Unleasheds eigene
+      `hid_mouse_jiggler_stealth_random_move()`-Hilfsfunktion (`rand() % (2*INT8_MAX) -
+      INT8_MAX`, dann bei nicht-negativem Ergebnis `+1`) 1:1 übernommen — bewusst nur diese eine
+      unabhängig portierbare Verbesserung aus `8fdb70dd3`, nicht dessen volle Restrukturierung
+      (RNG/HID-Aufruf außerhalb des Model-Locks, `FuriTimerTypeOnce`). Mit Host-Repro (voller
+      Ein- und Zwei-Achsen-Eingaberaum für ALT und NEU, zusätzlich Bijektionsnachweis für NEUs
+      Hilfsfunktion) unter ASan/UBSan bei `-O0`/`-O1` verifiziert: NEU 0/64516 Ziehungen mit
+      stiller Achse (ALT: 1 `(0,0)` + 508 Einzelachsen-Treffer), ALLE CHECKS BESTANDEN, keine
+      Compiler-Warnungen. Unified-Diff **gegen den Zustand nach Anwendung von
+      `hid-jiggler-stealth-move-bounds-fix`** (Anwendungsreihenfolge dokumentiert; volle Kette
+      Pristine→Bounds-Fix→dieser Fix Byte-für-Byte gegen die beabsichtigte Endfassung geprüft) in
+      `firmware-mining/hid-jiggler-stealth-zero-movement-fix/hid_mouse_jiggler_stealth_c.patch`,
+      Host-Repro in `firmware-mining/repro-hid-jiggler-stealth-zero-movement-fix/repro.c`,
+      Details in `firmware-mining/hid-jiggler-stealth-zero-movement-fix.md`. Aus demselben
+      `8fdb70dd3`-Restumfang weiterhin offen: Jiggler wartet über BLE nicht auf die Verbindung vor
+      dem Senden — letzter verbliebener Teilfund dieser Serie.
 
 ## Ideen-Recherche (Fortsetzung)
 - [x] Aus der GPIO-Logic-Analyzer-Sitzung vorgemerkten Kandidaten aufgegriffen:

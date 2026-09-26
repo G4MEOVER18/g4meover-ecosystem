@@ -1,0 +1,30 @@
+--- a/applications/system/hid_app/views/hid_mouse_jiggler_stealth.c
++++ b/applications/system/hid_app/views/hid_mouse_jiggler_stealth.c
+@@ -20,6 +20,14 @@
+     int max_interval; // Maximum interval for random range
+ } HidMouseJigglerStealthModel;
+ 
++// HID mouse reports carry signed 8-bit deltas; skip 0 on each axis so every jiggle
++// timer tick actually moves the pointer instead of occasionally reaching the host as a
++// no-op HID report that does not reset its idle/lock timer.
++static int8_t hid_mouse_jiggler_stealth_random_move(void) {
++    const int8_t delta = (int8_t)(rand() % (2 * INT8_MAX) - INT8_MAX);
++    return delta >= 0 ? delta + 1 : delta;
++}
++
+ static void hid_mouse_jiggler_stealth_draw_callback(Canvas* canvas, void* context) {
+     furi_assert(context);
+     HidMouseJigglerStealthModel* model = context;
+@@ -89,9 +97,9 @@
+                 int randomIntervalMinutes =
+                     model->min_interval + rand() % (model->max_interval - model->min_interval + 1);
+ 
+-                // HID mouse reports use signed 8-bit movement deltas
+-                int8_t move_x = (rand() % (2 * INT8_MAX + 1)) - INT8_MAX;
+-                int8_t move_y = (rand() % (2 * INT8_MAX + 1)) - INT8_MAX;
++                // Never zero on either axis (see hid_mouse_jiggler_stealth_random_move())
++                int8_t move_x = hid_mouse_jiggler_stealth_random_move();
++                int8_t move_y = hid_mouse_jiggler_stealth_random_move();
+ 
+                 // Perform the mouse move with the randomized values
+                 hid_hal_mouse_move(hid_mouse_jiggler->hid, move_x, move_y);
