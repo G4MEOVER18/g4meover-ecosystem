@@ -1,0 +1,17 @@
+diff --git a/helpers/mag_helpers.c b/helpers/mag_helpers.c
+index 2696065..6e3fa10 100644
+--- a/helpers/mag_helpers.c
++++ b/helpers/mag_helpers.c
+@@ -283,9 +283,9 @@ void mag_spoof(Mag* mag) {
+     data1 = malloc(furi_string_size(ft1) + 1);
+     data2 = malloc(furi_string_size(ft2) + 1);
+     data3 = malloc(furi_string_size(ft3) + 1);
+-    strncpy(data1, furi_string_get_cstr(ft1), furi_string_size(ft1));
+-    strncpy(data2, furi_string_get_cstr(ft2), furi_string_size(ft2));
+-    strncpy(data3, furi_string_get_cstr(ft3), furi_string_size(ft3));
++    strncpy(data1, furi_string_get_cstr(ft1), furi_string_size(ft1) + 1);
++    strncpy(data2, furi_string_get_cstr(ft2), furi_string_size(ft2) + 1);
++    strncpy(data3, furi_string_get_cstr(ft3), furi_string_size(ft3) + 1);
+ 
+     if(furi_log_get_level() >= FuriLogLevelDebug) {
+         debug_mag_string(data1, bitlen[0], sublen[0]);

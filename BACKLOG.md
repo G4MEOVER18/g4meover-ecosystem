@@ -2681,6 +2681,54 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Bool-Flag-Umbau der nicht-stealth Timer-Logik) — eigenständige, größere Änderungen ohne
       Bezug zu diesem konkreten Fund.
 
+## App-Verbesserungen (Fortsetzung 3)
+- [x] **g4meover-magspoof**: aus der vorgemerkten Restliste weiterverfolgt
+      (`mag_scene_about.c`, `mag_scene_file_select.c`, `mag_scene_input_name.c`,
+      `mag_scene_saved_menu.c` u. a. — überwiegend reine Navigations-Boilerplate ohne Fund,
+      dabei zusätzlich `mag_scene_emulate.c`, `mag_scene_saved_info.c`,
+      `mag_scene_delete_confirm.c`, `mag_scene_start.c`, `mag_scene_input_value.c` mitgeprüft).
+      Eigentlicher Fund dabei in `helpers/mag_helpers.c::mag_spoof()` (der zentralen
+      Sendefunktion, bislang nur über `mag_encode()` selbst geprüft, nicht über ihre Aufrufer):
+      die Kopie jedes Tracks aus seinem `FuriString` in einen einfachen C-String
+      (`data1 = malloc(furi_string_size(ft1) + 1); strncpy(data1, furi_string_get_cstr(ft1),
+      furi_string_size(ft1));`) terminiert den Zielpuffer nie. `strncpy(dst, src, n)`
+      null-terminiert nur, wenn `strlen(src) < n` — hier ist `n` aber exakt
+      `furi_string_size(ft)`, also exakt `strlen(src)`, die Bedingung ist nie erfüllt, das
+      extra für den Terminator reservierte Byte (`data[size]`) bleibt uninitialisierter
+      Heap-Inhalt. `mag_encode()` liest den Puffer anschließend mit einer reinen
+      „bis zum ersten Nullbyte"-Schleife (`for(int i = 0; *(data + i) != 0; i++)`) — ist das
+      uninitialisierte Byte zufällig ungleich null, liest diese Schleife unkontrolliert über
+      das Ende der Allokation hinaus und speist fremden Heap-Inhalt als vermeintliche
+      Kartendaten in das Bit-Packing ein, das dann tatsächlich über die aktive Sendemethode
+      abgestrahlt wird. Anders als der bereits dokumentierte `mag_encode()`-Stack-Overflow bei
+      überlangen Tracks (`mag-encode-fixed-buffer-overflow-fix.md`) ist dieser Fund unabhängig
+      von der Tracklänge — betrifft auch den leeren Track — und tritt bei jedem einzelnen
+      „Send" neu auf; da die drei Puffer bei jedem Emulationsversuch neu alloziert/freigegeben
+      werden, liefert ein wiederverwendender Allokator ab dem zweiten „Send" in derselben
+      Sitzung zuverlässig denselben, jetzt nicht-null vorbelegten Speicherbereich zurück. Mit
+      Host-Repro (Kopier-/Scan-Logik 1:1 nachgebaut, je ein Testfall für die allererste
+      Allokation dieser Größe und für eine über `free()`+`malloc()` gezielt wiederverwendete,
+      per `fork()`/`waitpid()` isoliert) unter ASan/UBSan bei `-O0`/`-O1` verifiziert: ALT löst
+      in beiden Testfällen zuverlässig `heap-buffer-overflow` aus (AddressSanitizer füllt
+      frischen Heap zusätzlich mit einem Nicht-Null-Muster, wodurch bereits die allererste
+      Allokation betroffen ist), NEU (`strncpy(..., furi_string_size(ftN) + 1)`, exakt die
+      bereits für `malloc()` verwendete Größe) besteht beide Testfälle sauber — ALLE CHECKS
+      BESTANDEN, keine Compiler-Warnungen. Fix in
+      `app-improvements/g4meover-magspoof/mag-spoof-track-copy-missing-null-terminator-fix.md`,
+      Unified-Diff (`git apply --check` vorab gegen frische Kopie verifiziert, real angewendet
+      und byte-für-byte abgeglichen) in
+      `app-improvements/g4meover-magspoof/mag-spoof-track-copy-missing-null-terminator-fix/mag_helpers_c.patch`,
+      Host-Repro in
+      `app-improvements/g4meover-magspoof/repro-mag-spoof-track-copy-missing-null-terminator-fix/`.
+      Restliche, in dieser Sitzung durchgesehene Dateien ohne eigenen Fund:
+      `mag_scene_about.c`/`mag_scene_file_select.c`/`mag_scene_saved_menu.c`/`mag_scene_start.c`
+      (reine Navigations-Boilerplate), `mag_scene_saved_info.c`/`mag_scene_delete_confirm.c`
+      (Anzeige-/Bestätigungslogik, Grenzfälle nachgerechnet, korrekt), `mag_scene_input_name.c`/
+      `mag_scene_input_value.c` (laut eigenem `About`-Text sowie mehreren `TODO`s bewusst
+      unfertiger „Add Manually"-Pfad — im Hauptmenü bereits auskommentiert, kein aktiver
+      Fehler). `g4meover-magspoof` damit bis auf `helpers/mag_text_input.c`/`.h` (bereits als
+      totes Aufräum-Kandidat vorgemerkt) vollständig durchgesehen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
