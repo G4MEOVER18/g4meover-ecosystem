@@ -1,0 +1,80 @@
+{
+  "_schema": {
+    "_purpose": "Maschinenlesbares Gegenstück zum Mermaid-Graph in G4MEOVER-ECOSYSTEM-MASTERPLAN.md Abschnitt 2, erweitert um die Direkt-Verbindungen aus Phase 2b (K1-K6). Single Source of Truth für Knoten/Kanten/Szenario-Pfade, damit Phase 7 (Szenario-Visualizer, P7.1/P7.2) und ggf. Phase 6 (Kartenansicht) nicht je eine eigene, abweichende Kopie des Fabric-Graphen pflegen. Rein deskriptiv (Doku), kein Code — wird von einer künftigen lokalen GUI-Implementierung gelesen, sobald P7.1 tatsächlich gebaut wird.",
+    "control_nodes[].id": "Kurzer stabiler Bezeichner für eine Kontroll-Ebene (Software, kein eigenes physisches Gerät in ecosystem/devices.json)",
+    "control_nodes[].label": "Anzeigename für den Graphen",
+    "control_nodes[].kind": "control-plane — feste Markierung, unterscheidet von Geräte-/externen Knoten",
+    "device_nodes[].id": "MUSS exakt einem 'id'-Wert aus ecosystem/devices.json entsprechen — keine zweite, abweichende ID-Liste pflegen",
+    "device_nodes[].kind": "device — Details (chip/host/transport/status) bewusst nicht dupliziert, siehe devices.json",
+    "external_nodes[].id": "Knoten außerhalb des eigenen Geräte-Inventars (z. B. TTN als Cloud-Dienst)",
+    "edges[].from / edges[].to": "id aus control_nodes/device_nodes/external_nodes",
+    "edges[].transport": "Transport-Art, gleiche Werte wie devices.json _schema.transport plus 'usb-cli' (Direkt-CLI/RPC, kein ukfe_rf-Frame) und 'lan' (Pi<->LORIX)",
+    "edges[].status": "implemented | planned — implemented nur wenn im FORTSCHRITT-Log als tatsächlich funktionierend geführt (nicht nur als geplanter TODO)",
+    "edges[].ref": "Verweis auf die TODO-Kennung(en) in G4MEOVER-ECOSYSTEM-MASTERPLAN.md Abschnitt 4, die diese Kante gebaut haben/bauen",
+    "presets[].id": "Kurzer Bezeichner für ein Szenario-Preset (P7.2)",
+    "presets[].label": "Anzeigename, z. B. für ein Dropdown im Visualizer",
+    "presets[].path": "Geordnete Liste von Knoten-IDs (control_nodes/device_nodes/external_nodes) — der bei diesem Preset hervorzuhebende Pfad; jedes aufeinanderfolgende Paar MUSS einer edges[]-Kante entsprechen (from,to in beliebiger Richtung), sonst ist der Preset inkonsistent"
+  },
+  "control_nodes": [
+    { "id": "win-gui", "label": "Windows-EXE GUI", "kind": "control-plane" },
+    { "id": "kali-gui", "label": "Kali-EXE GUI", "kind": "control-plane" },
+    { "id": "apk", "label": "Android-APK", "kind": "control-plane" }
+  ],
+  "device_nodes": [
+    { "id": "flipper", "kind": "device" },
+    { "id": "heltec-v4-hub", "kind": "device" },
+    { "id": "heltec-v3", "kind": "device" },
+    { "id": "esp32-wroom", "kind": "device" },
+    { "id": "lilygo-t-display", "kind": "device" },
+    { "id": "dogytag", "kind": "device" },
+    { "id": "cc2531-zigbee", "kind": "device" },
+    { "id": "raspberry-pi-4", "kind": "device" },
+    { "id": "lorix-one-gw", "kind": "device" }
+  ],
+  "external_nodes": [
+    { "id": "ttn", "label": "TTN (The Things Network)", "kind": "external" }
+  ],
+  "edges": [
+    { "from": "win-gui", "to": "heltec-v4-hub", "transport": "usb-cdc", "status": "planned", "ref": "P1.2/P1.5, Abschnitt 2" },
+    { "from": "kali-gui", "to": "heltec-v4-hub", "transport": "usb-cdc", "status": "planned", "ref": "P1.2/P1.5, Abschnitt 2" },
+    { "from": "apk", "to": "heltec-v4-hub", "transport": "ble", "status": "planned", "ref": "P8.1/K6" },
+    { "from": "kali-gui", "to": "flipper", "transport": "usb-cli", "status": "implemented", "ref": "P2.0 (flipper_ctl.py-Engine) — bindet sich nicht an ukfe_rf, siehe P2.1a-Abgrenzung" },
+    { "from": "win-gui", "to": "flipper", "transport": "usb-cli", "status": "implemented", "ref": "P2.0, plattformübergreifend laut Log 2026-08-26" },
+    { "from": "raspberry-pi-4", "to": "flipper", "transport": "ble", "status": "planned", "ref": "P2.4/K1 (Flipper-eigenes RPC-über-BLE, siehe P2.4a-Abgrenzung)" },
+    { "from": "apk", "to": "flipper", "transport": "ble", "status": "planned", "ref": "K4 (dasselbe Flipper-RPC-über-BLE wie K1/K3, Android statt bleak als Client)" },
+    { "from": "apk", "to": "raspberry-pi-4", "transport": "ble", "status": "planned", "ref": "K5a (Pi als BLE-Peripheral, eigener Codepfad, s. K5a-Hinweis)" },
+    { "from": "apk", "to": "raspberry-pi-4", "transport": "wifi", "status": "planned", "ref": "K5b (WiFi/TCP, empfohlen als erster Schritt vor K5a)" },
+    { "from": "flipper", "to": "heltec-v4-hub", "transport": "uart", "status": "planned", "ref": "P0.4/Abschnitt 2 (ukfe_rf-Frame über UART, GPIO-Kanal existiert laut Abschnitt 1, Frame-Codec P1.2b noch offen)" },
+    { "from": "heltec-v4-hub", "to": "heltec-v3", "transport": "espnow", "status": "implemented", "ref": "Log 2026-08-26 (WAN->Flotte Basis), Frame-Details P0.4" },
+    { "from": "heltec-v4-hub", "to": "lilygo-t-display", "transport": "espnow", "status": "planned", "ref": "Abschnitt 2, gleicher Kanal wie zu heltec-v3" },
+    { "from": "heltec-v4-hub", "to": "esp32-wroom", "transport": "espnow", "status": "planned", "ref": "Abschnitt 2, Phase 9 (WROOM Multi-Rolle)" },
+    { "from": "heltec-v4-hub", "to": "ttn", "transport": "lorawan", "status": "implemented", "ref": "Log 2026-08-26 (SF9-LoRaWAN-Join V3+V4, WAN-Downlink-Kanal)" },
+    { "from": "heltec-v3", "to": "ttn", "transport": "lorawan", "status": "implemented", "ref": "Log 2026-08-26 (SF9-LoRaWAN-Join V3+V4)" },
+    { "from": "dogytag", "to": "ttn", "transport": "lorawan", "status": "implemented", "ref": "Phase 5 (P5.1a, eigene TTN-Application dogytag-v1, additiv/read-only)" },
+    { "from": "lorix-one-gw", "to": "ttn", "transport": "lan", "status": "implemented", "ref": "Abschnitt 1 (LORIX One GW -> TTN)" },
+    { "from": "raspberry-pi-4", "to": "cc2531-zigbee", "transport": "zigbee", "status": "planned", "ref": "P0.3/Phase 10 (Sniffer-Firmware-Status noch zu klären)" },
+    { "from": "raspberry-pi-4", "to": "lorix-one-gw", "transport": "lan", "status": "implemented", "ref": "Abschnitt 1 (Pi steuert LORIX-LAN)" }
+  ],
+  "presets": [
+    {
+      "id": "flipper-to-ttn-relay",
+      "label": "Flipper -> V4 -> ESP-NOW -> V3 -> TTN",
+      "path": ["flipper", "heltec-v4-hub", "heltec-v3", "ttn"]
+    },
+    {
+      "id": "kali-direct-flipper",
+      "label": "Kali-GUI -> Flipper (USB-CLI, ohne V4)",
+      "path": ["kali-gui", "flipper"]
+    },
+    {
+      "id": "apk-ble-to-fleet",
+      "label": "APK -> V4 (BLE) -> ESP-NOW-Flotte",
+      "path": ["apk", "heltec-v4-hub", "heltec-v3"]
+    },
+    {
+      "id": "dogytag-lorawan-uplink",
+      "label": "DogyTag -> TTN (LoRaWAN-Uplink, additiv/read-only)",
+      "path": ["dogytag", "ttn"]
+    }
+  ]
+}

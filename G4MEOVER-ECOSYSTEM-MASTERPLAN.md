@@ -67,6 +67,11 @@ graph TD
 **Prinzip:** *Ein* Protokoll (ukfe_rf, signiert) über *fünf* Transporte. Jede Kontroll-Ebene spricht
 dasselbe Command-Set. Antworten tragen die **Quell-Geräte-ID** und werden überall angezeigt, wo sie ankommen.
 
+Maschinenlesbares Gegenstück zu diesem Graphen (Knoten/Kanten/Szenario-Presets, erweitert um die
+Phase-2b-Direktverbindungen K1–K6, `implemented`/`planned`-Status je Kante): [`ecosystem/topology.json`](ecosystem/topology.json)
+— Single Source of Truth für Phase 7 (Szenario-Visualizer), damit dort keine zweite, abweichende
+Graph-Kopie entsteht.
+
 ## 3. Kern-Bausteine (was neu gebaut/erweitert wird)
 - **A) Unified Control GUI** (Python/PySide6, *ein* Codebase → Win-EXE + Kali-EXE via PyInstaller).
 - **B) ukfe_rf v2**: BLE-Transport, erweitertes Command-Set, Ergebnis-Routing mit Quell-ID.
@@ -643,7 +648,40 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 7 — Szenario-Visualizer
 - [ ] P7.1 Live-Datenfluss-Diagramm: Geräte=Knoten, Cmd/Data/Resp=animierte Kanten, pro Szenario einfärbbar.
+  - [x] P7.1a Knoten/Kanten-Topologie aus dem bisher nur in Abschnitt 2 als Mermaid-Prosa geführten
+    Graphen extrahiert und um die Phase-2b-Direktverbindungen (K1–K6) erweitert ✅ (2026-09-26,
+    Cloud, rein dokumentarisch): [`ecosystem/topology.json`](ecosystem/topology.json) — 13 Knoten
+    (3 Kontroll-Ebenen, 9 Geräte aus `devices.json`, TTN extern), 19 Kanten mit
+    `implemented`/`planned`-Status und Verweis auf die jeweils bauende TODO-Kennung, 4 Szenario-
+    Presets für P7.2. Bewusst **keine** zweite, im Visualizer-Code neu gepflegte Graph-Kopie — die
+    künftige lokale Implementierung liest diese Datei statt den Graphen erneut zu entwerfen.
+  - [ ] P7.1b **Lokal, gebunden an dieselbe offene Entscheidung wie P6.1a:** Rendering braucht ein
+    Web-fähiges Widget (D3-Kanten-Animation, siehe Abschnitt 6 „Vorschlag: Web/D3 in QWebEngine"),
+    der Cockpit-Prototyp (P1.1) läuft aber auf Tkinter — **nicht** separat von P6.1a entscheiden,
+    sondern beide Fragen zusammen: fällt die Wahl auf `pywebview`/QWebEngine/PySide6-Wechsel, teilen
+    sich Karte (P6) und Visualizer (P7) denselben Web-Container statt zwei eigene Fenster/Engines zu
+    laden.
+  - [ ] P7.1c Datenquelle für die animierten Kanten: **kein** zweiter Event-Pfad neben dem in P1.6a
+    bereits vorgesehenen Log-Queue-Mechanismus (`queue.Queue` aus dem Worker-Thread, `after()`-Poll
+    im UI-Thread) — der Visualizer abonniert dieselbe Queue und mappt jeden Eintrag (Zeit/Quelle/
+    Inhalt) über `topology.json`-Kanten statt eigene Serial-Reads zu machen. Färbung nach realer
+    Quelle/Ziel braucht `SRC_ID`/`ORIGIN_ID` aus P0.4f; bis dahin dasselbe Fallback-Muster wie
+    P1.5c/P1.6b/P2.3a: nur die aktive Verbindung farblich hervorheben, kein erfundenes Routing.
+  - Verifikation (Cloud-Teil): `python -c "import json;json.load(open('ecosystem/topology.json'))"`
+    ✅ + Konsistenzprüfung Knoten-IDs gegen `devices.json` und Presets gegen `edges` ✅ (Cloud,
+    2026-09-26). Rendering/Animation nur lokal prüfbar (P7.1b/c).
 - [ ] P7.2 Szenario-Presets (z. B. „Flipper→V4→ESP-NOW→V3→TTN"), Highlight des aktiven Pfads bei jedem Command.
+  - [x] P7.2a Presets als Daten statt Code angelegt ✅ (2026-09-26, Cloud): `presets[]` in
+    `ecosystem/topology.json` (das Beispiel aus dieser TODO-Zeile plus drei weitere, an bereits
+    dokumentierten Abläufen orientiert: `kali-direct-flipper` = P2.0-USB-CLI ohne V4,
+    `apk-ble-to-fleet` = P8.1/K6, `dogytag-lorawan-uplink` = Phase 5). Jeder Preset-Pfad ist gegen
+    `edges[]` konsistenzgeprüft (jedes aufeinanderfolgende Knotenpaar entspricht einer echten Kante).
+  - [ ] P7.2b Highlight-Mechanismus baut auf P7.1c auf (derselbe Log-Queue-Abgleich gegen
+    `topology.json`-Kanten) — kein eigenständiges zweites Matching für Presets entwerfen: ein
+    aktiver Preset filtert einfach, welche der ohnehin ankommenden Kanten-Events farblich betont
+    werden, alle anderen bleiben sichtbar aber gedimmt.
+  - Verifikation (Cloud-Teil): wie P7.1, Presets-Konsistenzprüfung ✅. Highlight-Verhalten nur lokal
+    an echter GUI prüfbar.
 
 ### Phase 8 — Android-APK (BLE)
 - [ ] P8.1 Firmware: BLE-GATT-Transport für ukfe_rf am V4 (NimBLE) — Frames über Characteristic.
@@ -964,6 +1002,35 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   26 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
   eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts
   geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-09-26 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-6-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — nächsten unverfeinerten
+  Tier aufgegriffen: Phase 7 (Szenario-Visualizer, P7.1/P7.2) in Abschnitt 4 zerlegt. Diesmal über
+  reine Prosa-Verfeinerung hinaus ein echtes, prüfbares Artefakt geliefert statt nur weiterer
+  Textmenge: [`ecosystem/topology.json`](ecosystem/topology.json) — die bisher nur als Mermaid-Prosa
+  in Abschnitt 2 geführte Fabric-Topologie plus die Phase-2b-Direktverbindungen (K1-K6) als
+  maschinenlesbarer Graph (13 Knoten, 19 Kanten mit `implemented`/`planned`-Status und TODO-Referenz,
+  4 Szenario-Presets für P7.2, inkl. dem in P7.2 als Beispiel genannten „Flipper→V4→ESP-NOW→V3→TTN").
+  Device-Knoten referenzieren `devices.json`-IDs statt einer zweiten ID-Liste; Konsistenz geprüft
+  (`json.load` + Skript: alle `device_nodes`-IDs existieren in `devices.json`, jeder Preset-Pfad
+  entspricht echten `edges`). P7.1b hält fest, dass das Rendering an dieselbe, bereits in P6.1a
+  aufgeworfene GUI-Framework-Frage gebunden ist (Tkinter-Cockpit vs. Web/D3) — bewusst nicht separat
+  entschieden, um nicht zwei Web-Container für Karte und Visualizer zu riskieren. P7.1c/P7.2b binden
+  die Event-Quelle an den bereits in P1.6a vorgesehenen Log-Queue-Mechanismus statt einen zweiten
+  Event-Pfad zu entwerfen. Bei der Vorbereitung einen echten, sicherheitsrelevanten Fund gemacht und
+  sofort behoben: die lokale Git-Identität dieses Checkouts stand auf `Claude <noreply@anthropic.com>`
+  statt der in CONSTRAINTS.md Regel 1 vorgeschriebenen `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>`
+  (vermutlich Default der ausführenden Cloud-Umgebung, nicht aus einem vorherigen Commit übernommen —
+  alle bisherigen Commits seit 2026-09-11 tragen bereits die korrekte Identität, siehe Log
+  2026-09-14) — vor dem Commit dieser Sitzung korrigiert, damit kein Commit mit falschem Autor
+  entsteht. Repo-Zustand geprüft: `HEAD` stand exakt auf `origin/main` (kein Drift wie
+  2026-09-15/17/19/21/22), keine Fast-Forward-Aktion nötig. Blocker „referenzierte Tool-Dateien
+  fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`)
+  sowie der P4.2a-Fund erneut gegen `git log --all --diff-filter=A` geprüft: unverändert kein
+  Treffer. Repo-Sichtbarkeit per GitHub-API geprüft (`visibility`-Feld): weiterhin `private`.
+  Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt 30
+  Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
+  reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben (`topology.json` ist reine Graph-/Preset-Daten, kein Code).
 
 ## PREP für nächste lokale Session
 
@@ -1004,7 +1071,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 26 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 30 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1050,6 +1117,16 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    nicht isoliert für die Karte allein. Danach P6.1b (Datenquellen: DogyTag über P5.1a/b,
    V4-Hub-GPS über den reservierten aber unbelegten `0x40`–`0x41`-Code) und P6.2 (Marker/Track,
    blockiert auf P6.1a plus eine offene Persistenz-Frage für die Track-Historie).
+10. Phase 7 (Szenario-Visualizer, P7.1/P7.2) ist jetzt ebenfalls in Unterschritte zerlegt, **und**
+    bringt anders als die reinen Text-Verfeinerungen der letzten Sitzungen bereits ein fertiges
+    Artefakt mit: [`ecosystem/topology.json`](ecosystem/topology.json) (Knoten/Kanten/Presets,
+    konsistenzgeprüft gegen `devices.json`) — direkt als Datenquelle einlesbar, keine erneute
+    Graph-Modellierung nötig. **Zuerst** P7.1b lesen: hängt an derselben offenen GUI-Framework-Frage
+    wie P6.1a (Tkinter vs. Web/D3) — beide Entscheidungen zusammen treffen, nicht Karte und
+    Visualizer getrennt auf verschiedene Web-Container festlegen. P7.1c/P7.2b binden die
+    Event-Quelle an den P1.6a-Log-Queue-Mechanismus (kein zweiter Event-Pfad); Färbung nach realer
+    Quelle/Ziel erst mit P0.4f (`SRC_ID`/`ORIGIN_ID`) möglich, bis dahin nur die aktive Verbindung
+    hervorheben (dasselbe Fallback-Muster wie P1.5c/P1.6b/P2.3a/P3.1c/P3.3a).
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
@@ -1157,37 +1234,34 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-22):** Phase 6 (Kartenansicht, P6.1/P6.2) in
-Abschnitt 4 in Unterschritte zerlegt. Echter Architektur-Widerspruch aufgedeckt: P6.1 setzte
-bisher „Leaflet in QWebEngine" (Qt) voraus, obwohl der tatsächlich gebaute Cockpit-Prototyp (P1.1)
-auf Tkinter läuft, das kein Web-Rendering-Widget hat — jetzt in P6.1a als vier lokal zu
-entscheidende Optionen aufgezeigt (`tkintermapview`, `pywebview`-Fenster, paralleles
-PySide6-Fenster, oder Cockpit-weiter Wechsel auf PySide6), verknüpft mit der bisher isoliert
-geführten „PySide6 vs. Web"-Entscheidung in Abschnitt 6. P6.1b ordnet die Datenquellen (DogyTag
-über denselben MQTT-Pfad wie P5.1a/b; V4-Hub-GPS über den in `FLEET-COMMANDS.md` bereits
-reservierten, aber unbelegten `0x40`–`0x41`-Code; „Wardrive-GPS" als kein drittes Gerät erkannt).
-P6.2 verweist auf P6.1a als Blocker und markiert die Track-Historie-Persistenz (In-Memory vs.
-SQLite/CSV) als offene lokale Wahl. Lokaler `main`-Branch-Zeiger war wieder veraltet (30 Commits
-hinter `origin/main`, dieselbe Art Drift wie 2026-09-15/17/19/21), per Fast-Forward nachgezogen,
-kein Datenverlust. Den jüngsten Report (`reports/2026-09-22-0024.md`) sowie weitere seit
-2026-09-21 gelandete Commits geprüft — ausschließlich dieselbe separate, häufiger laufende
-Firmware-Mining-/App-Verbesserungs-Routine, keine Überschneidung mit Abschnitt 4/PREP. Blocker
+**Cloud hat in dieser Sitzung erledigt (2026-09-26):** Phase 7 (Szenario-Visualizer, P7.1/P7.2) in
+Abschnitt 4 zerlegt — diesmal mit einem fertigen Artefakt statt nur Textmenge:
+[`ecosystem/topology.json`](ecosystem/topology.json), die bisher nur als Mermaid-Prosa (Abschnitt 2)
+geführte Fabric-Topologie plus die Phase-2b-Direktverbindungen (K1–K6) als maschinenlesbarer Graph
+(13 Knoten, 19 Kanten mit `implemented`/`planned`-Status, 4 Szenario-Presets), konsistenzgeprüft
+gegen `devices.json` und in sich (Presets ↔ Kanten). P7.1b/P7.2b binden Rendering und Event-Quelle
+explizit an die bereits offene P6.1a-GUI-Framework-Frage bzw. den P1.6a-Log-Queue-Mechanismus, statt
+zweite Entscheidungen/Pfade zu entwerfen. Echter Fund und sofort behoben: lokale Git-Identität dieses
+Checkouts stand auf `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem
+Commit korrigiert. Repo-Zustand geprüft: `HEAD` exakt auf `origin/main`, kein Drift. Blocker
 „referenzierte Tool-Dateien fehlen im Repo" sowie P4.2a-Fund erneut geprüft: unverändert kein
-Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 26 Tage — keine
+Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 30 Tage — keine
 erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein
-Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben (`topology.json` ist
+reine Graph-/Preset-Daten, kein Code).
 
-**Vorherige Cloud-Sitzung (2026-09-21):** Rest von Phase 4 (P4.4/P4.5) und Phase 5 (DogyTag,
-P5.1–P5.3) in Abschnitt 4 in Unterschritte zerlegt. P4.4 in zwei unabhängige Quellen aufgeteilt
-(TTN-Sicht bereits über P4.1b abgedeckt; LORIX-eigene Gateway-/Paketforwarder-Sicht separat, nur
-lokal zu klären). P4.5 als reine Standort-Entscheidung für P4.3 erkannt (Flipper-SX126x-Modul vs.
-LORIX-UDP), bewusst ohne eigene Unterschritte belassen statt doppelt zu planen. P5.1a verweist auf
-denselben MQTT-Subscribe-Mechanismus wie P4.1b (nur andere TTN-Application `dogytag-v1`); P5.1b
-(Payload-Decoder) als „lokal, nicht aus der Cloud lieferbar" markiert; P5.2b konkretisiert
-„Produktion nicht umkonfigurieren" auf eine prüfbare Regel (kein Downlink-Test ohne
-Test-/Staging-Gerät); P5.3a macht „additiv" explizit (nur `SUBSCRIBE`, nie `PUBLISH`).
-Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation damals 25 Tage offen. Kein Hardware-Zugriff
-versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-22):** Phase 6 (Kartenansicht, P6.1/P6.2) in Abschnitt 4 in
+Unterschritte zerlegt. Echter Architektur-Widerspruch aufgedeckt: P6.1 setzte bisher „Leaflet in
+QWebEngine" (Qt) voraus, obwohl der tatsächlich gebaute Cockpit-Prototyp (P1.1) auf Tkinter läuft,
+das kein Web-Rendering-Widget hat — jetzt in P6.1a als vier lokal zu entscheidende Optionen
+aufgezeigt (`tkintermapview`, `pywebview`-Fenster, paralleles PySide6-Fenster, oder Cockpit-weiter
+Wechsel auf PySide6), verknüpft mit der bisher isoliert geführten „PySide6 vs. Web"-Entscheidung in
+Abschnitt 6. P6.1b ordnet die Datenquellen (DogyTag über denselben MQTT-Pfad wie P5.1a/b; V4-Hub-GPS
+über den in `FLEET-COMMANDS.md` bereits reservierten, aber unbelegten `0x40`–`0x41`-Code;
+„Wardrive-GPS" als kein drittes Gerät erkannt). P6.2 verweist auf P6.1a als Blocker und markiert die
+Track-Historie-Persistenz (In-Memory vs. SQLite/CSV) als offene lokale Wahl. Repo-Sichtbarkeit
+`private`. Zugangsdaten-Rotation damals 26 Tage offen. Kein Hardware-Zugriff versucht, nichts
+geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ---
 
