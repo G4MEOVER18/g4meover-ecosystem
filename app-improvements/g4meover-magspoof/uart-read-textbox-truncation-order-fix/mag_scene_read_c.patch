@@ -1,0 +1,26 @@
+--- a/scenes/mag_scene_read.c
++++ b/scenes/mag_scene_read.c
+@@ -35,15 +35,17 @@ static int32_t uart_worker(void* context) {
+             FURI_LOG_D(TAG, "UART RX len: %d", len);
+
+             if(len > 0) {
+-                // If text box store gets too big, then truncate it
+-                mag->uart_text_box_store_strlen += len;
+-
+-                if(mag->uart_text_box_store_strlen >= UART_TERMINAL_TEXT_BOX_STORE_SIZE - 1) {
++                // If text box store gets too big, then truncate it.
++                // Decide/trim using the size the store actually has *before* this
++                // chunk is appended below, not the projected post-append size --
++                // otherwise furi_string_right() is handed an index computed against
++                // data it doesn't contain yet, and keeps fewer bytes than intended.
++                if(mag->uart_text_box_store_strlen + len >= UART_TERMINAL_TEXT_BOX_STORE_SIZE - 1) {
+                     furi_string_right(
+                         mag->uart_text_box_store, mag->uart_text_box_store_strlen / 2);
+-                    mag->uart_text_box_store_strlen =
+-                        furi_string_size(mag->uart_text_box_store) + len;
+                 }
++                mag->uart_text_box_store_strlen =
++                    furi_string_size(mag->uart_text_box_store) + len;
+
+                 // Add '\0' to the end of the string, and then add the new data
+                 mag->uart_rx_buf[len] = '\0';

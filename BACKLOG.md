@@ -2596,6 +2596,52 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ideas/pentest-app-katalog.md` ergänzt. Damit ist die aus der GPIO-Logic-Analyzer-Suche
       vorgemerkte Kandidatenliste abgearbeitet.
 
+## App-Verbesserungen (Fortsetzung 2)
+- [x] **g4meover-magspoof**: bislang ungeprüften UART-Kartenleser-Pfad durchgesehen
+      (`scenes/mag_scene_read.c`, bislang nur `mag_device_load_data()`/
+      `mag_device_parse_card_string()`/`mag_encode()`/`mag_state_load()` geprüft). Fund in
+      `uart_worker()`: die eigene Rolling-Kappung von `mag->uart_text_box_store` (der
+      `FuriString`, in der sich der vom angeschlossenen UART-MSR-Reader empfangene Rohtext
+      sammelt) erhöht `mag->uart_text_box_store_strlen` um die Länge des gerade erst
+      eingetroffenen Häppchens (`len`, bis zu `UART_RX_BUF_SIZE` = 320 Byte), *bevor* dieser
+      Häppchen tatsächlich angehängt wird — der an `furi_string_right()` übergebene
+      Kappungs-Index (`.../2`) rechnet dadurch systematisch mit der projizierten
+      Nach-Anhängen-Größe statt mit der zum Aufrufzeitpunkt tatsächlichen. Laut
+      `Next-Flip/Momentum-Firmware`s `furi_string_right()` (1:1-Wrapper um `P-p-H-d/mlib`s
+      `m_string_right()`) wird dadurch bei jeder ausgelösten Kappung mehr vom bereits
+      gesammelten Kartentext verworfen als beabsichtigt (bis zu `len/2` Byte zusätzlich pro
+      Auslösung) — mit den echten Puffergrößen dieser App (`UART_TERMINAL_TEXT_BOX_STORE_SIZE`
+      = 4096) zwar nicht bis zum Totalverlust des ganzen Puffers, aber lautlos mehr Verlust als
+      der eigene Kommentar verspricht; das zugrunde liegende Muster selbst würde bei
+      `len >= bisherige Größe` (mit den heutigen Konstanten nicht erreichbar) den kompletten
+      Puffer auf einen Schlag leeren. Mit Host-Repro (`m_string_right()`-Semantik wortgetreu aus
+      der mlib-Quelle übernommen, ALT/NEU auf demselben Mock-`FuriString`) über den
+      vollständigen Auslösebereich der echten Konstanten (51360 Kappungsereignisse, ALT verwirft
+      in Summe 5.486.880 Byte mehr als NEU) sowie einen verkleinerten Modellspeicher für den
+      sonst nicht erreichbaren Totalverlust-Fall (1054 Fälle, ALT leert dort jedes Mal
+      vollständig) unter ASan/UBSan bei `-O0`/`-O1` verifiziert: je 260165 Prüfungen, ALLE
+      CHECKS BESTANDEN, keine Compiler-Warnungen. Fix (Kappungsentscheidung/-index nutzen jetzt
+      die tatsächliche Größe vor dem Anhängen, keine vorzeitige Erhöhung mehr) in
+      `app-improvements/g4meover-magspoof/uart-read-textbox-truncation-order-fix.md`,
+      Unified-Diff (`git apply --check` vorab gegen frische Kopie verifiziert, real angewendet
+      und byte-für-byte abgeglichen) in
+      `app-improvements/g4meover-magspoof/uart-read-textbox-truncation-order-fix/mag_scene_read_c.patch`,
+      Host-Repro in
+      `app-improvements/g4meover-magspoof/repro-uart-truncation-order-fix/repro.c`. Dabei
+      zusätzlich geprüft, kein Fund: `mag_device_parse_card_string()` selbst (Track-1/2/3-
+      Grenzsuche über `%`/`;`/`?`, konsistent); die eigenständige, aber nirgends im Baum
+      aufgerufene `helpers/mag_text_input.c`/`.h` (582 Zeilen eigenes Tastatur-Widget) — die App
+      nutzt laut `mag_i.h`/`mag.c` durchgehend den Standard-`TextInput` aus
+      `gui/modules/text_input.h`, totes Gewicht im Build, aber kein Laufzeitfehler, da nirgends
+      aufgerufen; `mag_scene_emulate_config.c`/`mag_scene_settings.c` (Variable-Item-Callbacks
+      inkl. der beiden sich gegenseitig einschränkenden Track/Reverse-Regler sowie der
+      UART-MSR-Bestätigungsdialog-Logik) — auf den ersten Blick riskant wirkende
+      Reset-ohne-Text-Update-Zweige beim Nachrechnen als korrekt bestätigt, da der jeweils
+      angezeigte Text zum Zeitpunkt des Zurücksetzens bereits zum wiederhergestellten Index
+      passt. Restliche, bislang ungeprüfte Dateien dieser App (`mag_scene_about.c`,
+      `mag_scene_file_select.c`, `mag_scene_input_name.c`, `mag_scene_saved_menu.c` u. a.)
+      überwiegend reine Navigations-Boilerplate, noch nicht im Detail durchgesehen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
