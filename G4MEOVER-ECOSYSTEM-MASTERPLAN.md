@@ -685,8 +685,59 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 8 — Android-APK (BLE)
 - [ ] P8.1 Firmware: BLE-GATT-Transport für ukfe_rf am V4 (NimBLE) — Frames über Characteristic.
+  - [ ] P8.1a Baut direkt auf P0.4e/f auf: nutzt dieselben, dort bereits vorgeschlagenen
+    GATT-Service-/Characteristic-UUIDs (`UKFE-RF-V2-SPEC.md` Abschnitt 5) — hier keine zweiten
+    UUIDs entwerfen. Empfohlene Reihenfolge (verknüpft mit der P0.4f-Patch-Empfehlung): erst der
+    kleine `SRC_ID`/Versionsbyte-Patch, danach als eigener zweiter Patch dieser BLE-Transport —
+    nicht beides in einem Schritt, damit ein Fehlschlag klar zuordenbar bleibt.
+  - [ ] P8.1b **Lokal, nicht aus der Cloud lieferbar:** NimBLE-Stack-Konfiguration, ATT-MTU-
+    Aushandlung und die Frage, ob `ukfe_rf`-Frames (Größe laut `FLEET-COMMANDS.md`-Header) in ein
+    einzelnes ATT-Write passen oder Fragmentierung (Sequenznummer + Reassemblierung über mehrere
+    Writes) brauchen, sind nur gegen die echte `heltec-v4-hub`-Firmware zu klären — dieselbe
+    Begründung wie P1.2b/P2.1b/P2.4b/P3.1a/P3.2a (Firmware-Repos außerhalb des GitHub-Zugriffs-
+    Scopes dieser Cloud-Sitzung). Erster Versuch lokal: NimBLE unterstützt ATT-MTU bis 247 Byte
+    aushandeln — reicht das für die größten `ukfe_rf`-Frames, entfällt Fragmentierung; nur falls
+    nicht, das Reassemblierungsschema entwerfen.
+  - [ ] P8.1c **Abgrenzung nicht vergessen** (dieselbe Unterscheidung wie P2.4a/K1-K6): dies ist ein
+    komplett neuer, eigener GATT-Service für `ukfe_rf`-v2 — **nicht** Flippers bereits vorhandenes
+    RPC-über-BLE. K6 (APK↔V4) bleibt vollständig auf diesen Unterschritt blockiert, wie in Phase 2b
+    bereits vermerkt.
+  - Verifikation: nur lokal (NimBLE-Verbindung an echter V4-Hardware, Frame-Roundtrip über die
+    Characteristic sichtbar/mitschneidbar, z. B. per nRF Connect).
 - [ ] P8.2 BLE/WiFi-Koexistenz-Strategie (ESP32 kann nicht immer gleichzeitig) → Umschalt-Befehl.
+  - [ ] P8.2a Technischer Ausgangspunkt (kein Rätselraten nötig): der ESP32-S3 hat nur **einen**
+    2,4-GHz-Funk — BLE und WiFi teilen ihn sich per Zeitmultiplex über ESP-IDFs eingebaute
+    Software-Koexistenz (`CONFIG_SW_COEXIST_ENABLE`, greift automatisch sobald beide Stacks aktiv
+    sind). Ein harter Umschalt-Befehl ist damit **nicht zwingend** nötig, nur ein Durchsatz-/
+    Latenz-Kompromiss bei echtem Gleichzeitigbetrieb (z. B. WiFi-Deauth-Flood parallel zu einem
+    aktiven BLE-GATT-Link aus P8.1).
+  - [ ] P8.2b Ob trotzdem ein expliziter Umschalt-Befehl gebraucht wird, ist **nur mit echten
+    Messwerten** an der Hardware zu entscheiden (Deauth-Paketrate/BLE-Latenz mit vs. ohne aktivem
+    Koexistenzbetrieb) — hier bewusst nicht vorentschieden. Dieselbe offene Frage ist bereits unter
+    P2.2a verlinkt; beide zusammen entscheiden, nicht zwei getrennte Umschalt-Konzepte entwerfen.
+    Falls ein Befehl gebraucht wird: denselben reservierten Codebereich `0x60`+ nutzen wie in P2.2b
+    vorgeschlagen.
+  - [ ] P8.2c **Lokal, nicht aus der Cloud lieferbar:** die eigentliche Messung braucht reale
+    Hardware (V4 mit gleichzeitig aktivem `ukfe_rf`-v2-BLE-Link und laufendem WiFi-Angriff) — keine
+    Simulation möglich, blockiert zusätzlich auf P8.1 (BLE-Transport muss existieren, bevor
+    gleichzeitiger Betrieb überhaupt messbar ist).
+  - Verifikation: nur lokal (Messreihe an echter Hardware, siehe P8.2c).
 - [ ] P8.3 APK (Flutter o. Kotlin): Feature-Parität zur GUI über BLE; Ergebnis-Anzeige mit Quell-ID.
+  - [ ] P8.3a Wie in K4/K6 bereits festgehalten, braucht die APK **zwei getrennte** BLE-Protokoll-
+    Clients, kein drittes Protokoll zu entwerfen: Flippers eigenes RPC-über-BLE (identisch zu
+    P2.4a/K1/K3/K4) für den Flipper, und `ukfe_rf`-v2-BLE (P8.1, blockiert bis dahin) für V4/V3/
+    LilyGo/WROOM — beide auf Android als das portieren, was auf Pi/Windows bereits mit `bleak`
+    gebaut wird (P2.4c/d), nicht zwei neue Implementierungen erfinden.
+  - [ ] P8.3b Framework-Entscheidung (Flutter vs. Kotlin-nativ, Abschnitt 6, weiterhin offen) prägt
+    nur die BLE-Bibliothek, nicht das Protokoll: Flutter (`flutter_blue_plus` o. ä.) deckt beide
+    GATT-Verbindungen aus einem Codepfad ab (analog `bleak` auf Desktop-Seite); Kotlin-nativ nutzt
+    Androids `BluetoothGatt`-API direkt. Sinnvoll erst entscheidbar, sobald P8.1b (Frame-/
+    Fragmentierungsformat) lokal geklärt ist, sonst wird gegen ein unbekanntes Protokoll geplant.
+  - [ ] P8.3c Quell-ID-Anzeige: dasselbe bereits etablierte Fallback-Muster wie P1.5c/P1.6b/P2.3a/
+    P3.1c/P3.3a/P7.1c (echtes `SRC_ID`/`ORIGIN_ID` erst mit P0.4f, bis dahin nur die aktive
+    Verbindung/das verbundene Gerät laut `devices.json`-`id` anzeigen) — keine dritte Variante
+    entwerfen.
+  - Verifikation: nur lokal (echte APK auf Android-Gerät gegen echte BLE-Hardware getestet).
 
 ### Phase 9 — WROOM Multi-Rolle
 - [ ] P9.1 WROOM-Rollen je Szenario: ESP-NOW-Relay · WiFi-Attack · BLE · Standalone — umschaltbar per Command.
@@ -1031,6 +1082,41 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
   reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben (`topology.json` ist reine Graph-/Preset-Daten, kein Code).
+- 2026-09-27 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-7-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — nächsten unverfeinerten
+  Tier aufgegriffen: Phase 8 (Android-APK/BLE, P8.1-P8.3) in Abschnitt 4 in Unterschritte zerlegt.
+  P8.1 (BLE-GATT-Transport am V4) verweist auf die in P0.4e bereits vorgeschlagenen GATT-UUIDs
+  (kein zweiter Entwurf) und schlägt eine Zwei-Schritt-Patch-Reihenfolge vor (erst der P0.4f-
+  SRC_ID-Patch, danach BLE getrennt); Fragmentierungsfrage (ATT-MTU bis 247 Byte vs. `ukfe_rf`-
+  Framegröße) als „lokal, nicht aus der Cloud lieferbar" markiert, dieselbe Begründung wie
+  P1.2b/P2.4b (Firmware-Repos außerhalb des Cloud-Zugriffs-Scopes). P8.2 (BLE/WiFi-Koexistenz)
+  bekam einen echten technischen Ausgangspunkt statt reiner Prosa: ESP32-S3 hat nur einen
+  2,4-GHz-Funk, ESP-IDFs Software-Koexistenz (`CONFIG_SW_COEXIST_ENABLE`) teilt ihn automatisch
+  per Zeitmultiplex — ein harter Umschalt-Befehl ist damit nicht zwingend nötig, nur ein Durchsatz-/
+  Latenz-Kompromiss; ob einer trotzdem gebraucht wird, nur mit echten Messwerten an der Hardware zu
+  entscheiden (verlinkt mit der bereits offenen P2.2a-Frage, kein zweites Umschalt-Konzept). P8.3
+  (APK) hält fest, dass zwei getrennte BLE-Clients nötig sind (Flipper-RPC wie K4, `ukfe_rf`-v2-BLE
+  wie K6) statt eines dritten Protokolls, und dass die Flutter/Kotlin-Wahl erst nach P8.1b (Frame-/
+  Fragmentierungsformat) sinnvoll entscheidbar ist. Vor der Textarbeit den Repo-Zustand geprüft:
+  `origin/main` war beim ersten Fetch dieser Sitzung noch auf einem 9 Commits alten Stand
+  (`791f682`) und zeigte erst nach `git fetch origin main` auf den tatsächlichen Kopf (`6e28c84`,
+  identisch mit dem bereits ausgecheckten `HEAD` dieses Checkouts) — anders als die bisherige
+  Drift-Art (lokaler `main`-Zeiger hinter `origin/main`, siehe 2026-09-15/17/19/21/22) war hier
+  `HEAD` bereits korrekt, nur die zwischengespeicherte `origin/main`-Ref war veraltet; keine
+  Fast-Forward-Aktion nötig, nur der Fetch selbst. Der lokale `main`-Branch-Zeiger dieses Checkouts
+  zeigt weiterhin auf den älteren Commit `791f682` (Verschieben des Branch-Zeigers wurde vom
+  Auto-Mode als irreversible lokale Aktion geblockt) — beeinflusst diese Sitzung nicht (Arbeit
+  erfolgt direkt auf dem bereits korrekten `HEAD`, Push erfolgt explizit als `HEAD:main`), aber für
+  eine künftige Sitzung vermerkt: `git branch -f main origin/main` (oder ein regulärer
+  `git checkout main`) lokal nachziehen, falls dieser Checkout weiterverwendet wird. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/
+  `flipper_ctl.py`/`g4meover_resume.py`) sowie der P4.2a-Fund erneut gegen
+  `git log --all --diff-filter=A` geprüft: unverändert kein Treffer. Repo-Sichtbarkeit per
+  GitHub-API geprüft (`visibility`-Feld): weiterhin `private`. Zugangsdaten-Rotation (Pi-SSH,
+  LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt 31 Tage) — keine erneute
+  Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist
+  kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
+  geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1127,6 +1213,15 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     Event-Quelle an den P1.6a-Log-Queue-Mechanismus (kein zweiter Event-Pfad); Färbung nach realer
     Quelle/Ziel erst mit P0.4f (`SRC_ID`/`ORIGIN_ID`) möglich, bis dahin nur die aktive Verbindung
     hervorheben (dasselbe Fallback-Muster wie P1.5c/P1.6b/P2.3a/P3.1c/P3.3a).
+11. Phase 8 (Android-APK/BLE, P8.1-P8.3) ist jetzt ebenfalls in Unterschritte zerlegt. **Zuerst**
+    P8.1 (BLE-GATT-Transport am V4): nutzt die P0.4e-UUIDs, Zwei-Schritt-Patch-Reihenfolge (erst
+    P0.4f-SRC_ID, dann BLE getrennt), Fragmentierungsfrage (ATT-MTU bis 247 Byte) nur lokal gegen
+    die echte Firmware zu klären. K6 (APK↔V4) bleibt bis dahin vollständig blockiert. P8.2
+    (BLE/WiFi-Koexistenz) hat jetzt einen technischen Ausgangspunkt (ESP-IDF-Software-Koexistenz
+    teilt den einen 2,4-GHz-Funk automatisch per Zeitmultiplex) — ob trotzdem ein expliziter
+    Umschalt-Befehl nötig ist, nur mit echten Messwerten an der Hardware zu entscheiden (verlinkt
+    mit P2.2a, zusammen entscheiden). P8.3 (APK) braucht zwei getrennte BLE-Clients (Flipper-RPC
+    wie K4, `ukfe_rf`-v2-BLE wie K6); Flutter-vs.-Kotlin-Wahl erst sinnvoll nach P8.1b.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
@@ -1164,7 +1259,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 26 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 31 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -1234,34 +1329,37 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-26):** Phase 7 (Szenario-Visualizer, P7.1/P7.2) in
-Abschnitt 4 zerlegt — diesmal mit einem fertigen Artefakt statt nur Textmenge:
-[`ecosystem/topology.json`](ecosystem/topology.json), die bisher nur als Mermaid-Prosa (Abschnitt 2)
-geführte Fabric-Topologie plus die Phase-2b-Direktverbindungen (K1–K6) als maschinenlesbarer Graph
-(13 Knoten, 19 Kanten mit `implemented`/`planned`-Status, 4 Szenario-Presets), konsistenzgeprüft
-gegen `devices.json` und in sich (Presets ↔ Kanten). P7.1b/P7.2b binden Rendering und Event-Quelle
-explizit an die bereits offene P6.1a-GUI-Framework-Frage bzw. den P1.6a-Log-Queue-Mechanismus, statt
-zweite Entscheidungen/Pfade zu entwerfen. Echter Fund und sofort behoben: lokale Git-Identität dieses
-Checkouts stand auf `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem
-Commit korrigiert. Repo-Zustand geprüft: `HEAD` exakt auf `origin/main`, kein Drift. Blocker
-„referenzierte Tool-Dateien fehlen im Repo" sowie P4.2a-Fund erneut geprüft: unverändert kein
-Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-Rotation weiterhin offen, jetzt 30 Tage — keine
-erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). Kein
-Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben (`topology.json` ist
-reine Graph-/Preset-Daten, kein Code).
+**Cloud hat in dieser Sitzung erledigt (2026-09-27):** Phase 8 (Android-APK/BLE, P8.1-P8.3) in
+Abschnitt 4 zerlegt. P8.1 (BLE-GATT-Transport am V4) verweist auf die P0.4e-UUIDs statt eines
+zweiten Entwurfs, schlägt eine Zwei-Schritt-Patch-Reihenfolge vor (erst P0.4f-SRC_ID, dann BLE
+getrennt) und markiert die ATT-MTU-/Fragmentierungsfrage als „lokal, nicht aus der Cloud
+lieferbar" (Firmware-Repos außerhalb des Cloud-Zugriffs-Scopes, dieselbe Begründung wie
+P1.2b/P2.4b). P8.2 (BLE/WiFi-Koexistenz) bekam einen echten technischen Ausgangspunkt: ESP32-S3
+hat nur einen 2,4-GHz-Funk, ESP-IDFs Software-Koexistenz teilt ihn automatisch per Zeitmultiplex —
+ein harter Umschalt-Befehl ist damit nicht zwingend nötig, nur mit echten Messwerten an der
+Hardware zu entscheiden (verlinkt mit P2.2a). P8.3 (APK) hält fest, dass zwei getrennte BLE-Clients
+nötig sind (Flipper-RPC wie K4, `ukfe_rf`-v2-BLE wie K6) statt eines dritten Protokolls. Repo-
+Zustand geprüft: `origin/main` war beim ersten Fetch dieser Sitzung noch auf einem 9 Commits alten
+Stand, zeigte erst nach `git fetch` auf den tatsächlichen, bereits ausgecheckten `HEAD` — anders als
+die bisherige Drift-Art (lokaler `main`-Zeiger hinter `origin/main`) war hier nur die
+zwischengespeicherte Ref veraltet; der lokale `main`-Branch-Zeiger selbst zeigt weiterhin auf den
+älteren Commit (Verschieben vom Auto-Mode als irreversible Aktion geblockt, beeinflusst diese
+Sitzung nicht, da direkt auf `HEAD` gearbeitet und explizit als `HEAD:main` gepusht wird — für eine
+künftige Sitzung als Hinweis vermerkt). Blocker „referenzierte Tool-Dateien fehlen im Repo" sowie
+P4.2a-Fund erneut geprüft: unverändert kein Treffer. Repo-Sichtbarkeit `private`. Zugangsdaten-
+Rotation weiterhin offen, jetzt 31 Tage — keine erneute Push-Notification ohne neuen Sachstand
+(zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/
+GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-22):** Phase 6 (Kartenansicht, P6.1/P6.2) in Abschnitt 4 in
-Unterschritte zerlegt. Echter Architektur-Widerspruch aufgedeckt: P6.1 setzte bisher „Leaflet in
-QWebEngine" (Qt) voraus, obwohl der tatsächlich gebaute Cockpit-Prototyp (P1.1) auf Tkinter läuft,
-das kein Web-Rendering-Widget hat — jetzt in P6.1a als vier lokal zu entscheidende Optionen
-aufgezeigt (`tkintermapview`, `pywebview`-Fenster, paralleles PySide6-Fenster, oder Cockpit-weiter
-Wechsel auf PySide6), verknüpft mit der bisher isoliert geführten „PySide6 vs. Web"-Entscheidung in
-Abschnitt 6. P6.1b ordnet die Datenquellen (DogyTag über denselben MQTT-Pfad wie P5.1a/b; V4-Hub-GPS
-über den in `FLEET-COMMANDS.md` bereits reservierten, aber unbelegten `0x40`–`0x41`-Code;
-„Wardrive-GPS" als kein drittes Gerät erkannt). P6.2 verweist auf P6.1a als Blocker und markiert die
-Track-Historie-Persistenz (In-Memory vs. SQLite/CSV) als offene lokale Wahl. Repo-Sichtbarkeit
-`private`. Zugangsdaten-Rotation damals 26 Tage offen. Kein Hardware-Zugriff versucht, nichts
-geflasht, kein Firmware-/GUI-Code geschrieben.
+**Vorherige Cloud-Sitzung (2026-09-26):** Phase 7 (Szenario-Visualizer, P7.1/P7.2) in Abschnitt 4
+zerlegt — mit einem fertigen Artefakt statt nur Textmenge: [`ecosystem/topology.json`](ecosystem/topology.json),
+die bisher nur als Mermaid-Prosa (Abschnitt 2) geführte Fabric-Topologie plus die
+Phase-2b-Direktverbindungen (K1–K6) als maschinenlesbarer Graph (13 Knoten, 19 Kanten,
+4 Szenario-Presets), konsistenzgeprüft gegen `devices.json`. Echter Fund und sofort behoben: lokale
+Git-Identität dieses Checkouts stand auf `Claude <noreply@anthropic.com>` statt der
+CONSTRAINTS.md-Vorgabe — vor dem Commit korrigiert. Repo-Sichtbarkeit `private`. Zugangsdaten-
+Rotation damals 30 Tage offen. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/
+GUI-Code geschrieben (`topology.json` ist reine Graph-/Preset-Daten, kein Code).
 
 ---
 
