@@ -1,0 +1,17 @@
+--- a/evil_ble_scanner.c	2026-09-27 00:24:27.740522659 +0000
++++ b/evil_ble_scanner.c	2026-09-27 00:24:27.742517186 +0000
+@@ -227,8 +227,12 @@
+     for(uint32_t i = 0; i < scanner->device_count; i++) {
+         if(strncmp(scanner->devices[i].mac, dev.mac, EVIL_BLE_MAC_LEN) == 0) {
+             scanner->devices[i].rssi = dev.rssi;
+-            /* Refresh name only if we got a real one this time. */
+-            if(strncmp(dev.name, "(unknown)", 9) != 0) {
++            /* Refresh name only if we got a real one this time -- dev.name holds
++             * the "(AA:BB:CC:DD:EE:FF)" display placeholder (see parse_scanbt_line())
++             * for a MAC-only re-report of an already-known device, never the literal
++             * string "(unknown)"; same placeholder check as parse_scanbt_line() and
++             * evil_ble.c's clone-payload fallback use for the same reason. */
++            if(dev.name[0] != '\0' && dev.name[0] != '(') {
+                 strncpy(scanner->devices[i].name, dev.name, EVIL_BLE_NAME_LEN - 1);
+                 scanner->devices[i].name[EVIL_BLE_NAME_LEN - 1] = '\0';
+                 scanner->devices[i].adv_data_len =

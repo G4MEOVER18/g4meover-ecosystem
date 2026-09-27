@@ -2729,6 +2729,47 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Fehler). `g4meover-magspoof` damit bis auf `helpers/mag_text_input.c`/`.h` (bereits als
       totes Aufräum-Kandidat vorgemerkt) vollständig durchgesehen.
 
+## Firmware-Feature-Mining (Fortsetzung 4)
+- [x] Eigenen bereits dokumentierten Port-Fund **Evil BLE** (`firmware-mining/evil-ble-app-port.md`)
+      erneut aufgegriffen und den zugrundeliegenden Scanner-Code (`evil_ble_scanner.c`,
+      `barkandbite/flipper_suite`, frisch gegengeprüft) noch einmal Zeile für Zeile gegen den
+      in derselben Datei bereits vorhandenen, korrekten Platzhalter-Check gelesen — dabei einen
+      zweiten, eigenständigen Fund gemacht, der den ersten Fix in der Praxis wirkungslos macht:
+      `evil_ble_scanner_rx_cb()`s Update-Zweig prüft beim erneuten Sichten eines bereits
+      bekannten Geräts `strncmp(dev.name, "(unknown)", 9) != 0`, um den Namen/die
+      Sende-Payload nur bei einem „echten" Namen aufzufrischen — der Platzhalter für ein nur
+      per MAC gemeldetes Gerät lautet laut `parse_scanbt_line()` aber nie `"(unknown)"`,
+      sondern immer `"(AA:BB:CC:DD:EE:FF)"`, weshalb diese Bedingung für jede erdenkliche
+      Eingabe wahr ist — toter, nie zutreffender Code. Der Update-Zweig ruft dadurch bei
+      **jedem** erneuten Sichten eines bereits bekannten Geräts `build_adv_from_name()`
+      ungeprüft mit dem aktuellen `dev.name` auf, auch wenn dieser nur der Anzeige-Platzhalter
+      ist. Für ein nur per MAC gemeldetes Gerät kippt `adv_data_len` dadurch schon beim
+      zweiten Sichten — bei einer laufenden `scanbt`-Sitzung gegen ein Gerät in Reichweite der
+      Normalfall, keine Randbedingung — von 0 (richtig: „kein Name bekannt") auf einen
+      positiven Wert, dessen Payload den MAC-Platzhaltertext als vermeintlichen
+      „Complete Local Name" (AD-Typ `0x09`) enthält — exakt der Fehlerzustand, den mein
+      bereits gelieferter `evil_ble.c`-Fix (Fallback-Zweig in `evil_ble_start_clone()`)
+      verhindern sollte. Da `evil_ble_start_clone()` nur `if(dev.adv_data_len > 0)` prüft und
+      die Payload dann unbesehen übernimmt, wird mein Fallback-Fix dabei komplett umgangen,
+      ohne dass das an der Oberfläche sichtbar wäre. Mit Host-Repro (exakter Dedup-/
+      Update-Codeblock aus `evil_ble_scanner_rx_cb()` nachgebaut, drei Fälle: MAC-only-Gerät
+      beim zweiten Sichten, Regression bei einem dreimal in Folge gemeldeten echten Namen,
+      Regression bei einem defensiv angenommenen leeren Namen) unter ASan/UBSan bei `-O0`/`-O1`
+      verifiziert: 17/17 Prüfungen bestanden, ALT kippt `adv_data_len` beim MAC-only-Gerät
+      fälschlich auf 21 (Länge des kodierten Platzhaltertextes), NEU (derselbe
+      Platzhalter-Check `dev.name[0] != '\0' && dev.name[0] != '('`, den die App an zwei
+      anderen Stellen bereits selbst verwendet) belässt es korrekt bei 0, für den echten Namen
+      liefern ALT und NEU byte-identische Payload/Länge — keine ASan-/UBSan-Meldungen, keine
+      Compiler-Warnungen. Fix in
+      `firmware-mining/evil-ble-rescan-adv-data-placeholder-leak-fix.md`, Unified-Diff
+      (`git apply --check` vorab gegen frische Kopie verifiziert, real angewendet und
+      byte-für-byte abgeglichen) in
+      `firmware-mining/evil-ble-rescan-adv-data-placeholder-leak-fix/evil_ble_scanner_c.patch`,
+      Host-Repro in
+      `firmware-mining/repro-evil-ble-rescan-adv-data-placeholder-leak-fix/repro.c`. Beide
+      Fixes (dieser sowie der bereits dokumentierte in `evil_ble.c`) gehören zusammen
+      appliziert — keiner der beiden macht den anderen entbehrlich.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
