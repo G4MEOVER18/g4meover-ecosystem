@@ -2837,6 +2837,41 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       restlicher Code (Ethernet CH9120/W5500, unverdrahteter Stub ohne angeschlossene Hardware)
       bleibt außerhalb reiner Quelltextprüfung offen.
 
+## Ideen-Recherche (Fortsetzung 2)
+- [x] Neue Recherche außerhalb bestehender Rückstellpunkte: dritte Ergänzung für die Kategorie
+      „GPIO / Serial Bus" gesucht, ausgehend von den eigenen CAN-Bus-Funden desselben Herstellers
+      (`firmware-mining/canbus-attack-app-port.md`, `firmware-mining/canbus-electroniccats-app-port.md`)
+      — **RS485 Modbus (`ElectronicCats/flipper-rs485modbus`)** geprüft: Modbus-RTU-Sniffer/-Master
+      über ein RS485-Hardwaremodul, alle acht Standard-Funktionscodes inkl. Exception-Decodierung,
+      SD-Logging, Paket-Ringpuffer zur Re-Injektion. Quelltext direkt per `curl` gegen
+      `raw.githubusercontent.com` gelesen (`ModbusApp/Modbus.c/.h`, `modbus_uart/modbus_uart.c/.h`,
+      `application.fam`). API-87-Status gegen den eigenen `mntm-012`-Header-Stand verifiziert
+      (`targets/f7/furi_hal/furi_hal_serial.h`/`_types.h`/`_control.h` direkt per `curl` vom Tag
+      `mntm-012` gelesen): die genutzte DMA-basierte Serial-API
+      (`furi_hal_serial_control_acquire/release`, `_dma_rx_start/_stop`, `furi_hal_serial_dma_rx`,
+      `furi_hal_serial_set_br`, `FuriHalSerialRxEvent{Data,Idle}`) exakt vorhanden, `expansion_
+      disable()`/`_enable()` beim Start korrekt vor der ersten Serial-Nutzung aufgerufen. Zwei
+      Funde gemacht: (1) `modbus_uart.c::Serial_Begin()` konfiguriert USART1 nicht über die
+      dafür vorgesehene öffentliche `furi_hal_serial_init()`/`furi_hal_serial_configure_framing()`,
+      sondern per direkten STM32-LL-Register-/GPIO-Aufrufen (`LL_USART_Init()`,
+      `furi_hal_gpio_init_ex(..., GpioAltFn7USART1)`, `LL_RCC_SetUSARTClockSource()`) von Hand —
+      geprüft, ob das technisch nötig ist (Framing-Optionen, die die offizielle API nicht
+      abdeckt): Gegenteil bestätigt, `furi_hal_serial_configure_framing()` deckt mit
+      `FuriHalSerialDataBits{6,7,8,9}`/`Parity{None,Even,Odd}`/`StopBits{0_5,1,1_5,2}` exakt die
+      Obermenge der App-UI-Optionen (7/8/9 Bit, None/Even/Odd, 0,5/1/1,5/2 Stopbits) ab — die
+      App dupliziert damit vollständig unnötig eine bereits öffentlich vorhandene
+      Firmware-Funktion, mit Kompatibilitätsrisiko bei künftigen Register-/Pin-Änderungen der
+      Firmware, die App-seitig lautlos (kein Kompilierfehler) divergieren würden. (2)
+      `Modbus.c::modbus_app_free()` ruft `expansion_enable(app->expansion)` erst NACH
+      `furi_record_close(RECORD_EXPANSION)` auf — umgekehrte Reihenfolge zum eigenen
+      Start-Code und zur bei UART Sniff/GPIO Logic Analyzer bereits bestätigten Konvention;
+      nach aktuellem Furi-Record-Modell vermutlich ohne sichtbare Laufzeitauswirkung (Record-
+      Close gibt nur die eigene Referenz frei, das Singleton bleibt bestehen), aber ein falsch
+      herum aufgerufenes API-Paar. Kein Fix-Vorschlag als eigenständiger Patch angelegt (externe
+      Drittanwendung, noch kein eigener Port), beide Funde inkl. Verbesserungsskizze für einen
+      künftigen Port dokumentiert. Kuratiert in `ideas/rs485-modbus-app-status.md`, Katalog-Zeile
+      und Recherche-Auftrag in `ideas/pentest-app-katalog.md` ergänzt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
