@@ -1,0 +1,26 @@
+--- a/src/Devices/TFT/HardwareTFT.cpp
++++ b/src/Devices/TFT/HardwareTFT.cpp
+@@ -348,11 +348,22 @@ int HardwareTFT::convertStringToColor(const std::string &color)
+         hexStr = hexStr.substr(2);
+     }
+ 
++    // Nur reine Hex-Ziffern zulassen -- lehnt leere Eingaben, ein fuehrendes '+'/'-'
++    // (von strtoul() sonst stillschweigend akzeptiert) sowie jeden Trailing-Rest ab,
++    // statt ihn nur zu ignorieren.
++    if (hexStr.empty() ||
++        hexStr.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos)
++    {
++        return TFT_BLACK;
++    }
++
+     char* end;
+     errno = 0;
+     const unsigned long value = std::strtoul(hexStr.c_str(), &end, 16);
+ 
+-    if (errno != 0 || end == hexStr.c_str()) {
++    // "end" erreicht durch die Zeichenklassen-Pruefung oben immer das Stringende;
++    // zusaetzlich auf das eigene 24-Bit-RGB888-Format begrenzen.
++    if (errno != 0 || end != hexStr.c_str() + hexStr.length() || value > 0xFFFFFFUL) {
+         return TFT_BLACK;
+     }
+ 

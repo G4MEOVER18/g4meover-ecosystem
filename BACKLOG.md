@@ -2799,6 +2799,44 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `g4meover-magspoof` damit jetzt vollständig durchgesehen — keine weiteren offenen Dateien
       aus früheren Sitzungen vorgemerkt.
 
+## App-Verbesserungen (Fortsetzung 5)
+- [x] **usb-army-penetrator**: den zuletzt offenen Rückstellpunkt "TFT-Hex-Farbparser
+      unerreicht" aufgegriffen — `HardwareTFT::convertStringToColor()`
+      (`src/Devices/TFT/HardwareTFT.cpp`) vollständig geprüft statt nur als unerreicht
+      vermerkt zu lassen. Aufrufstellen-Vollsuche (`src/main.cpp`,
+      `src/Devices/Platform/ESP32BoardSupport.cpp`) bestätigt: der Hex-Zweig ist aktuell
+      tatsächlich unerreicht, alle Aufrufer übergeben ausschließlich feste Named-Color-Literale
+      über `colorLookup`. Trotzdem Fund gemacht — der Funktionskommentar ("RGB888 hex color
+      code") signalisiert eindeutig eine künftige externe Aufrufstelle (Ducky-Kommando,
+      Web-UI): die bestehende Fehlerprüfung nach `std::strtoul()` (`errno != 0 || end ==
+      hexStr.c_str()`) deckt nur Überlauf und "gar keine Ziffer konsumiert" ab, drei andere
+      ungültige-Eingabe-Klassen schlüpfen durch und werden als scheinbar gültige Farbe
+      weitergereicht statt wie vom Rückgabewert `TFT_BLACK` in den beiden abgedeckten Fällen
+      beabsichtigt abgewiesen zu werden: Trailing-Müll nach den Hex-Ziffern wird von
+      `strtoul()` nur stillschweigend abgeschnitten statt geprüft (`end` wird nie gegen das
+      Stringende verglichen); ein führendes `+`/`-` wird von `strtoul()` laut C-Standard
+      akzeptiert und bei `-` als Zweierkomplement-Wrap zurückgewickelt, für eine
+      reine-Hex-Ziffern-Funktion ein unbeabsichtigter Erfolgsfall; Werte über dem eigenen
+      24-Bit-RGB888-Format (z. B. eine achtstellige Hex-Eingabe) werden nicht begrenzt, obwohl
+      weder Name noch Kommentar der Funktion einen größeren Bereich vorsehen. Mit Host-Repro
+      (ALT/NEU 1:1 aus der echten Funktion, `lcd.color24to16()` aus LovyanGFX per
+      Passthrough-Stub ersetzt, da der Fund vollständig davor liegt) unter ASan/UBSan
+      verifiziert: fünf Regressionsfälle (leer, reines "0x", ungültiges Zeichen, mit/ohne
+      "0x"-Präfix) unverändert, fünf Fundfälle (Trailing-Müll, führendes `+`/`-`, führendes
+      Leerzeichen, > 24 Bit) vorher fälschlich als "gültig" akzeptiert, nachher korrekt
+      `TFT_BLACK` — ALLE CHECKS BESTANDEN. Fix (Zeichenklassen-Prüfung vor `strtoul()`,
+      Stringende- und 24-Bit-Bereichsprüfung danach) zusätzlich am realen Funktionskörper
+      (Named-Color-Tabelle + `TFT_BLACK`/`lcd`-Stubs) kompiliert und smoke-getestet. Details in
+      `app-improvements/usb-army-penetrator/tft-hex-color-parser-validation-gap-fix.md`,
+      Unified-Diff (`git apply --check` vorab gegen frische Kopie verifiziert, real angewendet
+      und byte-für-byte abgeglichen) in
+      `app-improvements/usb-army-penetrator/tft-hex-color-parser-validation-gap-fix/HardwareTFT_c.patch`,
+      Host-Repro in
+      `app-improvements/usb-army-penetrator/repro-tft-hex-color-parser-validation-gap/repro.cpp`.
+      Damit ist auch dieser letzte offene `usb-army-penetrator`-Rückstellpunkt abgeschlossen —
+      restlicher Code (Ethernet CH9120/W5500, unverdrahteter Stub ohne angeschlossene Hardware)
+      bleibt außerhalb reiner Quelltextprüfung offen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
