@@ -2770,6 +2770,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Fixes (dieser sowie der bereits dokumentierte in `evil_ble.c`) gehören zusammen
       appliziert — keiner der beiden macht den anderen entbehrlich.
 
+## App-Verbesserungen (Fortsetzung 4)
+- [x] **g4meover-magspoof**: den seit mehreren Sitzungen vorgemerkten letzten offenen Punkt
+      abgeschlossen — `helpers/mag_text_input.c`/`.h` (582 bzw. 83 Zeilen, ein eigenständiges
+      Tastatur-Widget `Mag_TextInput`) vollständig auf tatsächliche Nutzung geprüft, nicht nur
+      als „vermutlich tot" markiert belassen. Jede von `mag_text_input.h` deklarierte Funktion
+      (`mag_text_input_alloc()`, `_free()`, `_reset()`, `_get_view()`,
+      `_set_result_callback()`, `_set_header_text()`) sowie der Typ `Mag_TextInput`/
+      `Mag_TextInputModel` selbst kommt außerhalb dieser beiden Dateien im gesamten Baum kein
+      einziges Mal vor (`mag_i.h`, `mag.c`, alle `scenes/*.c`, `helpers/mag_helpers.c`
+      durchsucht) — die einzige oberflächliche Namensähnlichkeit, `mag_text_input_callback()`
+      (in `mag.c`, verwendet von `mag_scene_input_name.c`/`mag_scene_input_value.c`), ist eine
+      andere Funktion für den Standard-`TextInput` aus `gui/modules/text_input.h`, den diese
+      beiden Szenen tatsächlich nutzen, und hat mit dem eigenen Widget nichts zu tun.
+      `application.fam` listet keine explizite Quelldateiliste, `fbt`/`ufbt` bindet Quelldateien
+      per Verzeichnis-Glob ein — beide Dateien werden also bei jedem Build mitkompiliert und
+      mitgelinkt, obwohl zur Laufzeit nichts sie je instanziiert: totes Gewicht (Flash,
+      Baumzeit), kein Laufzeitfehler. Vorschlag: beide Dateien vollständig entfernen, rein
+      subtraktiv, keine andere Datei muss geändert werden, da keine von ihnen
+      `mag_text_input.h` inkludiert. Details, Begründung, betroffene Dateien, Risiko und
+      Testhinweis (Baum-/Referenz-Prüfung statt eigenständigem Repro, da reine Löschung
+      ungenutzten Codes ohne Logikänderung) in
+      `app-improvements/g4meover-magspoof/mag-text-input-dead-code-removal.md`, Unified-Diff
+      (löscht beide Dateien; `git apply --check` vorab gegen frische Kopie verifiziert, real
+      angewendet, Ergebnis byte-für-byte mit einer unabhängig per `git rm` erzeugten
+      Referenzkopie abgeglichen — identisch) in
+      `app-improvements/g4meover-magspoof/mag-text-input-dead-code-removal/mag_text_input_removal.patch`.
+      `g4meover-magspoof` damit jetzt vollständig durchgesehen — keine weiteren offenen Dateien
+      aus früheren Sitzungen vorgemerkt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
