@@ -2985,6 +2985,30 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       und byte-für-byte abgeglichen), Details in
       `firmware-mining/subghz-tx-transmitter-dangling-pointer-cleanup.md`.
 
+## Ideen-Recherche (Fortsetzung 4)
+- [x] Neue Recherche außerhalb bestehender Rückstellpunkte: Kategorie "BadUSB / HID" gezielt
+      um einen dritten Eintrag ergänzt (bislang nur Bad USB und Mouse Click Recorder) —
+      `n-92/kb_fuzzer` ("USB Fuzzer") gefunden: eigenständiges Kleinprojekt (3 Commits, kein
+      RogueMaster-Bündel-Fund), sendet bei jedem Tastendruck am Flipper einen neuen
+      Zufalls-String (1–20 Zeichen) plus Enter über USB-HID an den Host — Robustheitstest-
+      Rauschen statt gezielter DuckyScript-Payload, ergänzt das eigene Bad USB um eine bisher
+      fehlende Fuzzing-Variante. Vollständig gelesen (vier Quelldateien, ~250 Zeilen). Frischer,
+      unauthentifizierter Klon von `Next-Flip/Momentum-Firmware` (Tag `mntm-012`, Commit
+      `e1784e74`) gegen den genutzten Symbolbestand abgeglichen: bricht den Build unverändert —
+      `HID_KEYBOARD_L_CTRL`/`_L_ALT`/`_L_GUI` existieren bei mir nicht (nur die
+      `KEY_MOD_LEFT_*`-Bitmasken-Varianten), alle drei Vergleiche sind zur Laufzeit ohnehin
+      bereits im Original toter Code (der einzige aktive Tastensatz-Eintrag hat `value = 0`,
+      identisch zu `HID_KEYBOARD_NONE`) — Ein-Zeilen-Streichung je Symbol behebt den Build ohne
+      Funktionsverlust. Zusätzlich beim Lesen gefunden: `usb_hid_keyboard_process()` verwendet
+      das `malloc()`-Ergebnis (`create_rand_string()`, `send_string()`) bereits, bevor die
+      vorhandene NULL-Prüfung dafür greift — die Prüfung schützt nur noch den nachfolgenden
+      `free()`-Aufruf. Host-Repro (Funktion 1:1 transkribiert, `malloc()`-Fehlschlag simuliert)
+      unter ASan/UBSan verifiziert: ALT stürzt mit `SEGV`/"store to null pointer" ab, NEU
+      (Prüfung vor Nutzung) beendet sich sauber. Details, Fix-Skizzen und Repro in
+      `ideas/usb-hid-keyboard-fuzzer-app-status.md` /
+      `ideas/repro-usb-hid-keyboard-fuzzer-null-check-order/repro.c`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` ergänzt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
