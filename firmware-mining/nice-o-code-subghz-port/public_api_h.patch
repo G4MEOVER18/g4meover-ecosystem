@@ -1,0 +1,49 @@
+--- a/lib/subghz/protocols/public_api.h	2026-09-28 00:28:19.958563163 +0000
++++ b/lib/subghz/protocols/public_api.h	2026-09-28 00:29:07.091649511 +0000
+@@ -159,6 +159,46 @@
+     SubGhzRadioPreset* preset,
+     bool nice_one);
+ 
++/** Nice Flor-S: reproduces subghz_protocol_nice_flor_s_encrypt()/_decrypt() bit for bit
++ *  when passed as the ic to subghz_protocol_nice_flor_s_encrypt_ic()/_decrypt_ic(). */
++#define NICE_FLOR_S_IC_PLAIN 0xFFFFu
++
++/**
++ * Nice Flor-S cipher parameterised with a 16 bit installer code (Nice O-Code).
++ * @param data 44-bit plaintext body (serial << 16 | cnt)
++ * @param ic Installer code, already XORed with the parcel's mask (see
++ *           subghz_protocol_nice_o_mask()); NICE_FLOR_S_IC_PLAIN for plain Flor-S
++ * @param file_name Full path to the rainbow table file
++ * @return data encrypted
++ */
++uint64_t
++    subghz_protocol_nice_flor_s_encrypt_ic(uint64_t data, uint16_t ic, const char* file_name);
++
++/**
++ * Inverse of subghz_protocol_nice_flor_s_encrypt_ic().
++ * @param data 44-bit ciphertext body of a single parcel
++ * @param ic Installer code, already XORed with the parcel's mask
++ * @param file_name Full path to the rainbow table file
++ * @return data decrypted
++ */
++uint64_t
++    subghz_protocol_nice_flor_s_decrypt_ic(uint64_t data, uint16_t ic, const char* file_name);
++
++/**
++ * Per-parcel obfuscation mask used by Nice O-Code.
++ * @param n Parcel index, 0..15 (see subghz_protocol_nice_o_get_parcel())
++ * @param mask_32 Mask applied to the 28 bit serial before encryption (may be NULL)
++ * @param mask_16 Mask applied to the installer code before encryption (may be NULL)
++ */
++void subghz_protocol_nice_o_mask(uint8_t n, uint32_t* mask_32, uint16_t* mask_16);
++
++/**
++ * Recover the parcel index carried by a Nice O-Code packet.
++ * @param data Full received frame, P0/P1 in their on-air position
++ * @return Parcel index, 0..15
++ */
++uint8_t subghz_protocol_nice_o_get_parcel(uint64_t data);
++
+ /**
+  * Key generation from simple data.
+  * @param context Pointer to a SubGhzProtocolEncoderStarLine instance

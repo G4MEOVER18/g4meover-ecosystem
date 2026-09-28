@@ -2872,6 +2872,42 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       künftigen Port dokumentiert. Kuratiert in `ideas/rs485-modbus-app-status.md`, Katalog-Zeile
       und Recherche-Auftrag in `ideas/pentest-app-katalog.md` ergänzt.
 
+## Firmware-Feature-Mining (Fortsetzung 5)
+- [x] Letzten der drei aus der Prastel-Sitzung zurückgestellten SubGHz-Kandidaten
+      aufgegriffen: **Nice O-Code** (Unleashed `dev`, Commit `945234a`, API 88.9 — dieselbe
+      Fundstelle wie Prastel/Security+ 2.0 Keypad). Bei mir (`lib/subghz/protocols/nice_flor_s.c`,
+      mntm-012) fehlt die Erkennung komplett: jedes der 16 pro Tastendruck gesendeten Pakete
+      wird bei O-Code individuell mit einer paket-abhängigen Maske neu verschlüsselt statt wie
+      bei Plain-Nice-FloR-S unverändert wiederholt — meine `feed()` prüft das nicht und meldet
+      ein O-Code-Signal aktuell fälschlich als Nice-FloR-S mit Zufallsinhalt statt es
+      abzulehnen oder korrekt zu erkennen (Fehlklassifikations-Fund, kein Absturz-/
+      Sicherheitsrisiko). Quelltext direkt per `raw.githubusercontent.com` bezogen
+      (`nice_flor_s.c`/`.h`, `public_api.h`, `CHANGELOG.md` bei Commit `945234a`) und gegen
+      meinen eigenen `mntm-012`-Stand diffgeprüft. Vier neue, rein additive und aktuell
+      unverwendete Hilfsfunktionen (IC-parametrisierte Ver-/Entschlüsselung, paket-abhängige
+      Maske, Paketindex-Rückgewinnung) 1:1 aus Unleashed übernommen, an meine eigene
+      Tabellen-Lesefunktion angepasst (keine Tabellen-Zwischenspeicherung übernommen — bleibt
+      symmetrisch zu meinen bestehenden `_encrypt()`/`_decrypt()`) und mit Host-Repro
+      (`firmware-mining/repro-nice-o-code-subghz/repro.c`) unter ASan/UBSan bei `-O0`/`-O1`
+      verifiziert: Plain-Äquivalenz bei `IC_PLAIN` gegen meine bestehende Chiffre (0
+      Abweichungen), Ver-/Entschlüsselung über den vollständigen 16-Bit-IC-Bereich sowie
+      fuzzed round-trip, Paketindex-Rückgewinnung unabhängig vom Geheimtext, Masken-Determinismus,
+      und eine vollständige synthetische O-Code-Pipeline (Maske → Verschlüsseln →
+      Paketindex/Maske/IC zurückgewinnen → Seriennummer/Zähler/Taste exakt rekonstruiert) —
+      **2 551 103 Prüfungen, ALLE CHECKS BESTANDEN**, keine Compiler-Warnungen. Patch (additiv,
+      ändert keine bestehende Funktion/Struct/Aufrufstelle) in
+      `firmware-mining/nice-o-code-subghz-port/{nice_flor_s_c,public_api_h}.patch`
+      (`git apply --check` vorab gegen frische Kopie verifiziert, real angewendet und
+      byte-für-byte abgeglichen). Die restliche Verdrahtung (Struct-Erweiterung,
+      Zwei-Pakete-Live-Erkennungsheuristik in `feed()` — verändert Verhalten am bereits
+      produktiven Plain-FloR-S-Pfad —, `.sub`-IC-Feld, sowie die laut Unleashed-CHANGELOG
+      separate Installateurcode-Recovery-App) bewusst **nicht** als Patch, sondern als
+      Port-Skizze mit exakten Zeilenankern dokumentiert — kein „klein & sicher"-Fund, siehe
+      `firmware-mining/nice-o-code-subghz-port.md`. Damit sind alle drei aus der
+      Prastel-Sitzung zurückgestellten Kandidaten inzwischen bearbeitet (Security+ 2.0 Keypad
+      und Nice O-Code jeweils mit verifiziertem Grundlagen-Beitrag plus Skizze, neue
+      KeeLoq-Hersteller bleibt wegen Lernschlüssel-Problematik grundsätzlich zurückgestellt).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

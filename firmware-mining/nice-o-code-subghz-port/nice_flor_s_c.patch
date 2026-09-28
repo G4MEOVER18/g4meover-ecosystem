@@ -1,0 +1,148 @@
+--- a/lib/subghz/protocols/nice_flor_s.c	2026-09-28 00:28:19.954740097 +0000
++++ b/lib/subghz/protocols/nice_flor_s.c	2026-09-28 00:28:54.779648779 +0000
+@@ -19,6 +19,11 @@
+ #define NICE_ONE_COUNT_BIT 72
+ #define NICE_ONE_NAME      "Nice One"
+ 
++/* Nice O-Code: the final permutation of the Flor-S cipher is XORed with a per-remote
++ * 16 bit installer code instead of being inverted outright. IC == NICE_FLOR_S_IC_PLAIN
++ * reproduces plain Nice Flor-S bit for bit (see subghz_protocol_nice_flor_s_encrypt()). */
++#define NICE_FLOR_S_IC_PLAIN 0xFFFFu
++
+ static const SubGhzBlockConst subghz_protocol_nice_flor_s_const = {
+     .te_short = 500,
+     .te_long = 1000,
+@@ -471,6 +476,133 @@
+     return data;
+ }
+ 
++/**
++ * Nice Flor-S cipher parameterised with a 16 bit installer code (Nice O-Code).
++ * Identical to subghz_protocol_nice_flor_s_encrypt() up to the final permutation, where
++ * the two bytes that plain Flor-S inverts outright are instead XORed with the installer
++ * code. Passing ic == NICE_FLOR_S_IC_PLAIN reproduces subghz_protocol_nice_flor_s_encrypt()
++ * bit for bit (see the verification in firmware-mining/repro-nice-o-code-subghz/repro.c).
++ * @param data 44-bit plaintext body (serial << 16 | cnt), already masked by the caller
++ *             for the parcel being sent (see subghz_protocol_nice_o_mask())
++ * @param ic Installer code, already XORed with the parcel's 16 bit mask by the caller
++ * @param file_name Full path to the rainbow table file
++ * @return data encrypted
++ */
++uint64_t subghz_protocol_nice_flor_s_encrypt_ic(uint64_t data, uint16_t ic, const char* file_name) {
++    uint8_t* p = (uint8_t*)&data;
++
++    uint8_t k = 0;
++    for(uint8_t y = 0; y < 2; y++) {
++        k = subghz_protocol_nice_flor_s_get_byte_in_file(file_name, p[0] & 0x1f);
++        subghz_protocol_decoder_nice_flor_s_magic_xor(p, k);
++
++        p[5] &= 0x0f;
++        p[0] ^= k & 0xe0;
++        k = subghz_protocol_nice_flor_s_get_byte_in_file(file_name, p[0] >> 3) + 0x25;
++        subghz_protocol_decoder_nice_flor_s_magic_xor(p, k);
++
++        p[5] &= 0x0f;
++        p[0] ^= k & 0x7;
++        if(y == 0) {
++            k = p[0];
++            p[0] = p[1];
++            p[1] = k;
++        }
++    }
++
++    p[5] = ~p[5] & 0x0f;
++    k = ~p[4];
++    p[4] = p[0] ^ (uint8_t)(ic >> 8);
++    p[0] = ~p[2];
++    p[2] = k;
++    k = p[1] ^ (uint8_t)ic;
++    p[1] = ~p[3];
++    p[3] = k;
++
++    return data;
++}
++
++/**
++ * Inverse of subghz_protocol_nice_flor_s_encrypt_ic(). ic == NICE_FLOR_S_IC_PLAIN
++ * reproduces the existing per-instance subghz_protocol_nice_flor_s_decrypt() bit for bit.
++ * @param data 44-bit ciphertext body of a single parcel
++ * @param ic Installer code, already XORed with the parcel's 16 bit mask by the caller
++ * @param file_name Full path to the rainbow table file
++ * @return data decrypted
++ */
++uint64_t subghz_protocol_nice_flor_s_decrypt_ic(uint64_t data, uint16_t ic, const char* file_name) {
++    uint8_t* p = (uint8_t*)&data;
++
++    uint8_t k = 0;
++
++    k = p[4] ^ (uint8_t)(ic >> 8);
++    p[5] = ~p[5];
++    p[4] = ~p[2];
++    p[2] = ~p[0];
++    p[0] = k;
++    k = p[3] ^ (uint8_t)ic;
++    p[3] = ~p[1];
++    p[1] = k;
++
++    for(uint8_t y = 0; y < 2; y++) {
++        k = subghz_protocol_nice_flor_s_get_byte_in_file(file_name, p[0] >> 3) + 0x25;
++        subghz_protocol_decoder_nice_flor_s_magic_xor(p, k);
++
++        p[5] &= 0x0f;
++        p[0] ^= k & 0x7;
++        k = subghz_protocol_nice_flor_s_get_byte_in_file(file_name, p[0] & 0x1f);
++        subghz_protocol_decoder_nice_flor_s_magic_xor(p, k);
++
++        p[5] &= 0x0f;
++        p[0] ^= k & 0xe0;
++
++        if(y == 0) {
++            k = p[0];
++            p[0] = p[1];
++            p[1] = k;
++        }
++    }
++
++    return data;
++}
++
++/**
++ * Per-parcel obfuscation mask used by Nice O-Code. A button press puts 16 parcels on
++ * air, each re-encrypting the same (serial, cnt) with a different mask depending on its
++ * own index, so no two parcels of one press share ciphertext the way plain Flor-S's 16
++ * identical repeats do.
++ * @param n Parcel index, 0..15, recovered from a received frame with
++ *          subghz_protocol_nice_o_get_parcel()
++ * @param mask_32 Mask applied to the 28 bit serial before encryption (may be NULL)
++ * @param mask_16 Mask applied to the installer code before encryption (may be NULL)
++ */
++void subghz_protocol_nice_o_mask(uint8_t n, uint32_t* mask_32, uint16_t* mask_16) {
++    const uint32_t a = (uint32_t)(0x0Eu - n) & 0x0Fu;
++    const uint32_t b = (uint32_t)(n + 2u);
++    const uint32_t odd = (uint32_t)n & 1u;
++    const uint32_t c = b + (odd << 1);
++    const uint32_t bn = b & 0x0Fu;
++    const uint32_t cn = c & 0x0Fu;
++
++    uint32_t m = (a << 8) | (bn << 4) | (bn << 20) | (a << 24) | cn | (cn << 16);
++    m |= (((((b ^ (uint32_t)(0x0Eu - n) ^ c) & 0x0Fu) + (odd << 2)) << 12) & 0xFFFFu);
++
++    if(mask_32) *mask_32 = m & 0x0FFFFFFFu;
++    // REV16: swap the two bytes inside each halfword, then keep the low halfword
++    if(mask_16) *mask_16 = (uint16_t)(((m & 0x00FFu) << 8) | ((m >> 8) & 0x00FFu));
++}
++
++/**
++ * Recover the parcel index carried by a Nice O-Code packet.
++ * P0 (the button, bits 48..51) and P1 (bits 44..47) satisfy P1 = 0xF ^ P0 ^ n for every
++ * parcel of a press; everything below bit 44 is ciphertext and does not affect the result.
++ * @param data Full received frame, P0 and P1 in their on-air position
++ * @return Parcel index, 0..15
++ */
++uint8_t subghz_protocol_nice_o_get_parcel(uint64_t data) {
++    return (uint8_t)((((data >> 48) & 0x0Fu) ^ ((data >> 44) & 0x0Fu)) ^ 0x0Fu);
++}
++
+ static uint64_t
+     subghz_protocol_nice_flor_s_decrypt(SubGhzBlockGeneric* instance, const char* file_name) {
+     furi_assert(instance);
