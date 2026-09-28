@@ -2908,6 +2908,50 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       und Nice O-Code jeweils mit verifiziertem Grundlagen-Beitrag plus Skizze, neue
       KeeLoq-Hersteller bleibt wegen Lernschlüssel-Problematik grundsätzlich zurückgestellt).
 
+## Ideen-Recherche (Fortsetzung 3)
+- [x] Vorgemerkten Rückstellpunkt aus der RS485-Modbus-Sitzung aufgegriffen (`ElectronicCats/
+      flipper-rs485modbus`, Commit `ff50246`, unverändert): restlichen Quellbestand vollständig
+      gelesen (`modbus_parser/`, `modbus_sender/`, `modbus_storage/`, `modbus_ring_buffer/`,
+      alle sieben Szenen, `scenes_config/`), bislang nur `modbus_uart.c` und der
+      App-Lebenszyklus in `Modbus.c` geprüft. Zwei weitere, konkrete Funde gemacht.
+      **Hauptfund** (Speicherkorruption): `modbus_ring_buffer.c::writeRingBuffer()` erhöht
+      `delimiterIdx` bei jeder vollständig geparsten Modbus-Nachricht, setzt es aber nur beim
+      `writeIdx`-Wrap zurück (`Modbus.h`: `delimiters[32]`, `ringBuffer[255]`), nicht wenn
+      `delimiterIdx` selbst die Array-Größe 32 erreicht — bei kurzen RTU-Nachrichten (4–8 Byte,
+      Standard bei Read/Write-Antworten) sind nach 32 Nachrichten in einer Sitzung oft erst
+      128–256 von 255 Byte belegt, `writeIdx` hat also noch nicht gewrapt, `delimiterIdx` läuft
+      trotzdem unkontrolliert über 31 hinaus. `delimiters[32]` liegt im Struct-Layout direkt vor
+      `ringBuffer[0]` — jede weitere Nachricht ab der 33. schreibt damit ein
+      `writeIdx`-Bookkeeping-Byte in den Speicherbereich der Nutzdaten bereits erfasster
+      früherer Nachrichten und überschreibt sie still. Derselbe unbegrenzte Index wird auch
+      konsumiert: `scenes/msgs_buffer_scene.c::BuildCMDList()` (Aufbau der "Buffer
+      Sender"-Liste) und `OnItemEnterCB()` (Auswahl eines Eintrags, einziger UI-Pfad zum
+      erneuten Anzeigen/Senden eines gesniffter Frames) lesen `rb->delimiters[delimiterIdx]`
+      bzw. `[index]`/`[index - 1]` ebenfalls ohne Prüfung gegen 32. Mit Host-Repro (Struct und
+      `writeRingBuffer()` 1:1 aus `modbus_ring_buffer.c`/`Modbus.h` transkribiert, die
+      Rekonstruktionslogik aus `OnItemEnterCB()` als reine Index-/Kopierfunktion nachgebaut)
+      unter UBSan verifiziert: expliziter Compiler-Report "index 32 out of bounds for type
+      'uint8_t [32]'" beim 33. `writeRingBuffer()`-Aufruf; nach 40 simulierten 4-Byte-Nachrichten
+      ist `writeIdx=160` (kein Wrap) und `delimiterIdx=40` (> 31), und die erneute
+      Rekonstruktion von Nachricht #0 über dieselbe Logik wie `OnItemEnterCB()` liefert
+      nachweislich `83 87 8B 8F` statt der tatsächlich erfassten `40 40 40 40` — die ersten vier
+      Byte des Ringpuffers wurden durch die Überläufe der Nachrichten 33–36 mit
+      `writeIdx`-Werten überschrieben. Für ein Sniff-/Pentest-Werkzeug, dessen Kernzweck die
+      unverfälschte Erfassung von Busverkehr ist, ein Kernfunktions-Fund, kein Randfall.
+      **Zweiter, kleinerer Fund**: `modbus_storage.c::open_log_file_stream()` ruft
+      `strcpy(app->logFilePath, sequential_file_resolve_path(...))` auf und prüft erst danach
+      `if(app->logFilePath != NULL)` — toter Check, da `sequential_file_resolve_path()` bei
+      einem fehlschlagenden `strdup()` (z. B. Speicherknappheit) `NULL` zurückgibt und
+      `strcpy()` mit NULL-Quellzeiger bereits der Absturz ist; `app->logFilePath` selbst ist
+      als Ziel korrekt mit `malloc(100)` vorallokiert (`Modbus.c::modbus_app_alloc()`), nur die
+      Quelle kann NULL sein. Kein eigenständiger Fix-Patch angelegt (externe Drittanwendung,
+      noch kein eigener Port), beide Funde inkl. Portierungsreihenfolge dokumentiert in
+      `ideas/rs485-modbus-app-status.md` (jetzt vier Funde insgesamt für dieses Repo), Host-Repro
+      in `ideas/repro-rs485-modbus-ring-buffer-delimiters-overflow/repro.c`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` aktualisiert. Damit ist `ElectronicCats/flipper-
+      rs485modbus` jetzt vollständig quelltextlich geprüft — keine weiteren offenen Dateien
+      aus früheren Sitzungen vorgemerkt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
