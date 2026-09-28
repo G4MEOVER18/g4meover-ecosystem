@@ -2952,6 +2952,39 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       rs485modbus` jetzt vollständig quelltextlich geprüft — keine weiteren offenen Dateien
       aus früheren Sitzungen vorgemerkt.
 
+## Firmware-Feature-Mining (Fortsetzung 6)
+- [x] Unleashed-`dev`-Changelog-Eintrag zu PR #1104 ("Sending a receive-only signal from the
+      mobile app or qFlipper no longer crashes the Flipper") aufgegriffen, bislang nicht
+      geprüft. Zwei Teile: (1) `subghz_transmitter_free(NULL)`-Absturz für Protokolle ohne
+      Encoder — bei mir (mntm-012, `applications/main/subghz/helpers/subghz_txrx.c`) bereits
+      durch ein bestehendes `if(instance->transmitter)` vor jedem
+      `subghz_transmitter_free()`-Aufruf abgesichert, dieser Absturz tritt bei mir nicht auf.
+      (2) "the transmitter pointer is cleared after every teardown instead of being left
+      dangling" — geprüft und tatsächlich fehlend gefunden: im Fehlerpfad von
+      `subghz_txrx_tx_start()` (u. a. erreichbar über `SubGhzTxRxStartTxStateErrorOnlyRx`,
+      ausgelöst z. B. über den RPC-Sendepfad in `subghz_scene_rpc.c`) wird
+      `instance->transmitter` freigegeben, aber nicht auf `NULL` gesetzt — anders als an der
+      Schwesterstelle `subghz_txrx_tx_stop()` in derselben Datei, die genau das bereits tut.
+      Vollständigen Aufrufgraphen von `instance->transmitter` in dieser Datei geprüft (alle
+      drei Leser sowie den einzigen Aufrufer des dritten,
+      `subghz_scene_read_raw.c`): über keinen mir bekannten, heute existierenden Aufrufpfad
+      wird der dangling Zeiger tatsächlich gelesen — ehrlich als Konsistenz-/Haltungsfund
+      eingeordnet, nicht als heute auslösbarer Absturz. Host-Repro
+      (`firmware-mining/repro-subghz-tx-transmitter-dangling-pointer-cleanup/repro.c`) bildet
+      trotzdem die Klasse Fehler nach, vor der der Fix schützt: `struct SubGhzTransmitter`,
+      `subghz_transmitter_free()`, `subghz_transmitter_get_protocol_instance()` sowie den
+      Fehlerpfad 1:1 transkribiert, dazu ein nachgebauter Aufrufer mit demselben
+      Non-NULL-only-Zugriffsmuster wie der bestehende
+      `subghz_txrx_set_raw_file_encoder_worker_callback_end()`-Aufrufer. Unter ASan/UBSan bei
+      `-O0`/`-O1` verifiziert (je isolierter Kindprozess per `fork()`/`waitpid()`): ALT stürzt
+      zuverlässig mit `heap-use-after-free` ab, NEU beendet sich sauber — ALLE CHECKS
+      BESTANDEN, keine Compiler-Warnungen. Patch (eine Zeile, rein additiv, identisch zum
+      bereits in derselben Datei etablierten Muster) in
+      `firmware-mining/subghz-tx-transmitter-dangling-pointer-cleanup/subghz_txrx_c.patch`
+      (`git apply --check` vorab gegen frischen `mntm-012`-Klon verifiziert, real angewendet
+      und byte-für-byte abgeglichen), Details in
+      `firmware-mining/subghz-tx-transmitter-dangling-pointer-cleanup.md`.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
