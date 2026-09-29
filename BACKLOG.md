@@ -3104,6 +3104,37 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/repro-archive-oversized-folder-cursor-reset-skip-fix/repro.c`, Details in
       `firmware-mining/archive-oversized-folder-cursor-reset-skip-fix.md`.
 
+## Ideen-Recherche (Fortsetzung 6)
+- [x] Von den drei in der Nyx-Sitzung (Fortsetzung 5) vorgemerkten Schwester-Werkzeugen
+      desselben Autors (`at0m-b0mb`) **Specter** aufgegriffen: passiver 13,56-MHz-NFC-Feld-Sweep
+      gegen aktive Skimmer/Rogue-Leser über das ST25R3916-Feld-Erkennungsbit des eingebauten
+      NFC-Chips, fünf Modi (Sweep/Fingerprint/Survey/Watch/Logbook), listen-only, keine
+      Zusatzhardware. Frisch geklont (Commit `a2b2e35c`, `main`, `fap_version="3.1.1"`, 5440
+      Zeilen Firmware-Quelltext über 36 Dateien plus separater `test/`-Ordner mit sieben
+      host-seitigen Testzielen, 527 Einzelprüfungen laut README). Gegen frischen
+      `Next-Flip/Momentum-Firmware`-Klon (Tag `mntm-012`, API 87.1) verifiziert: alle sieben
+      verwendeten `furi_hal_nfc_*`-Symbole (`_acquire`, `_release`, `_low_power_mode_start/_stop`,
+      `_reset_mode`, `_field_detect_start/_stop`, `_field_is_present`) in `api_symbols.csv`
+      vorhanden, Signaturen gegen `furi_hal_nfc.h` exakt abgeglichen — kein Symbol-Fehlbestand,
+      keine Zielplattform-Sonderfälle wie bei Nyx (kein ADC-Pin/Erweiterungsport nötig). Per Grep
+      über den gesamten Quellbestand bestätigt: kein einziger Feld-**Erzeugungs**- oder
+      Poller-/Listener-Aufruf — die App sendet nachweislich nie, reine Feld-**Erkennung**.
+      ~1820 von 5440 Zeilen gezielt gelesen (komplette messungskritische/sicherheitsrelevante
+      Schicht: Sampling-Worker `helpers/field_detector.c` inkl. Thread-Lebenszyklus und
+      Kalibrierungs-Zustandsmaschine, Kadenz-Klassifikation `emitter_classify.c`/`cadence.h`,
+      `survey_verdict.c`, `field_scale.c`, `ema.h`, `present_hold.h`, `log_wrap.h`,
+      `log_filter.h`, SD-Logbuch-Schreibpfad `specter_log.c` inkl. Puffergrößen-/
+      Truncation-Prüfung, Einstellungs-Migration `specter_settings.c`, Alarm-/App-Lebenszyklus-
+      Verdrahtung `specter.c`, unbeaufsichtigter Dauerbetrieb `specter_scene_watch.c`) — kein
+      eigener Fund. Wie bei Nyx bereits durch eine eigene, ungewöhnlich gründliche
+      Selbstaudit-Kultur des Autors geprägt: jeder im Code erwähnte historische Bug (EMA-
+      Rundungsfehler, unbegrenzt wachsender Kadenz-Ring, Wortumbruch-Fehler im Logbuch-Viewer,
+      Off-by-one im Logbuch-Filter nach abgeschnittenem Tail-Read) ist mit Root-Cause und Fix im
+      Kommentar dokumentiert. Details, vollständige Codeumfangs-Aufschlüsselung und die beiden
+      verbliebenen Kandidaten (Argus/WiFi, GhostTag/BLE) in
+      `ideas/specter-nfc-reader-detector-app-status.md`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` (Kategorie Counter-Surveillance/TSCM) ergänzt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
