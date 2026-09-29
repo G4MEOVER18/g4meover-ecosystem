@@ -1,0 +1,18 @@
+diff --git a/applications/main/archive/helpers/archive_browser.c b/applications/main/archive/helpers/archive_browser.c
+index ef39ca8..2041ad7 100644
+--- a/applications/main/archive/helpers/archive_browser.c
++++ b/applications/main/archive/helpers/archive_browser.c
+@@ -87,10 +87,9 @@ static void
+                             }
+                         }
+                     }
+-
+-                    if(model->item_idx < 0) {
+-                        model->item_idx = 0;
+-                    }
++                }
++                if(model->item_idx < 0) {
++                    model->item_idx = 0;
+                 }
+                 if(archive_is_file_list_load_required(model)) {
+                     model->list_loading = true;

@@ -3076,6 +3076,34 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Werkzeugsatzes (Specter/NFC, Argus/WiFi, GhostTag/BLE) als weitere Kandidaten derselben
       Kategorie vorgemerkt, noch nicht geprüft.
 
+## Firmware-Feature-Mining (Fortsetzung 8)
+- [x] `Next-Flip/Momentum-Firmware`-`dev`-Branch nach der `Loading`-Widget-Prüfung (Fortsetzung 7)
+      weiter auf kleine, seither dazugekommene Fixes durchgesehen (`git fetch --depth=200 origin
+      dev`). Commit `757cca02` gefunden: „Archive: Fix wrong cursor when opening dirs with more
+      than 220 files" (@WillyJL). `applications/main/archive/helpers/archive_browser.c::
+      archive_list_item_cb()` platziert den Reset `if(model->item_idx < 0) model->item_idx = 0;`
+      innerhalb von `if(model->item_cnt <= BROWSER_SORT_THRESHOLD)` (`BROWSER_SORT_THRESHOLD ==
+      220`, `file_browser_worker.h`) — bei Ordnern mit mehr als 220 Einträgen läuft der gesamte
+      Block inklusive Reset nie, obwohl `model->item_idx` beim einfachen Hineinnavigieren ohne
+      Ziel-Datei laut `browser_folder_init()` standardmäßig `-1` ist. Bei mir (Tag `mntm-012`,
+      gegen frischen Klon verifiziert) unverändert vorhanden — Bug bestätigt reproduzierbar. Fund
+      bis in die Auswirkung nachvollzogen: `draw_list()`/`archive_browser_view.c` vergleicht
+      `model->item_idx == idx` mit stets nicht-negativem `idx` (nie Treffer bei `-1`, keine
+      sichtbare Cursor-Hervorhebung beim Öffnen), erste Navigationstaste rechnet mit
+      `((model->item_idx - scroll_speed) + model->item_cnt) % model->item_cnt` und springt wegen
+      des unerwarteten `-1` statt `0` an eine unerwartete Position statt an den Anfang. Mit
+      Host-Repro (reine Kontrollfluss-/Schwellenwert-Arithmetik der Reset-Platzierung, ALT/NEU
+      über `item_cnt` 0–500 kreuz `item_idx` -5–5) unter ASan/UBSan bei -O0/-O1 verifiziert: 5511
+      Einzelprüfungen (davon 1400 mit reproduziertem Fundfall `item_cnt > 220 && item_idx < 0`),
+      ALLE CHECKS BESTANDEN, keine Compiler-Warnungen. Patch (eine Umklammerung, kein neuer Code)
+      in `firmware-mining/archive-oversized-folder-cursor-reset-skip-fix/archive_browser_c.patch`
+      (`git apply --check` vorab gegen frische Kopie meiner eigenen `G4MEOVER18/G4MEOVER-FW`-Basis
+      verifiziert, real angewendet und byte-für-byte gegen den tatsächlichen Momentum-`dev`-Stand
+      abgeglichen — identisch bis auf einen unabhängigen, bereits vorher vorhandenen Include aus
+      einem anderen Commit), Host-Repro in
+      `firmware-mining/repro-archive-oversized-folder-cursor-reset-skip-fix/repro.c`, Details in
+      `firmware-mining/archive-oversized-folder-cursor-reset-skip-fix.md`.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
