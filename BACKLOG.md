@@ -3009,6 +3009,38 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ideas/repro-usb-hid-keyboard-fuzzer-null-check-order/repro.c`, Katalog-Zeile in
       `ideas/pentest-app-katalog.md` ergänzt.
 
+## Firmware-Feature-Mining (Fortsetzung 7)
+- [x] Generisches `Loading`-GUI-Widget (`applications/services/gui/modules/loading.c`/`.h`)
+      gegen Unleashed-`dev` geprüft (letzter Kandidat: `subghz_txrx.c`-Dangling-Pointer aus
+      PR #1104). Zwei zusammengehörige, additive Erweiterungen seit meinem unveränderten
+      mntm-012-Basisstand gefunden: `loading_set_progress()`/`loading_reset_progress()` (Commit
+      `69c03681`, optionale Fortschrittsleiste unter dem Spinner) und `loading_set_text()`
+      (Commit `9e4951074`, PR #1169, `Closes #1168`, API 88.13, optionales Label rechts neben dem
+      dann nach links gerückten Spinner, ersetzt laut Commit-Nachricht eine private NFC-eigene
+      Kopie derselben Anzeige). Beide Commits ändern ausschließlich diese zwei Dateien, keine
+      bestehende Aufrufstelle im Baum (`archive.c`, `bad_usb_app.c`, `ibutton.c`,
+      `infrared_app.c`, `nfc_app.c`, `loader.c`, `loader_menu.c`, `js_app.c` per Grep geprüft)
+      ruft die drei neuen Funktionen auf — reine Opt-in-API, `loading_draw_callback()` nimmt für
+      den Default-Zustand (kein Text, keine Bar) denselben Berechnungspfad wie vorher.
+      API-Abhängigkeiten (`elements_progress_bar()`, `furi_string_equal_str/_empty/_set()`,
+      `CLAMP()`) bei mir (API 87.1) bereits vorhanden, kein Symbol-Fehlbestand. Mit Host-Repro
+      (Default-Icon-Position ALT/NEU über den vollen 256×256-Canvas-Größenraum, Zweig-Trennung
+      leer/nicht-leer, Clamp- und Redraw-Unterdrückungslogik aller drei Setter 1:1 aus den echten
+      Funktionskörpern transkribiert) unter ASan/UBSan bei -O0/-O1 verifiziert: 65560
+      Einzelprüfungen, ALLE CHECKS BESTANDEN, keine Compiler-Warnungen — deckt nur die reine
+      Arithmetik-/Zustandslogik ab, nicht die tatsächliche Pixelausgabe (ehrlich als Grenze im
+      Risiko-Abschnitt vermerkt). Patch (additiv, betrifft ausschließlich diese zwei Dateien) in
+      `firmware-mining/loading-widget-label-and-progress-bar/{loading_c,loading_h}.patch`
+      (`git apply --check` vorab gegen frische Kopie meiner eigenen `G4MEOVER18/G4MEOVER-FW`-Basis
+      verifiziert, real angewendet und byte-für-byte gegen den tatsächlichen Unleashed-`dev`-Stand
+      abgeglichen — identisch), Host-Repro in
+      `firmware-mining/repro-loading-widget-label-and-progress-bar/repro.c`, Details in
+      `firmware-mining/loading-widget-label-and-progress-bar.md`. Bewusst nicht mitübernommen:
+      die eigentliche Verdrahtung in `loader.c` (App-Entpack-Fortschritt) und `nfc_app.c`
+      (CUID-Dictionary-Label, laut Unleashed über eine zweite `Loading`-Instanz) — jeweils
+      eigenständige, größere Änderungen an aktiv produktivem Code, als Port-Skizze mit exakten
+      Zeilenankern dokumentiert statt als Patch.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
