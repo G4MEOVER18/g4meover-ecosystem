@@ -3041,6 +3041,41 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       eigenständige, größere Änderungen an aktiv produktivem Code, als Port-Skizze mit exakten
       Zeilenankern dokumentiert statt als Patch.
 
+## Ideen-Recherche (Fortsetzung 5)
+- [x] Neue Recherche außerhalb bestehender Rückstellpunkte: gezielt nach einer bislang komplett
+      fehlenden Kategorie gesucht — bisherige defensive Erkennungs-Funde (SubGHz Jammer Detector,
+      Rogue AP Detector, NFC Canary, UART Sniff) decken RF/WiFi/NFC ab, Infrarot fehlte komplett.
+      `at0m-b0mb/Nyx-FlipperZero` ("Nyx") gefunden: eigenständiges, aktiv gepflegtes
+      Counter-Surveillance-Werkzeug (MIT, `fap_version=1.2`, 2402 Zeilen über 15 Quelldateien) —
+      Infrarot-Sweep gegen verdeckte Nachtsicht-Kameras über deren 850/940-nm-Beleuchtung.
+      Onboard-Modus nutzt den eingebauten TSOP-75338-Empfänger (Flankenzählung/Tastgrad statt
+      Dekodierung, erkennt gepulste/modulierte Quellen, laut eigener Dokumentation blind für
+      Gleichstrom-Illuminatoren wegen des 38-kHz-Bandpassfilters); optionaler Probe-Modus
+      (1-€-IR-Fototransistor + 10-kΩ-Widerstand an einem ADC-Erweiterungsport-Pin, keine
+      Lötarbeit) liest den echten Gleichspannungspegel und unterscheidet über die
+      Rippel-Frequenz STEADY (Nachtsicht-Signatur) von FLICKER (Netzbrumm) von PULSED. Sendet
+      nachweislich nie (kein `furi_hal_infrared_async_tx_*`-Aufruf im gesamten Quellbestand).
+      Gegen frischen `Next-Flip/Momentum-Firmware`-Klon (Tag `mntm-012`) geprüft: alle
+      verwendeten HAL-Symbole (`furi_hal_infrared_async_rx_*`, `furi_hal_adc_*`,
+      `gpio_pins[]`/`gpio_pins_count`) sowie das `GpioPinRecord`-Struct-Layout in
+      `targets/f7/api_symbols.csv`/`furi_hal_resources.h` identisch vorhanden; eigene
+      Pintabelle ausgezählt (sechs nicht-Debug-ADC-Pins: PA7/PA6/PA4/PC3/PC1/PC0) — liegt sicher
+      unter dem von der App reservierten `MAX_PROBE_PINS=8`-Puffer, kein Pin geht verloren.
+      ~1400 von 2402 Zeilen gezielt gelesen (komplette Kern-Messengine `helpers/ir_sense.c`
+      inkl. ISR-Flankenzählung/Präsenz-Hysterese/Probe-ADC-Burst/Ambient-Null/
+      Thread-Lebenszyklus, Einstellungs-Persistenz `helpers/nyx_store.c` inkl. v1→v2-Migration
+      und SD-Karten-Eingabe-Clamping, Haupt-Eingabeschleife `scenes/nyx_scene_sweep.c` inkl.
+      Alarm-Timing-Arithmetik, `scenes/nyx_scene_settings.c`/`_probe.c`) — kein eigener Fund; die
+      Kern-Engine ist bereits durch eine ausführliche eigene "Honesty pass" (v1.2, dokumentierte
+      Root-Cause-Fixes für Chatter-Verhalten, Presence/Meter-Inkonsistenz, verwaiste
+      Worker-Threads) des Autors durchgesehen. Restlicher Umfang (~1000 Zeilen, überwiegend
+      Zeichen-/Layout-Code in den Views sowie Splash-/About-/Start-Szenen) für eine künftige
+      Sitzung vorgemerkt. Details in `ideas/nyx-ir-hidden-camera-detector-app-status.md`,
+      Katalog-Zeile (neue Kategorie "Counter-Surveillance / TSCM") in
+      `ideas/pentest-app-katalog.md` ergänzt. Drei Schwester-Werkzeuge desselben Autors/
+      Werkzeugsatzes (Specter/NFC, Argus/WiFi, GhostTag/BLE) als weitere Kandidaten derselben
+      Kategorie vorgemerkt, noch nicht geprüft.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
