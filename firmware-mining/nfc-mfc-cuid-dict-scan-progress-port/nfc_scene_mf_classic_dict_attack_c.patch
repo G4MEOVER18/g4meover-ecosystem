@@ -1,0 +1,34 @@
+--- a/applications/main/nfc/scenes/nfc_scene_mf_classic_dict_attack.c	2026-09-30 00:23:57.554619945 +0000
++++ b/applications/main/nfc/scenes/nfc_scene_mf_classic_dict_attack.c	2026-09-30 00:24:45.079603208 +0000
+@@ -259,9 +259,22 @@
+             instance->nfc_dict_context.cuid_key_indices_bitmap = malloc(32);
+             memset(instance->nfc_dict_context.cuid_key_indices_bitmap, 0, 32);
+ 
+-            // Scan dictionary once to count keys and populate bitmap
++            // Scan dictionary once to count keys and populate bitmap. A large per-UID
++            // dictionary can take a noticeable moment to stream through, so show a
++            // labeled loading popup with a progress bar for its duration instead of
++            // leaving the previous scene's view frozen on screen with no feedback.
++            nfc_show_loading_dict_popup(instance, "Loading CUID\nindex...", true);
++            const size_t dict_size = stream_size(dict->stream);
+             uint8_t key_with_idx[dict->key_size];
+             while(keys_dict_get_next_key(dict, key_with_idx, dict->key_size)) {
++                // Lines are fixed-size, so a stream position is a byte count away: cheaper
++                // than a stream_tell() storage round trip per key. Whole percents only, so
++                // the popup redraws at most 100 times regardless of dictionary size.
++                if(dict_size) {
++                    const uint32_t percent =
++                        dict->total_keys * dict->key_size_symbols * 100 / dict_size;
++                    nfc_set_loading_dict_progress(instance, MIN(percent, 100U) / 100.0f);
++                }
+                 uint8_t key_idx = key_with_idx[0];
+                 // Set bit for this key index
+                 instance->nfc_dict_context.cuid_key_indices_bitmap[key_idx / 8] |=
+@@ -269,6 +282,7 @@
+                 dict->total_keys++;
+             }
+             keys_dict_rewind(dict);
++            nfc_show_loading_dict_popup(instance, NULL, false);
+ 
+             if(dict->total_keys == 0) {
+                 keys_dict_free(dict);

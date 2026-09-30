@@ -3135,6 +3135,60 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ideas/specter-nfc-reader-detector-app-status.md`, Katalog-Zeile in
       `ideas/pentest-app-katalog.md` (Kategorie Counter-Surveillance/TSCM) ergänzt.
 
+## Firmware-Feature-Mining (Fortsetzung 9)
+- [x] Offiziellen Momentum-`dev`-Branch seit dem letzten geprüften Stand (`757cca02`,
+      Archive-Cursor-Fix) gegengeprüft: nur ein neuer Commit (`d3f89dfe`), reiner
+      `applications/external`-Submodul-Bump (ESP-Flasher-Marauder-Version) plus
+      Changelog-Zeile — kein Mining-Kandidat in diesem Repo selbst. Unleashed-`dev` seit dem
+      letzten vollständig abgearbeiteten Fenster (`946a52a64`) frisch gegengeprüft
+      (`git log --oneline 946a52a64..origin/dev`, 33 neue Commits): die meisten bereits
+      bekannt/portiert (`7f372c90`/#1104 SubGHz-TX-Dangling-Pointer,
+      `8fdb70dd`/#1112 HID-Jiggler-BLE-Warten, `9e495107`/#1169 Loading-Widget-Label+Bar —
+      alle drei bereits in früheren Sitzungen als eigene Funde geliefert), reine
+      Chore-/Revert-Commits (Loader-Relaunch-Serie komplett wieder zurückgenommen,
+      mehrere "bump apps tag") sowie zwei größere, bereits als Rückstellpunkt dokumentierte
+      LF-RFID-/iButton-Schreibfunktions-Kandidaten (`22ce1d9a`/#1146, `49238e1b`/#1148,
+      seither um `c74f6b1d`/#1153, `4eaa7aae`/#1164, `65d271d7`/#1165 zu einem noch größeren
+      zusammenhängenden Feature-Cluster angewachsen — weiterhin bewusst für eine eigens dafür
+      vorgesehene, größere Sitzung zurückgestellt statt überstürzt in Teilen zu portieren).
+      Neu und noch nicht geprüft vorgemerkt: `178a99e5` (SubGHz Genius-Fernbedienungen),
+      `5643ae0c` (SubGHz Nice-Ice-Protokoll-Neufassung), `16def217`/#1155 (zwei neue
+      Menü-Stile, rein kosmetisch), `9effa4b4`/#1149 (RFID-Eingabe nach Facility-Code/
+      Kartennummer, HID-/Casi-Rusco-Formate — mit dem bereits dokumentierten Rückstellgrund
+      "fehlende Grundinfrastruktur in meiner mntm-012-Basis" gegenzuprüfen).
+- [x] Aus `418d802b` (Unleashed PR #1167, "Show progress while a large CUID dictionary loads
+      on Read") die zugrunde liegende Fortschritts-Formel als Vorlage genommen, aber nicht
+      wörtlich portiert (Unleasheds eigentliche Aufrufstelle,
+      `mf_classic_extra_scenes.c`/`views/loading_label.c`, existiert bei mir strukturell
+      nicht) — stattdessen den in `loading-widget-label-and-progress-bar.md` selbst benannten
+      Rückstellpunkt "Verdrahtung in `nfc_app.c` für das CUID-Dictionary-Label" aufgegriffen
+      und dabei einen eigenen, schlimmeren Zustand als Unleasheds Vorher-Stand gefunden: mein
+      `nfc_scene_mf_classic_dict_attack.c` zeigt während des synchronen CUID-Dictionary-Scans
+      (Bitmap-Aufbau vor dem eigentlichen Umschalten auf `NfcViewDictAttack`) überhaupt keine
+      Rückmeldung — nicht einmal einen bloßen Spinner, den Unleashed schon vor PR #1167 hatte.
+      Zweite, eigenständige `Loading`-Instanz (`nfc_app_i.h`/`nfc_app.c`:
+      `loading_dict`/`NfcViewLoadingDict`/`nfc_show_loading_dict_popup()`/
+      `nfc_set_loading_dict_progress()`) plus Verdrahtung in der Scan-Schleife
+      (`nfc_scene_mf_classic_dict_attack.c`, Anzeigen vor der Schleife mit Label, Fortschritt
+      pro Schlüssel über dieselbe stream-größenbasierte Formel wie Unleashed, Ausblenden nach
+      `keys_dict_rewind()` — ein einziger Punkt deckt sowohl den Erfolgs- als auch den
+      "Dictionary leer"-Ausgang ab). Setzt den bereits vorgeschlagenen, noch nicht
+      angewendeten `loading-widget-label-and-progress-bar`-Patch voraus. Mit Host-Repro
+      (Fortschritts-Formel gegen 5000 simulierte Dictionary-Größen inkl. Klemmung bei
+      Nicht-Vielfachen der Zeilenlänge und Divide-by-Zero-Schutz; Kontrollfluss-Skelett
+      wörtlich aus dem gepatchten `do{}while(false)`-Block übernommen, Anzeigen/Ausblenden/
+      Fortschritts-Update-Aufrufe für alle vier Ausgänge — keine Datei, Öffnen fehlgeschlagen,
+      leeres Dictionary, Erfolg — geprüft) unter ASan/UBSan bei -O0/-O1 verifiziert:
+      12.505.560 Einzelprüfungen, ALLE CHECKS BESTANDEN, keine Compiler-Warnungen. Patches
+      (`git apply --check` vorab gegen frische Kopien sowohl von `Next-Flip/Momentum-Firmware`
+      (Tag `mntm-012`) als auch meiner eigenen `G4MEOVER18/G4MEOVER-FW`-Basis verifiziert —
+      beide an allen drei betroffenen Dateien byte-identisch —, real angewendet und
+      byte-für-byte abgeglichen) in
+      `firmware-mining/nfc-mfc-cuid-dict-scan-progress-port/{nfc_app_i_h,nfc_app_c,
+      nfc_scene_mf_classic_dict_attack_c}.patch`, Host-Repro in
+      `firmware-mining/repro-nfc-mfc-cuid-dict-scan-progress/repro.c`, Details in
+      `firmware-mining/nfc-mfc-cuid-dict-scan-progress-port.md`.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
