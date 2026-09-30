@@ -26,6 +26,12 @@ Alle Transporte tragen denselben signierten Frame: `[LEN][0x47][0x01][COUNTER(4)
 | **LilyGo S3** (`lilygo-ukfe-rx`) | – | ✅ | ✅ | ✅ | ✅ | – | TFT |
 | **WROOM-Relay** (`g4meover-wifi-relay`) | – | ✅ (Koordinator) | – | – | – | – | – |
 
+> **Vorausschau Phase 9 (WROOM Multi-Rolle):** `ecosystem/devices.json` führt `esp32-wroom` bereits
+> mit `transport: [espnow, wifi, ble]` — die Hardware kann mehr als die Zeile oben zeigt, es fehlt
+> nur der Rollen-Umschalt-Befehl (Vorschlag `0x62 RoleSet` im `0x60`–`0x7F`-v2-Block, siehe
+> `G4MEOVER-ECOSYSTEM-MASTERPLAN.md` P9.1b). Diese Tabelle bekommt eine eigene WROOM-Spalte erst,
+> wenn dieser Befehl tatsächlich existiert.
+
 ## Befehls-Matrix
 | Code | Befehl | Args | Heltec V3 | LilyGo | Notiz |
 |---|---|---|:--:|:--:|---|

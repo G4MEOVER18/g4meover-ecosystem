@@ -741,7 +741,35 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 9 — WROOM Multi-Rolle
 - [ ] P9.1 WROOM-Rollen je Szenario: ESP-NOW-Relay · WiFi-Attack · BLE · Standalone — umschaltbar per Command.
+  - [ ] P9.1a **Ist-Stand-Abgleich zuerst, echter Doku-Fund dabei:** `FLEET-COMMANDS.md` führt
+    `g4meover-wifi-relay` (WROOM-Relay) in der Geräte-Fähigkeiten-Tabelle bisher nur mit
+    ESP-NOW ✅ (Koordinator), WiFi-Angriff/BLE stehen dort auf „–"; die Befehls-Matrix selbst hat
+    für WROOM gar keine eigene Spalte (nur Heltec V3/LilyGo). `ecosystem/devices.json` führt für
+    `esp32-wroom` dagegen bereits `transport: [espnow, wifi, ble]` und `role: "ESP-NOW-Relay-
+    Koordinator, Multi-Rolle"`. Kein Widerspruch, nur unterschiedlicher Stand: die Hardware kann es,
+    das Umschalt-Command (P9.1b) existiert nur noch nicht — `FLEET-COMMANDS.md` bekommt eine
+    WROOM-Spalte + die neuen Rollen-Codes erst, wenn P9.1b tatsächlich gebaut ist, nicht vorher
+    (sonst 📋-Einträge ohne Gegenstück).
+  - [ ] P9.1b Rollen-Umschalt-Befehl: denselben `0x60`–`0x7F`-v2-Block aus `UKFE-RF-V2-SPEC.md`
+    Abschnitt 6 weiterverwenden (dort bereits `0x60`/`0x61`/`0x70` belegt) statt einen neuen Bereich
+    zu öffnen — Vorschlag `0x62 RoleSet` mit 1-Byte-Rollen-Enum
+    (`0=Standalone,1=ESP-NOW-Relay,2=WiFi-Attack,3=BLE`), analog zum bereits für P2.2b vorgeschlagenen
+    Muster. Enum-Werte sind hier nur ein Vorschlag, keine Festlegung — vor dem ersten Firmware-Patch
+    lokal gegen `g4meover-wifi-relay` bestätigen, wie schon bei P0.4e/f für SRC_ID/ORIGIN_ID.
+  - [ ] P9.1c Koexistenz-Frage vor der Umsetzung klären, nicht neu erfinden: der WROOM ist (wie beim
+    ESP32-S3 in P8.2 bereits festgehalten) ein Single-Radio-Chip — ESP-NOW-Koordinator-Rolle und
+    WiFi-Attack-Rolle können nicht gleichzeitig aktiv sein, ein Rollenwechsel muss die vorherige
+    Rolle sauber beenden (`WifiStop`/ESP-NOW-Deinit) bevor die nächste startet. Ob die WiFi-Attack-
+    Rolle die bestehenden `0x20`–`0x2A`-Befehle (bereits 🔨 für Heltec/LilyGo) wiederverwendet oder
+    einen eigenen Codepfad braucht, nur lokal gegen den echten `g4meover-wifi-relay`-Quellcode zu
+    entscheiden (außerhalb des Cloud-Zugriffs-Scopes, dieselbe Begründung wie P1.2b/P2.1b/P2.4b).
 - [ ] P9.2 In GUI/Flipper als eigenes Ziel mit Rollen-Auswahl.
+  - [ ] P9.2a Blockiert auf denselben Tool-Existenz-Blocker wie P1.3.0/P1.4.0
+    (`g4meover_control.py`/`flipper_ctl.py` im Repo nicht auffindbar, siehe Risiken/Blocker) — erst
+    klären, dann WROOM als weiteres Ziel/Tab mit Rollen-Dropdown ergänzen, keine dritte
+    Tab-Architektur entwerfen.
+  - [ ] P9.2b Ergebnis-/Rollen-Status-Anzeige nutzt dasselbe Quell-ID-Fallback-Muster wie
+    P1.5c/P1.6b/P2.3a/P3.3a (aktive Verbindung statt Protokollfeld, bis P0.4f live ist).
 
 ### Phase 10 — Zigbee-Integration
 - [ ] P10.1 CC2531 am Pi: Sniffer-Betrieb (whsniff→wireshark/tshark) → pcap; Live-Feed an GUI-Tab.
@@ -1117,6 +1145,39 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist
   kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
   geschrieben.
+- 2026-09-30 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-8-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — nächsten unverfeinerten
+  Tier aufgegriffen: Phase 9 (WROOM Multi-Rolle, P9.1/P9.2) in Abschnitt 4 in Unterschritte
+  zerlegt. Echter Doku-Fund dabei (nicht nur Textmenge): `FLEET-COMMANDS.md` führt `g4meover-wifi-
+  relay` bisher nur mit ESP-NOW ✅, WiFi-Angriff/BLE auf „–", und die Befehls-Matrix hat gar keine
+  eigene WROOM-Spalte, während `ecosystem/devices.json` für `esp32-wroom` bereits
+  `transport: [espnow, wifi, ble]` führt — kein Widerspruch, nur der noch fehlende Rollen-
+  Umschalt-Befehl; `FLEET-COMMANDS.md` um eine additive Vorausschau-Notiz ergänzt (gleiches Muster
+  wie die bestehende v2-Vorausschau oben in der Datei), Tabelle selbst unverändert gelassen, bis
+  der Befehl real existiert. P9.1b bekam einen konkreten Codevorschlag (`0x62 RoleSet` im bereits
+  in `UKFE-RF-V2-SPEC.md` reservierten `0x60`–`0x7F`-Block, wo `0x60`/`0x61`/`0x70` schon belegt
+  sind) statt eines neuen Bereichs. P9.1c bindet die Koexistenz-Frage an den bereits bei P8.2
+  dokumentierten Fakt (ESP32 = ein Funk, Rollenwechsel braucht sauberen Teardown) statt sie ein
+  zweites Mal herzuleiten; ob die WiFi-Attack-Rolle die bestehenden `0x20`–`0x2A`-Befehle
+  wiederverwendet, bleibt „lokal, nicht aus der Cloud lieferbar" (echter `g4meover-wifi-relay`-
+  Quellcode außerhalb des Cloud-Zugriffs-Scopes). P9.2 verweist auf denselben Tool-Existenz-Blocker
+  wie P1.3.0/P1.4.0 und dasselbe Quell-ID-Fallback-Muster wie P1.5c/P1.6b/P2.3a/P3.3a. Vor der
+  Textarbeit den Repo-Zustand geprüft: `HEAD` stand exakt auf `origin/main` (`e422ec8`, nach
+  `git fetch` bestätigt, kein Rückstand); der lokale `main`-Branch-Zeiger dieses Checkouts blieb
+  wie am 2026-09-27 vermerkt auf einem älteren Commit (`791f682`) stehen — beeinflusst diese
+  Sitzung nicht (Push erfolgt explizit als `HEAD:main`). Git-Identität dieses Checkouts stand wieder
+  auf dem Cloud-Default `Claude <noreply@anthropic.com>` statt der in CONSTRAINTS.md Regel 1
+  vorgeschriebenen Identität (dritter Fund dieser Art nach 2026-09-26, offenbar Default eines
+  frischen Checkouts, nicht aus einem vorherigen Commit übernommen — alle bisherigen Commits tragen
+  weiterhin die korrekte Identität) — vor dem Commit dieser Sitzung erneut korrigiert. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/
+  `flipper_ctl.py`/`g4meover_resume.py`) sowie der P4.2a-Fund (Fleet-Broadcast/RespAck-Stand nicht
+  auffindbar) erneut gegen `git log --all --diff-filter=A` geprüft: unverändert kein Treffer.
+  Repo-Sichtbarkeit per GitHub-API geprüft (`visibility`-Feld direkt): weiterhin `private`.
+  Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt 34
+  Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
+  reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht,
+  kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1157,7 +1218,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 30 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 34 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1222,6 +1283,18 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     Umschalt-Befehl nötig ist, nur mit echten Messwerten an der Hardware zu entscheiden (verlinkt
     mit P2.2a, zusammen entscheiden). P8.3 (APK) braucht zwei getrennte BLE-Clients (Flipper-RPC
     wie K4, `ukfe_rf`-v2-BLE wie K6); Flutter-vs.-Kotlin-Wahl erst sinnvoll nach P8.1b.
+12. Phase 9 (WROOM Multi-Rolle, P9.1/P9.2) ist jetzt ebenfalls in Unterschritte zerlegt. **Zuerst**
+    P9.1a lesen: `FLEET-COMMANDS.md` und `ecosystem/devices.json` stehen bei WROOM auf
+    unterschiedlichem Stand (Matrix zeigt nur ESP-NOW, devices.json bereits `wifi`+`ble` als
+    Transport) — kein Bug, nur noch kein Umschalt-Befehl; die additive Vorausschau-Notiz in
+    `FLEET-COMMANDS.md` ist bereits ergänzt. P9.1b hat jetzt einen konkreten Codevorschlag
+    (`0x62 RoleSet` im `0x60`–`0x7F`-Block aus `UKFE-RF-V2-SPEC.md`) — vor dem ersten Patch gegen
+    `g4meover-wifi-relay` bestätigen, nicht neu entwerfen. P9.1c bindet die ESP32-Single-Radio-
+    Koexistenz an denselben Fakt wie P8.2 (dort zuerst lesen); ob die WiFi-Attack-Rolle die
+    bestehenden `0x20`–`0x2A`-Befehle wiederverwendet, nur lokal gegen den echten
+    `g4meover-wifi-relay`-Quellcode zu klären. P9.2 hängt am selben Tool-Existenz-Blocker wie
+    P1.3.0/P1.4.0 (siehe Risiken unten) und nutzt für die Ergebnis-Anzeige dasselbe
+    Quell-ID-Fallback-Muster wie P1.5c/P1.6b/P2.3a/P3.3a.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
@@ -1259,7 +1332,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 31 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 34 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
