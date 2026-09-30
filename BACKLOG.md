@@ -3189,6 +3189,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `firmware-mining/repro-nfc-mfc-cuid-dict-scan-progress/repro.c`, Details in
       `firmware-mining/nfc-mfc-cuid-dict-scan-progress-port.md`.
 
+## Ideen-Recherche (Fortsetzung 7)
+- [x] Nächsten Kandidaten aus dem Vierer-Werkzeugsatz von `at0m-b0mb` aufgegriffen (nach Nyx/IR
+      und Specter/NFC): **GhostTag** (Anti-Stalking-BLE-Tracker-Erkennung) geprüft, Commit
+      `1a3f58b9`, Release 2.0.0. Zwei Betriebsarten: Hunt (echte Erkennung über externen
+      BLE-fähigen ESP32-Companion am GPIO-UART — ausdrücklich **nicht** das offizielle
+      S2-Devboard, das laut Autor keinen Bluetooth-Funk hat) und Demo (deterministisches
+      Sechs-Geräte-Szenario ganz ohne Zusatzhardware). Kernlogik stuft ein Gerät erst nach
+      mehreren Sichtungen über ein ununterbrochenes Verweilfenster als Verfolger ein
+      (Sichtungslücke > 30 s zählt als neue Begegnung), eigene Apple-Geräte im
+      "Owner nearby"-Zustand werden bewusst nie als Bedrohung gewertet. Optionaler
+      Rein-Onboard-RF-Belegungsmesser ("Air Check") standardmäßig per Compile-Flag
+      deaktiviert — vom Autor selbst im `CHANGELOG.md` dokumentiert und hier unabhängig
+      gegen den eigenen `mntm-012`-Header-Stand nachvollzogen: `furi_hal_bt_get_rssi()`
+      liefert auf offizieller API-87-Firmware für jeden Messwert exakt `0.0`, unabhängig vom
+      gewählten RF-Testmodus.
+- [x] API-87-Status verifiziert: alle acht `furi_hal_serial_*`/`expansion_*`-Symbole des
+      UART-Links sowie alle neun `furi_hal_bt_*`/`bt_*`-Symbole des (standardmäßig
+      deaktivierten) Air-Check-Modus in `targets/f7/api_symbols.csv` vorhanden und gegen die
+      jeweiligen Header signaturgleich. ~1716 von 4685 Zeilen Flipper-seitigem Quelltext
+      gezielt auf Kernlogik/sicherheitsrelevante Schicht gelesen (`tracker_db.c`,
+      `air_check.c`, `uart_link.c`, `gt_parse.c` — der einzige Code, der
+      angreiferreichbare Bytes aus dem UART parst —, `session_log.c`, `settings.c`,
+      `ble_signatures.c`, `demo_source.c`, `ghosttag.c`): kein eigener Fund — wie bei
+      Nyx/Specter bereits durch eine eigene, im `CHANGELOG.md` dokumentierte
+      Selbstaudit-Kultur geprägt (u. a. Zwei-Thread-Deadlock beim Teardown und verlorene
+      Alerts bei einer zweiten Promotion als vom Autor selbst dokumentierte, bereits
+      behobene frühere Funde). Details in
+      `ideas/ghosttag-anti-stalking-ble-tracker-app-status.md`, Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` (Kategorie Counter-Surveillance/TSCM) ergänzt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
