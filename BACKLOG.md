@@ -3219,6 +3219,45 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ideas/ghosttag-anti-stalking-ble-tracker-app-status.md`, Katalog-Zeile in
       `ideas/pentest-app-katalog.md` (Kategorie Counter-Surveillance/TSCM) ergänzt.
 
+## Firmware-Feature-Mining (Fortsetzung 10)
+- [x] Unleasheds `dev`-Branch beim letzten offenen Kandidaten weiterverfolgt: `178a99e5`
+      ("subghz: make genius remotes work") gegen meine eigene `faac_slh.c` (Tag `mntm-012`)
+      geprüft. Dabei festgestellt: meine Fassung ist beim Ver-/Entschlüsseln bereits nach
+      Schlüsseltyp (`KEELOQ_LEARNING_FAAC`) statt wie Unleasheds alte Fassung hart nach dem Namen
+      `"FAAC_SLH"` gebaut — grundsätzlich offener für mehrere Hersteller desselben Lerntyps. Genau
+      dabei eigener, von Unleasheds Fund unabhängiger Kontrollfluss-Bug gefunden: die Sendefunktion
+      (`subghz_protocol_faac_slh_encrypt()`) bricht ihre `M_EACH`-Keystore-Schleife beim ersten
+      Namenstreffer korrekt ab, die Empfangs-/Anzeige-/Wiedergabefunktion
+      (`subghz_protocol_faac_slh_check_remote_controller()`, aufgerufen aus Serialisieren,
+      Bildschirmtext und erneutem Senden einer gespeicherten Datei) hat dagegen kein äußeres
+      `break` — `break;` im `switch`-Fall beendet nur den `switch`, die Schleife läuft über den
+      gesamten Keystore weiter, sodass bei mehr als einem `KEELOQ_LEARNING_FAAC`-Eintrag
+      ausschließlich der **letzte** in Keystore-Reihenfolge gewinnt, unabhängig vom tatsächlich
+      sendenden Hersteller — genau die Situation, die Unleasheds Genius-Fix erzeugt (Genius sitzt
+      als zweiter Eintrag desselben Lerntyps neben FAAC_SLH). Mit Host-Repro (ALT/NEU-Auswahllogik
+      1:1 aus der echten Schleife, fünf Szenarien: ein Eintrag [Regression], Anhängen eines zweiten
+      Eintrags [zeigt die stillschweigende Umschaltung bei ALT, Stabilität bei NEU], drei
+      gleichtypige Einträge in Folge [Erster-Treffer-Regel], kein Treffer [kein Crash]) unter
+      ASan/UBSan bei `-O0`/`-O1` verifiziert: ALT wechselt bei jedem Anhängen eines zweiten
+      gleichtypigen Eintrags stillschweigend den für **alle** bereits funktionierenden
+      FAAC_SLH-Signale verwendeten Schlüssel, NEU bleibt unverändert beim ersten Eintrag — ALLE
+      CHECKS BESTANDEN. Minimaler, für den heutigen (vermutlich einzeiligen) Keystore-Stand
+      verhaltensidentischer Fix (lokale `matched_faac_learning`-Variable + `if(...) break;` nach
+      dem `switch`, spiegelbildlich zur bereits korrekten Sendefunktion) in
+      `firmware-mining/faac-slh-decode-manufacturer-last-match-fix.md`, Unified-Diff (`git apply
+      --check` vorab gegen frische Kopie meiner eigenen `G4MEOVER18/G4MEOVER-FW`-Basis verifiziert,
+      real angewendet und byte-für-byte abgeglichen) in
+      `firmware-mining/faac-slh-decode-manufacturer-last-match-fix/faac_slh_c.patch`, Host-Repro in
+      `firmware-mining/repro-faac-slh-decode-manufacturer-last-match/repro.c`. Den eigentlichen
+      Genius-Port (optionales `Manufacture`-Dateifeld, neue „Add Manually"-Menüeinträge) bewusst
+      als Folgeschritt zurückgestellt: Unleasheds Szenen-/Menü-Dateien
+      (`applications/main/subghz/plugins/add_manually/*`) existieren bei mir strukturell nicht,
+      das Äquivalent liegt über drei andere Dateien verteilt (`subghz_gen_info.c`,
+      `subghz_txrx_create_protocol_key.c`, `subghz_scene_set_type.c`) — Wiring muss lokal neu
+      aufgebaut werden; zusätzlich ungeklärt, ob mein eigener (verschlüsselter, SHA-256-different
+      zu Unleasheds) Keystore bereits einen "Genius"-Eintrag enthält, aus dem Quelltext nicht
+      feststellbar.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

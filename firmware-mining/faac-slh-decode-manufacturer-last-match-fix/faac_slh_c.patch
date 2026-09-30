@@ -1,0 +1,28 @@
+diff --git a/lib/subghz/protocols/faac_slh.c b/lib/subghz/protocols/faac_slh.c
+index 2236e94..4dc2582 100644
+--- a/lib/subghz/protocols/faac_slh.c
++++ b/lib/subghz/protocols/faac_slh.c
+@@ -606,6 +606,7 @@ static void subghz_protocol_faac_slh_check_remote_controller(
+ 
+     for
+         M_EACH(manufacture_code, *subghz_keystore_get_data(keystore), SubGhzKeyArray_t) {
++            bool matched_faac_learning = false;
+             switch(manufacture_code->type) {
+             case KEELOQ_LEARNING_FAAC:
+                 // FAAC Learning
+@@ -613,8 +614,15 @@ static void subghz_protocol_faac_slh_check_remote_controller(
+                     instance->seed, manufacture_code->key);
+                 decrypt = subghz_protocol_keeloq_common_decrypt(code_hop, man);
+                 *manufacture_name = furi_string_get_cstr(manufacture_code->name);
++                matched_faac_learning = true;
+                 break;
+             }
++            // Stop at the first matching manufacturer instead of letting every
++            // later KEELOQ_LEARNING_FAAC keystore entry silently overwrite the
++            // one before it -- see firmware-mining/
++            // faac-slh-decode-manufacturer-last-match-fix.md for why this
++            // matters the moment a second manufacturer shares this type.
++            if(matched_faac_learning) break;
+         }
+     instance->cnt = decrypt & 0xFFFFF;
+     // Backup counter in case when we need to use programming mode
