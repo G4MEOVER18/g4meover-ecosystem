@@ -1,0 +1,65 @@
+--- a/src/main.cpp	2026-10-01 00:25:17.978154182 +0000
++++ b/src/main.cpp	2026-10-01 00:26:00.919720155 +0000
+@@ -17,6 +17,7 @@
+ #include <U8g2lib.h>
+ #include <TinyGPS++.h>
+ #include <RadioLib.h>
++#include <Preferences.h>
+ 
+ extern "C" {
+ #include "ukfe_rf.h"
+@@ -72,6 +73,28 @@
+ static uint8_t  s_buf[128];
+ static size_t   s_len = 0;
+ 
++// ---- Anti-Replay-Fenster von s_flipperCounter ueberlebt einen Neustart (NVS) ----
++// Ohne das wuerde jeder Reset/Crash/OTA-Update s_flipperCounter auf 0 zuruecksetzen und
++// damit das Replay-Fenster der ukfe_rf-Konsole fuer jedes zuvor mitgeschnittene, aber
++// gueltig signierte Flipper-Frame wieder oeffnen (siehe app-improvements/heltec-v4-hub/
++// rf-counter-replay-window-reset-on-reboot-fix.md). Reserve-mit-Sicherheitsspanne-Logik
++// identisch zum bereits verifizierten Muster aus usb-army-penetrator/UkfeRfControl.
++#define UKFE_RF_COUNTER_MARGIN     10u
++#define UKFE_RF_COUNTER_PREF_NS    "g4meoverv4"
++#define UKFE_RF_COUNTER_PREF_KEY   "rfCtr"
++static Preferences s_rfCtrPrefs;
++static uint32_t    s_rfCtrPersistedFloor = 0;
++
++static uint32_t ukfe_rf_counter_initial_reserve(uint32_t loaded, uint32_t margin) {
++    return loaded + margin;
++}
++static bool ukfe_rf_counter_needs_bump(uint32_t counter, uint32_t reserved_up_to,
++                                       uint32_t margin, uint32_t* new_reserved_up_to) {
++    if(counter + margin / 2 < reserved_up_to) return false;
++    *new_reserved_up_to = counter + margin;
++    return true;
++}
++
+ // ---- LoRa-Zustand ----
+ static bool     s_loraOk = false, s_loraRxOn = false;
+ static float    s_loraFreq = 868.0f;
+@@ -180,6 +203,12 @@
+         UkfeRfMessage msg;
+         if(ukfe_rf_parse_frame(UKFE_SECRET, s_buf, real_len, &msg, &s_flipperCounter)) {
+             s_rxFromFlipper++;
++            uint32_t newFloor;
++            if(ukfe_rf_counter_needs_bump(s_flipperCounter, s_rfCtrPersistedFloor,
++                                          UKFE_RF_COUNTER_MARGIN, &newFloor)) {
++                s_rfCtrPersistedFloor = newFloor;
++                s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY, s_rfCtrPersistedFloor);
++            }
+             relay_frame(s_buf, real_len, &msg);   // an Satelliten weiterfunken
+             act(&msg);                            // + V4 fuehrt selbst aus (One Piece)
+         } else s_rejected++;
+@@ -351,6 +380,12 @@
+     pinMode(PIN_VGNSS_CTRL, OUTPUT); digitalWrite(PIN_VGNSS_CTRL, HIGH);
+     delay(60);
+ 
++    // Anti-Replay-Floor aus NVS laden statt bei 0 zu starten (0 bei Erst-Inbetriebnahme).
++    s_rfCtrPrefs.begin(UKFE_RF_COUNTER_PREF_NS, false);
++    s_flipperCounter = s_rfCtrPrefs.getUInt(UKFE_RF_COUNTER_PREF_KEY, 0);
++    s_rfCtrPersistedFloor = ukfe_rf_counter_initial_reserve(s_flipperCounter, UKFE_RF_COUNTER_MARGIN);
++    s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY, s_rfCtrPersistedFloor);  // sofort vorreservieren
++
+     oled.begin();
+     oled.setFont(u8g2_font_6x10_tf);
+     oled.clearBuffer(); oled.drawStr(0, 10, "G4MEOVER V4"); oled.drawStr(0, 26, "Init..."); oled.sendBuffer();

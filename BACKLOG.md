@@ -3258,6 +3258,41 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       zu Unleasheds) Keystore bereits einen "Genius"-Eintrag enthält, aus dem Quelltext nicht
       feststellbar.
 
+## App-Verbesserungen (Fortsetzung 6)
+- [x] **heltec-v4-hub**: bislang nicht im eigenen App-Verbesserungs-Katalog geführte eigene
+      App aufgenommen (die drei eigenständigen Repos `RollJam`/`RollLab`/`lora-ukfe` waren in
+      der Vorsitzung unverändert, daher gezielt nach ungeführtem eigenen Code gesucht). Den
+      Heltec-WiFi-LoRa-32-V4-"Masterpiece"-Hub (`src/main.cpp`, `scan_and_relay()`/
+      `relay_frame()`/`act()`) frisch geklont und geprüft. `src/ukfe_rf.c`/`.h` (gemeinsames
+      Protokoll, laut Dateikommentar "plattformunabhaengig, ohne HW-Abhaengigkeit") Byte-für-
+      Byte gegen die bereits in `usb-army-penetrator` geprüfte Fassung verglichen — identisch
+      bis auf zusätzliche Kommando-Enum-Werte für V4-eigene Befehle; die Protokoll-Logik selbst
+      (CRC16, MAC, Build/Parse-Grenzprüfungen) nochmals vollständig nachgerechnet, kein neuer
+      Fund darin. Stattdessen dieselbe bereits zweimal dokumentierte Anbindungslücke ein
+      drittes Mal gefunden: `s_flipperCounter` (Anti-Replay-Fenster für Flipper→Hub-Frames) ist
+      ein reines RAM-Feld, `setup()` lädt nirgends einen persistierten Stand (gesamten Baum
+      nach `Preferences`/`nvs_` durchsucht — kein Treffer) — jeder Hub-Neustart öffnet damit das
+      Replay-Fenster für jedes zuvor per SDR mitgeschnittene, gültig signierte Flipper-Frame
+      wieder, hier mit größerem Blast-Radius als bei den beiden Vorfunden: der Hub führt den
+      wiedergespielten Befehl sowohl selbst aus (`act()`) als auch per ESP-NOW-Broadcast an alle
+      Satelliten weiter. Fix (dieselbe Reserve-mit-Sicherheitsspanne-Logik wie in
+      `usb-army-penetrator`, hier über die ESP32-Arduino-Standardbibliothek `Preferences`/NVS,
+      kein zusätzlicher `lib_deps`-Eintrag nötig) in
+      `app-improvements/heltec-v4-hub/rf-counter-replay-window-reset-on-reboot-fix.md`,
+      Unified-Diff (`git apply --check` vorab gegen frische Kopie verifiziert, real angewendet
+      und byte-für-byte abgeglichen) in
+      `app-improvements/heltec-v4-hub/rf-counter-replay-window-reset-on-reboot-fix/main_cpp.patch`.
+      Host-Repro (identischer Aufbau zum bereits verifizierten `usb-army-penetrator`-Repro, auf
+      `heltec-v4-hub`s eigene `ukfe_rf.c`/`.h` angewendet) unter `gcc -std=c11 -Wall -Wextra
+      -fsanitize=address,undefined` bei `-O0`/`-O1` verifiziert: Replay vor Fix angenommen, nach
+      Fix abgelehnt, legitime neue Befehle funktionieren weiterhin, NVS-Schreibzugriffe bleiben
+      selten (10 statt 50 bei 50 Befehlen) — ALLE CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen,
+      keine Compiler-Warnungen — in
+      `app-improvements/heltec-v4-hub/repro-rf-counter-replay-window-reset/repro.c`. Der
+      TX-seitige `s_txCounter` (Hub→Satelliten) bewusst unangetastet gelassen (dort nur
+      Verfügbarkeits-, kein Sicherheitsrisiko, wie beim ursprünglichen `lora-ukfe`-Fund) und als
+      nicht Gegenstand dieser Sitzung vermerkt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
