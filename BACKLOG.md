@@ -3293,6 +3293,36 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Verfügbarkeits-, kein Sicherheitsrisiko, wie beim ursprünglichen `lora-ukfe`-Fund) und als
       nicht Gegenstand dieser Sitzung vermerkt.
 
+## App-Verbesserungen (Fortsetzung 7)
+- [x] **heltec-v4-hub**: den in der Vorsitzung ausdrücklich zurückgestellten TX-seitigen
+      Counter aufgegriffen. `s_txCounter` (eigener Zählerraum für `hub_broadcast()`,
+      ausgelöst über die Menü-Taste, Kommando `UkfeRfCmdStatus`) ist wie `s_flipperCounter`
+      ein reines RAM-Feld, Startwert `100` — jeder Hub-Neustart setzt ihn zurück. Gegen
+      `heltec-ukfe-rx` (frisch geklont, `src/main.cpp:433`, `enowCounter`) verifiziert: die
+      Satelliten prüfen Hub-Broadcasts mit derselben strikten `counter <= last_counter`-Regel
+      wie relayte Flipper-Frames — nach einem Neustart verwirft ein Satellit damit jeden
+      `hub_broadcast()`-Frame, bis `s_txCounter` den zuvor akzeptierten Stand wieder überholt
+      hat. Anders als beim RX-Fund keine Sicherheitslücke (reine Selbstaussperrung, identisches
+      Muster zum ursprünglichen `lora-ukfe`-Fund `rf-counter-restart-lockout-fix.md`), daher mit
+      derselben Reserve-mit-Sicherheitsspanne-Logik behoben, hier unter einem eigenen NVS-Key
+      (`txCtr`) im bereits etablierten `Preferences`-Namespace `g4meoverv4`. Fund, Begründung und
+      Testhinweis in
+      `app-improvements/heltec-v4-hub/tx-broadcast-counter-restart-lockout-fix.md`, Patch
+      (`git apply --check` zweimal gegen frische Klone verifiziert, byte-für-byte abgeglichen)
+      in `tx-broadcast-counter-restart-lockout-fix/main_cpp.patch`, Host-Repro unter
+      `gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined` bei `-O0`/`-O1` verifiziert
+      (drei Szenarien: Ist-Zustand, Fix, Crash-Sicherheit) in
+      `repro-tx-broadcast-counter-restart-lockout/repro.c` — ALLE CHECKS BESTANDEN, keine
+      ASan-/UBSan-Meldungen, keine Compiler-Warnungen.
+      Zusätzlich festgestellt, nicht in diesem Patch behoben: Satelliten mischen Hub-Relay-
+      Frames (`relay_frame()`, Flipper-Zählerraum) und Hub-Broadcasts (`hub_broadcast()`,
+      eigener `s_txCounter`-Zählerraum) in ein einziges gemeinsames `last_counter`-Fenster
+      (`enowCounter`) — beide Zählerräume können sich damit auch unabhängig von einem Neustart
+      gegenseitig blockieren. Eigenständiger, größerer Architektur-Fund (betrifft
+      `heltec-ukfe-rx`/`lilygo-ukfe-rx`, nicht nur `heltec-v4-hub`), als Kandidat für eine
+      künftige Sitzung vorgemerkt statt in dieser kleinen, abgeschlossenen Änderung mit
+      angegangen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

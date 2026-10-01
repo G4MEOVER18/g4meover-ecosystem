@@ -1,0 +1,70 @@
+--- a/src/main.cpp	2026-10-01 06:25:16.864471321+0000
++++ b/src/main.cpp	2026-10-01 06:25:16.865930943+0000
+@@ -17,6 +17,7 @@
+ #include <U8g2lib.h>
+ #include <TinyGPS++.h>
+ #include <RadioLib.h>
++#include <Preferences.h>
+ 
+ extern "C" {
+ #include "ukfe_rf.h"
+@@ -72,6 +73,31 @@
+ static uint8_t  s_buf[128];
+ static size_t   s_len = 0;
+ 
++// ---- Hub-Broadcast-Counter (s_txCounter, Hub -> Satelliten per hub_broadcast()) ueberlebt
++// einen Neustart (NVS). Ohne das faengt jeder Neustart des Hubs (Crash/Akku leer/Reset-Taste/
++// OTA) s_txCounter wieder bei UKFE_TX_COUNTER_START=100 an -- liegt dieser Wert unterhalb
++// dessen, was ein Satellit vom Hub per hub_broadcast() bereits akzeptiert hat, verwirft er
++// jeden weiteren Broadcast als "nicht neu genug", bis der lokale Counter den zuvor erreichten
++// Stand wieder ueberholt hat. Reiner Verfuegbarkeits-Bug (Selbstaussperrung), kein
++// Sicherheitsrisiko -- identisches Muster zum urspruenglichen lora-ukfe-Fund
++// (rf-counter-restart-lockout-fix.md), hier auf s_txCounter angewendet. Reserve-mit-
++// Sicherheitsspanne-Logik identisch zum bereits verifizierten Muster.
++#define UKFE_TX_COUNTER_MARGIN   10u
++#define UKFE_TX_COUNTER_PREF_NS  "g4meoverv4"
++#define UKFE_TX_COUNTER_PREF_KEY "txCtr"
++static Preferences s_txCtrPrefs;
++static uint32_t    s_txCtrPersistedFloor = 0;
++
++static uint32_t ukfe_tx_counter_initial_reserve(uint32_t loaded, uint32_t margin) {
++    return loaded + margin;
++}
++static bool ukfe_tx_counter_needs_bump(uint32_t counter, uint32_t reserved_up_to,
++                                       uint32_t margin, uint32_t* new_reserved_up_to) {
++    if(counter + margin / 2 < reserved_up_to) return false;
++    *new_reserved_up_to = counter + margin;
++    return true;
++}
++
+ // ---- LoRa-Zustand ----
+ static bool     s_loraOk = false, s_loraRxOn = false;
+ static float    s_loraFreq = 868.0f;
+@@ -114,6 +140,12 @@
+ // Eigenen ukfe_rf-Frame bauen + per ESP-NOW broadcasten (fuer Menue-Aktionen)
+ static void hub_broadcast(uint8_t cmd) {
+     UkfeRfMessage m; ukfe_rf_make_simple(&m, (UkfeRfCmd)cmd); m.counter = ++s_txCounter;
++    uint32_t newTxFloor;
++    if(ukfe_tx_counter_needs_bump(s_txCounter, s_txCtrPersistedFloor,
++                                  UKFE_TX_COUNTER_MARGIN, &newTxFloor)) {
++        s_txCtrPersistedFloor = newTxFloor;
++        s_txCtrPrefs.putUInt(UKFE_TX_COUNTER_PREF_KEY, s_txCtrPersistedFloor);
++    }
+     uint8_t f[UKFE_RF_MAX_FRAME];
+     size_t n = ukfe_rf_build_frame(UKFE_SECRET, &m, f, sizeof(f));
+     if(n && esp_now_send(BROADCAST_MAC, f, n) == ESP_OK) { s_relayed++; toast("Broadcast gesendet"); }
+@@ -351,6 +383,14 @@
+     pinMode(PIN_VGNSS_CTRL, OUTPUT); digitalWrite(PIN_VGNSS_CTRL, HIGH);
+     delay(60);
+ 
++    // Broadcast-Counter-Floor aus NVS laden statt nach jedem Neustart wieder bei
++    // UKFE_TX_COUNTER_START=100 zu beginnen (0 bei Erst-Inbetriebnahme -> behaelt 100).
++    s_txCtrPrefs.begin(UKFE_TX_COUNTER_PREF_NS, false);
++    uint32_t loadedTxFloor = s_txCtrPrefs.getUInt(UKFE_TX_COUNTER_PREF_KEY, 0);
++    if(loadedTxFloor > s_txCounter) s_txCounter = loadedTxFloor;
++    s_txCtrPersistedFloor = ukfe_tx_counter_initial_reserve(s_txCounter, UKFE_TX_COUNTER_MARGIN);
++    s_txCtrPrefs.putUInt(UKFE_TX_COUNTER_PREF_KEY, s_txCtrPersistedFloor);  // sofort vorreservieren
++
+     oled.begin();
+     oled.setFont(u8g2_font_6x10_tf);
+     oled.clearBuffer(); oled.drawStr(0, 10, "G4MEOVER V4"); oled.drawStr(0, 26, "Init..."); oled.sendBuffer();
