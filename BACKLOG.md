@@ -3358,6 +3358,49 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined` bei `-O0` und `-O1`:
       ALLE CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen.
 
+## App-Verbesserungen (Fortsetzung 9)
+- [x] **heltec-ukfe-rx**/**lilygo-ukfe-rx**: den in der Vorsitzung vorgemerkten
+      restlichen Code beider Satelliten-Repos aufgegriffen (`wifi_attack.cpp/.h`,
+      `ble_spam.cpp/.h`, `ducky.h`, `evil_portal.cpp/.h` bei `heltec-ukfe-rx`; beide
+      Repos frisch geklont statt den Vorsitzungs-Stand nur anzunehmen). `wifi_attack.cpp`
+      (802.11-Deauth/Beacon-Spam, millis()-Wraparound-sicher per Unsigned-Subtraktion),
+      `ble_spam.cpp` (Apple/Windows/Android-Pairing-Spam) und `evil_portal.cpp`
+      (SoftAP/Captive-DNS/Login-Seite) vollständig gelesen — kein Fund, Pufferlängen
+      passen (`send_beacon()`: max. 83 von 128 Byte genutzt), Kanal-/State-Logik
+      korrekt. In `ducky.h` (laut eigenem Dateikommentar bewusst "Wiederverwendbar
+      (V3/LilyGo/V4)", byte-identisch gegen frische Klone von `heltec-ukfe-rx` UND
+      `lilygo-ukfe-rx` bestätigt — Fund und Fix betreffen damit beide Repos)
+      `ducky_run()`s Zeilen-Einlese-Schleife geprüft: der feste 220-Byte-Stack-Puffer
+      pro physischer Skriptzeile behandelt "Zeile zu Ende" und "Puffer voll" identisch
+      — bei einer physischen Zeile über 219 Zeichen (z. B. eine lange `STRING`-Payload,
+      die das Format selbst nicht begrenzt) wird das Kommando nicht nur hart
+      abgeschnitten, der abgeschnittene Rest wird von der äußeren Schleife beim
+      nächsten Durchlauf als **eigenständige neue Kommandozeile** erneut geparst.
+      Beginnt dieser Rest zufällig mit einem von `ducky_keyname()`/`ducky_modkey()`
+      erkannten Token (z. B. weil die Payload ein normales Wort wie "home"/"tab"/"end"
+      enthält), löst das einen unbeabsichtigten zusätzlichen Tastendruck mitten in der
+      eigentlich reinen Texteingabe aus — wiederholt sich über beliebig viele
+      Pufferbreiten hinweg bis zur echten Zeilengrenze. Minimaler, additiver Fix (Rest
+      der physischen Zeile bei Pufferüberlauf verwerfen statt neu zu parsen) in
+      `app-improvements/ukfe-ducky-overlong-line-reinterpret-fix.md`, ein Patch (Datei
+      in beiden Repos identisch; `git apply --check` je einmal gegen frische,
+      unabhängige Klone beider Repos verifiziert, real angewendet und byte-für-byte
+      abgeglichen) in `ukfe-ducky-overlong-line-reinterpret-fix/{heltec-ukfe-rx,
+      lilygo-ukfe-rx}_ducky_h.patch`. Host-Repro (Zeilen-Splitting-/Dispatch-Logik 1:1
+      aus dem echten Funktionskörper transkribiert, Arduino `String`/`USBHIDKeyboard`
+      durch `std::string`/einen Aktions-Rekorder ersetzt; fünf Szenarien: Regression
+      bei normalen Zeilen inkl. Modifier-Kombos, Überlauf-Grenzfall mit exakt einer
+      Pufferbreite [zeigt injiziertes `ENTER`], Überlauf über zwei volle Pufferbreiten
+      hinweg [zeigt injiziertes `TAB`, belegt dass sich der Fehler beliebig fortsetzt],
+      überlaufende Zeile am Skriptende ohne abschließendes `\n` [zeigt injiziertes
+      `HOME`], Zeilen exakt unterhalb der Schwelle unverändert) in
+      `repro-ukfe-ducky-overlong-line-reinterpret/repro.cpp` unter
+      `g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined` bei `-O0`/`-O1`
+      verifiziert: 26 Einzelprüfungen, ALLE CHECKS BESTANDEN, keine ASan-/UBSan-
+      Meldungen, keine Compiler-Warnungen. `heltec-v4-hub` besitzt kein `ducky.h`
+      (reiner ESP-NOW-Hub ohne USB-HID) — Fund betrifft nachvollziehbar nur die beiden
+      Satelliten-Repos.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
