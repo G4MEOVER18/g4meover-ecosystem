@@ -3323,6 +3323,41 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       künftige Sitzung vorgemerkt statt in dieser kleinen, abgeschlossenen Änderung mit
       angegangen.
 
+## App-Verbesserungen (Fortsetzung 8)
+- [x] **ukfe-esp-now-mesh** (neu im Katalog, übergreifend `heltec-v4-hub` +
+      `heltec-ukfe-rx` + `lilygo-ukfe-rx`): den in der Vorsitzung vorgemerkten
+      Architektur-Fund aufgegriffen. Die Satelliten prüfen Hub-Broadcasts
+      (`hub_broadcast()`, eigener `s_txCounter`-Zählerraum ab `100`) und relayte
+      Flipper-Frames (`relay_frame()`, unverändert weitergefunkt, Flipper-eigener
+      `s_flipperCounter`-Zählerraum) mit genau **einem** gemeinsamen `enowCounter`-
+      Anti-Replay-Fenster (verifiziert gegen frische Klone von `heltec-ukfe-rx:433`
+      und `lilygo-ukfe-rx:269` — identische Stelle in beiden). Ein hoher Counter aus
+      der einen Quelle sperrt damit künftige, gültige Frames der anderen — **ohne
+      dass dafür ein Geräte-Neustart nötig wäre** (eigenständig von den beiden
+      bereits vorgeschlagenen Neustart-Fixes für `s_flipperCounter`/`s_txCounter`).
+      Fix: zusätzliches, 1 Byte großes Ursprungs-Tag VOR dem `ukfe_rf`-Frame
+      (außerhalb des MAC/CRC-geschützten Bereichs, reines Routing-Metadatum) —
+      `hub_broadcast()`/`relay_frame()` setzen beim Senden ihr jeweiliges Tag
+      (`ESPNOW_ORIGIN_HUBCMD`/`ESPNOW_ORIGIN_RELAY`), die Satelliten lesen es in
+      `onEspNowRecv()`, verwerfen unbekannte Werte sofort (vor jedem Parse-Versuch)
+      und wählen anhand des Tags eines von zwei getrennten Fenstern
+      (`enowCounter`/neu `enowBroadcastCounter`), bevor `ukfe_rf_parse_frame()`
+      aufgerufen wird. `ukfe_rf.c`/`.h` (gemeinsames Protokoll, MAC+CRC) bleiben in
+      allen drei Repos unverändert. Fund, Begründung, Rollout-Hinweis (alle drei
+      Geräte müssen synchron geflasht werden) und Testhinweis in
+      `app-improvements/ukfe-esp-now-mesh/espnow-origin-tag-counter-window-split-fix.md`,
+      drei Patches (`git apply --check` je einmal gegen frische Klone verifiziert,
+      byte-für-byte abgeglichen) in
+      `espnow-origin-tag-counter-window-split-fix/{heltec-v4-hub,heltec-ukfe-rx,
+      lilygo-ukfe-rx}_main_cpp.patch`, Host-Repro (fünf Szenarien: Ist-Zustand/
+      Cross-Source-Lockout, Fix, Replay-Schutz pro Fenster bleibt erhalten,
+      unbekanntes/zu kurzes Envelope-Byte wird vor jedem Parse-Versuch verworfen,
+      MAC/CRC bleibt unabhängig vom Envelope-Byte wirksam) in
+      `repro-espnow-origin-counter-window-split/repro.c`, nutzt die unveränderten
+      `ukfe_rf.c`/`.h` aus `heltec-ukfe-rx`. Unter
+      `gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined` bei `-O0` und `-O1`:
+      ALLE CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

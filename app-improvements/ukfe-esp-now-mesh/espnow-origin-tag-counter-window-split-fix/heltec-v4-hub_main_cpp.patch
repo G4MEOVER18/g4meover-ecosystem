@@ -1,0 +1,47 @@
+--- a/src/main.cpp	2026-10-01 12:22:41.671316090 +0000
++++ b/src/main.cpp	2026-10-01 12:25:59.799978186 +0000
+@@ -50,6 +50,18 @@
+ #define PIN_VGNSS_CTRL 34
+ 
+ static const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
++
++// ESP-NOW-Envelope: 1 Byte Ursprungs-Tag VOR dem ukfe_rf-Frame (ausserhalb des
++// MAC/CRC-geschuetzten Bereichs -- reine Routing-Info, kein Sicherheitsmerkmal,
++// die Frame-Authentizitaet selbst bleibt allein Sache von ukfe_rf_parse_frame()).
++// Erlaubt den Satelliten (heltec-ukfe-rx/lilygo-ukfe-rx), eigene Hub-Broadcasts
++// (s_txCounter-Zaehlerraum) von relayten Flipper-Frames (Flipper-Zaehlerraum) in
++// zwei getrennten Anti-Replay-Fenstern zu pruefen, statt beide ESP-NOW-Quellen in
++// ein gemeinsames last_counter-Fenster zu mischen. MUSS mit allen Satelliten
++// uebereinstimmen.
++#define ESPNOW_ORIGIN_RELAY   0x00   // relay_frame(): unveraendert weitergefunkter Flipper-Frame
++#define ESPNOW_ORIGIN_HUBCMD  0x01   // hub_broadcast(): eigener Hub-Befehl (Menue-Aktion)
++
+ #include "secret.h"
+ static const uint8_t UKFE_SECRET[UKFE_RF_SECRET_LEN] = UKFE_RF_SECRET_INIT;
+ 
+@@ -116,14 +128,22 @@
+     UkfeRfMessage m; ukfe_rf_make_simple(&m, (UkfeRfCmd)cmd); m.counter = ++s_txCounter;
+     uint8_t f[UKFE_RF_MAX_FRAME];
+     size_t n = ukfe_rf_build_frame(UKFE_SECRET, &m, f, sizeof(f));
+-    if(n && esp_now_send(BROADCAST_MAC, f, n) == ESP_OK) { s_relayed++; toast("Broadcast gesendet"); }
+-    else toast("Broadcast FAIL");
++    if(n) {
++        uint8_t env[1 + UKFE_RF_MAX_FRAME];
++        env[0] = ESPNOW_ORIGIN_HUBCMD;
++        memcpy(env + 1, f, n);
++        if(esp_now_send(BROADCAST_MAC, env, n + 1) == ESP_OK) { s_relayed++; toast("Broadcast gesendet"); }
++        else toast("Broadcast FAIL");
++    } else toast("Broadcast FAIL");
+ }
+ 
+ static void relay_frame(const uint8_t* frame, size_t real_len, const UkfeRfMessage* msg) {
+     digitalWrite(PIN_LED, HIGH);
+     s_lastCmd = msg->cmd;
+-    if(esp_now_send(BROADCAST_MAC, frame, real_len) == ESP_OK) s_relayed++;
++    uint8_t env[1 + UKFE_RF_MAX_FRAME];
++    env[0] = ESPNOW_ORIGIN_RELAY;
++    memcpy(env + 1, frame, real_len);
++    if(esp_now_send(BROADCAST_MAC, env, real_len + 1) == ESP_OK) s_relayed++;
+     digitalWrite(PIN_LED, LOW);
+ }
+ 

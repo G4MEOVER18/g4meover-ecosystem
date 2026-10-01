@@ -1,0 +1,70 @@
+--- a/src/main.cpp	2026-10-01 12:21:04.681911857 +0000
++++ b/src/main.cpp	2026-10-01 12:26:28.463979890 +0000
+@@ -14,6 +14,15 @@
+ // ESP-NOW-Kanal — MUSS mit dem WROOM-Relay (g4meover-wifi-relay) uebereinstimmen.
+ #define ESPNOW_CHANNEL 1
+ 
++// ESP-NOW-Envelope: 1 Byte Ursprungs-Tag VOR dem ukfe_rf-Frame (ausserhalb des
++// MAC/CRC-geschuetzten Bereichs -- reine Routing-Info, kein Sicherheitsmerkmal).
++// Trennt Hub-Broadcasts (hub_broadcast(), eigener s_txCounter-Zaehlerraum) von
++// relayten Flipper-Frames (relay_frame(), Flipper-Zaehlerraum) in zwei eigene
++// Anti-Replay-Fenster, statt beide in ein gemeinsames last_counter-Fenster zu
++// mischen. MUSS mit dem Hub (heltec-v4-hub) uebereinstimmen.
++#define ESPNOW_ORIGIN_RELAY   0x00
++#define ESPNOW_ORIGIN_HUBCMD  0x01
++
+ extern "C" {
+ #include "ukfe_rf.h"
+ }
+@@ -61,10 +70,12 @@
+ static volatile bool enowFlag = false;
+ static uint8_t  enowBuf[UKFE_RF_MAX_FRAME];
+ static volatile int enowLen = 0;
+-static uint32_t enowCounter = 0;     // SEPARATES Anti-Replay-Fenster (WiFi)
++static uint32_t enowCounter = 0;     // Anti-Replay-Fenster: relayte Flipper-Frames (ESPNOW_ORIGIN_RELAY)
++static uint32_t enowBroadcastCounter = 0;  // Anti-Replay-Fenster: Hub-eigene Broadcasts (ESPNOW_ORIGIN_HUBCMD)
+ static uint32_t enowRx = 0, enowOk = 0;
+ static uint8_t  enowSenderMac[6] = {0};   // MAC des WROOM-Relays (fuer ACK-Rueckweg)
+ static uint32_t respCounter = 0;          // eigener Counter fuer Antwort-Frames
++static volatile uint8_t enowOrigin = ESPNOW_ORIGIN_RELAY;  // Ursprungs-Tag des gepufferten Frames
+ 
+ ICACHE_RAM_ATTR void onDio1() {
+     rxFlag = true;
+@@ -73,10 +84,13 @@
+ // ESP-NOW-Empfang: nur Bytes puffern + Flag setzen (schnell, kein HID/Delay hier).
+ void onEspNowRecv(const uint8_t* mac, const uint8_t* data, int len) {
+     if(enowFlag) return;             // vorheriger Frame noch nicht verarbeitet
+-    if(len <= 0 || len > (int)UKFE_RF_MAX_FRAME) return;
++    if(len <= 1 || len > (int)UKFE_RF_MAX_FRAME + 1) return;  // +1 Envelope-Byte
++    uint8_t origin = data[0];
++    if(origin != ESPNOW_ORIGIN_RELAY && origin != ESPNOW_ORIGIN_HUBCMD) return;  // unbekannter Ursprung
+     memcpy(enowSenderMac, mac, 6);   // Absender fuer den ACK merken
+-    memcpy(enowBuf, data, len);
+-    enowLen = len;
++    enowOrigin = origin;
++    memcpy(enowBuf, data + 1, len - 1);
++    enowLen = len - 1;
+     enowFlag = true;
+ }
+ 
+@@ -425,15 +439,17 @@
+         int len = enowLen;
+         uint8_t frame[UKFE_RF_MAX_FRAME];
+         memcpy(frame, enowBuf, len);
++        uint8_t origin = enowOrigin;
+         enowFlag = false;            // Puffer wieder freigeben
+         enowRx++;
+         size_t real_len = (size_t)frame[0] + 1;
+         if(real_len > (size_t)len) real_len = len;
+         UkfeRfMessage msg;
+-        if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, &enowCounter)) {
++        uint32_t* win = (origin == ESPNOW_ORIGIN_HUBCMD) ? &enowBroadcastCounter : &enowCounter;
++        if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, win)) {
+             enowOk++;
+-            Serial.printf("ESPNOW OK cmd=0x%02X counter=%lu\n",
+-                          msg.cmd, (unsigned long)msg.counter);
++            Serial.printf("ESPNOW OK origin=%u cmd=0x%02X counter=%lu\n",
++                          origin, msg.cmd, (unsigned long)msg.counter);
+             act(&msg);
+             send_espnow_ack(enowSenderMac, msg.cmd, 0);   // ACK an den WROOM/Deck zurueck
+         } else {

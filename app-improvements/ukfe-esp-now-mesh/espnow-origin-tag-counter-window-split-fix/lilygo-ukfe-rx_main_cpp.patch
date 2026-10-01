@@ -1,0 +1,64 @@
+--- a/src/main.cpp	2026-10-01 12:22:42.322393265 +0000
++++ b/src/main.cpp	2026-10-01 12:27:01.187981835 +0000
+@@ -41,21 +41,35 @@
+ #include "secret.h"
+ static const uint8_t UKFE_SECRET[UKFE_RF_SECRET_LEN] = UKFE_RF_SECRET_INIT;
+ 
++// ESP-NOW-Envelope: 1 Byte Ursprungs-Tag VOR dem ukfe_rf-Frame (ausserhalb des
++// MAC/CRC-geschuetzten Bereichs -- reine Routing-Info, kein Sicherheitsmerkmal).
++// Trennt Hub-Broadcasts (hub_broadcast(), eigener s_txCounter-Zaehlerraum) von
++// relayten Flipper-Frames (relay_frame(), Flipper-Zaehlerraum) in zwei eigene
++// Anti-Replay-Fenster, statt beide in ein gemeinsames last_counter-Fenster zu
++// mischen. MUSS mit dem Hub (heltec-v4-hub) uebereinstimmen.
++#define ESPNOW_ORIGIN_RELAY   0x00
++#define ESPNOW_ORIGIN_HUBCMD  0x01
++
+ // ---- ESP-NOW-Empfang (Callback setzt nur Flag; HID/Delay laufen in loop) ----
+ static volatile bool enowFlag = false;
+ static uint8_t  enowBuf[UKFE_RF_MAX_FRAME];
+ static volatile int enowLen = 0;
+-static uint32_t enowCounter = 0;     // Anti-Replay-Fenster (WiFi)
++static uint32_t enowCounter = 0;     // Anti-Replay-Fenster: relayte Flipper-Frames (ESPNOW_ORIGIN_RELAY)
++static uint32_t enowBroadcastCounter = 0;  // Anti-Replay-Fenster: Hub-eigene Broadcasts (ESPNOW_ORIGIN_HUBCMD)
+ static uint32_t rxCount = 0, okCount = 0;
+ static uint8_t  enowSenderMac[6] = {0};   // MAC des WROOM (fuer ACK-Rueckweg)
+ static uint32_t respCounter = 0;
++static volatile uint8_t enowOrigin = ESPNOW_ORIGIN_RELAY;  // Ursprungs-Tag des gepufferten Frames
+ 
+ void onEspNowRecv(const uint8_t* mac, const uint8_t* data, int len) {
+     if(enowFlag) return;
+-    if(len <= 0 || len > (int)UKFE_RF_MAX_FRAME) return;
++    if(len <= 1 || len > (int)UKFE_RF_MAX_FRAME + 1) return;  // +1 Envelope-Byte
++    uint8_t origin = data[0];
++    if(origin != ESPNOW_ORIGIN_RELAY && origin != ESPNOW_ORIGIN_HUBCMD) return;  // unbekannter Ursprung
+     memcpy(enowSenderMac, mac, 6);
+-    memcpy(enowBuf, data, len);
+-    enowLen = len;
++    enowOrigin = origin;
++    memcpy(enowBuf, data + 1, len - 1);
++    enowLen = len - 1;
+     enowFlag = true;
+ }
+ 
+@@ -260,16 +274,18 @@
+     int len = enowLen;
+     uint8_t frame[UKFE_RF_MAX_FRAME];
+     memcpy(frame, enowBuf, len);
++    uint8_t origin = enowOrigin;
+     enowFlag = false;
+     rxCount++;
+ 
+     size_t real_len = (size_t)frame[0] + 1;
+     if(real_len > (size_t)len) real_len = len;
+     UkfeRfMessage msg;
+-    if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, &enowCounter)) {
++    uint32_t* win = (origin == ESPNOW_ORIGIN_HUBCMD) ? &enowBroadcastCounter : &enowCounter;
++    if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, win)) {
+         okCount++;
+-        Serial.printf("ESPNOW OK cmd=0x%02X counter=%lu (rx:%lu ok:%lu)\n",
+-                      msg.cmd, (unsigned long)msg.counter,
++        Serial.printf("ESPNOW OK origin=%u cmd=0x%02X counter=%lu (rx:%lu ok:%lu)\n",
++                      origin, msg.cmd, (unsigned long)msg.counter,
+                       (unsigned long)rxCount, (unsigned long)okCount);
+         char l1[24], l3[24];
+         snprintf(l1, sizeof(l1), "OK cmd=0x%02X", msg.cmd);
