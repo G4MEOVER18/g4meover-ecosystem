@@ -773,7 +773,45 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 10 — Zigbee-Integration
 - [ ] P10.1 CC2531 am Pi: Sniffer-Betrieb (whsniff→wireshark/tshark) → pcap; Live-Feed an GUI-Tab.
+  - [ ] P10.1a Baut direkt auf P0.3 auf (dort bereits vollständig verfeinert: `whsniff`-Praxistest,
+    Kanal-Scan, `timeout`-Aufnahmebefehl, Metadaten-Sichtung per `tshark`) — P10.1 fügt nur zwei
+    neue Dinge hinzu, die P0.3 noch nicht abdeckt: (1) Dauerbetrieb statt 30–60-s-Testaufnahme,
+    (2) Live-Feed statt Offline-pcap-Sichtung. Kein zweiter Sniffer-Pfad, derselbe
+    `whsniff`|`tshark`-Befehl, nur anders parametrisiert — P0.3a-d zuerst erledigen, bevor hier
+    weitergebaut wird.
+  - [ ] P10.1b Dauerbetrieb: `whsniff -c <Kanal> | tshark -i - -l -T fields -e wpan.frame_type
+    -e wpan.src16 -e wpan.dst16 -e frame.time_relative` (`-l` = line-buffered, sonst puffert
+    `tshark` die Ausgabe und der Live-Feed hinkt nach) als langlebiger Hintergrundprozess bzw.
+    systemd-Service am Pi statt eines manuellen Einzelbefehls wie in P0.3c. Gegen CONSTRAINTS
+    Regel 2/3 (keine fremden Nutzdaten dauerhaft speichern/pushen): nur Metadaten/Zähler
+    persistent halten (Kanal, Paketzahl, gesehene Kurzadressen/Frame-Typen — dieselben Felder wie
+    schon in P0.3d), Rohpakete/`.pcap` nur in einem begrenzten lokalen Ringpuffer, nicht endlos
+    wachsend und nicht im Repo.
+  - [ ] P10.1c Live-Feed an GUI: kein neuer Transportmechanismus — der Pi-seitige
+    `tshark`-Metadaten-Stream (stdout, eine Zeile pro Paket) wird über denselben Queue-Mechanismus
+    wie P1.6a (`queue.Queue` + `after()`-Poll im UI-Thread) ins Zigbee-Tab eingespeist, sobald das
+    Cockpit (P1.1) lokal verfügbar ist — kein eigenständiger zweiter Log-/Event-Pfad neben P1.6a/
+    P7.1c/P7.2b.
+  - Blocker: der GUI-Teil (P10.1c) hängt am selben Tool-Existenz-Blocker wie P1.3.0/P9.2a
+    (`g4meover_control.py` im Repo nicht auffindbar, siehe Risiken/Blocker unten); der reine
+    Pi-seitige Sniff-Teil (P10.1a/b) ist davon unabhängig und lokal sofort umsetzbar, sobald
+    P0.3a-d (`whsniff`-Grundtest/Kanalwahl) erledigt ist.
+  - Verifikation: nur lokal (CC2531 physisch am Pi, Dauerlauf zeigt stabile Paketrate ohne
+    Prozessabbruch über mehrere Minuten).
 - [ ] P10.2 Zigbee-Tab: Kanäle, Geräte, Pakete; optional Z-Stack-Koordinator-Modus (Trennung Sniff/Coord).
+  - [ ] P10.2a UI: `ttk.Treeview` analog P1.3b/P1.6a (konsistentes Widget-Muster im ganzen Cockpit
+    statt je Tab eine eigene Lösung), Spalten Kanal/Quelle(16-bit)/Ziel(16-bit)/Frame-Typ/Zeit,
+    gespeist aus dem P10.1c-Feed.
+  - [ ] P10.2b „Geräte" als abgeleitete Ansicht, nicht neu erhoben: eindeutige `wpan.src16`-
+    Kurzadressen aus dem laufenden Feed aggregieren (dieselbe Feldliste, die P0.3d bereits für die
+    einmalige Metadaten-Sichtung nutzt), keine zweite Erhebungsmethode nur für den Tab.
+  - [ ] P10.2c Z-Stack-Koordinator-Modus ist strukturell getrennt vom Sniffer-Modus: eigenes
+    Firmware-Image auf dem CC2531 (Coordinator- statt Sniffer-Image aus P0.3a/b) — beide Rollen
+    können nicht gleichzeitig auf demselben Dongle laufen, ein Moduswechsel braucht einen erneuten
+    Flash-Vorgang. Nur relevant, falls das Projekt einen eigenen Zigbee-Koordinator betreiben will
+    (z. B. für eigene Testgeräte) statt nur zu sniffen — als optionale, eigenständige Entscheidung
+    markiert, kein Default, keine Umsetzung ohne diese Entscheidung.
+  - Verifikation: nur lokal (CC2531 physisch am Pi, echter Zigbee-Traffic in Empfangsreichweite).
 
 ### Phase 11 — 433-MHz-Erweiterung (wenn HW da)
 - [ ] P11.1 RA08 (ASR6601) + CubeCell HTCC-AB01 als 433-LoRa-Knoten integrieren (eigene FW + ESP-NOW/UART-Brücke).
@@ -1178,6 +1216,37 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
   reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht,
   kein Firmware-/GUI-Code geschrieben.
+- 2026-10-01 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-9-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — nächsten unverfeinerten
+  Tier aufgegriffen: Phase 10 (Zigbee-Integration, P10.1/P10.2) in Abschnitt 4 in Unterschritte
+  zerlegt. P10.1 baut explizit auf dem bereits fertigen P0.3 auf (gleicher `whsniff`|`tshark`-Befehl,
+  nur zwei neue Aspekte: Dauerbetrieb statt Einzeltest, Live-Feed statt Offline-Sichtung) statt einen
+  zweiten Sniffer-Pfad zu entwerfen; P10.1b bekam einen konkreten Dauerbetrieb-Befehl
+  (`whsniff | tshark -l -T fields …`, `-l` für Line-Buffering, sonst hinkt der Live-Feed nach) plus
+  die CONSTRAINTS-Regel-2/3-Konsequenz (nur Metadaten/Zähler dauerhaft halten, Rohpakete nur in
+  begrenztem lokalem Ringpuffer). P10.1c/P10.2a-b binden Live-Feed und Tab-Anzeige an die bereits
+  etablierten Muster (P1.6a-Queue-Mechanismus, `ttk.Treeview` wie P1.3b, dieselben Metadatenfelder
+  wie P0.3d) statt neue Pfade zu entwerfen; P10.2c trennt Sniffer- von Koordinator-Modus (eigenes
+  Firmware-Image, nicht gleichzeitig nutzbar) als eigenständige, optionale Entscheidung. Damit ist
+  Phase 10 vollständig in Unterschritte zerlegt; Phase 11 (433-MHz, wartet laut Überschrift ohnehin
+  auf noch nicht vorhandene Hardware) und Phase 12 (Politur/Packaging/Doku, baut auf noch nicht
+  funktionierendem P1.3/P1.4/P1.7 auf) bewusst als nächste, aber noch nicht dringende Tiers
+  zurückgestellt. Vor der Textarbeit den Repo-Zustand geprüft: `HEAD` stand exakt auf `origin/main`
+  (`3c5801a`, nach `git fetch` bestätigt, kein Rückstand, keine Drift wie an mehreren Vortagen).
+  Git-Identität dieses Checkouts stand erneut (vierter Fund dieser Art nach 2026-09-26/-27/-30) auf
+  dem Cloud-Default `Claude <noreply@anthropic.com>` statt der in CONSTRAINTS.md Regel 1
+  vorgeschriebenen Identität — vor dem Commit dieser Sitzung korrigiert; da dies jetzt wiederholt bei
+  jedem frischen Checkout auftritt (nicht aus einem vorherigen Commit übernommen), hier vermerkt statt
+  erneut nur als Einzelfund zu behandeln. Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) sowie der
+  P4.2a-Fund erneut gegen `git log --all --diff-filter=A` geprüft: unverändert kein Treffer.
+  `FLEET-COMMANDS.md` gegen Zigbee/CC2531 geprüft: dort bewusst nicht enthalten (CC2531-Pipeline ist
+  kein `ukfe_rf`-Gerät, sondern eigenständige Pi-lokale whsniff/tshark-Pipeline) — kein Konsistenz-
+  fund, keine Änderung nötig. Repo-Sichtbarkeit per GitHub-API geprüft (`visibility`-Feld direkt):
+  weiterhin `private`. Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit
+  2026-08-27, jetzt 35 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am
+  2026-09-11 eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht,
+  nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1218,7 +1287,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 34 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 35 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1295,6 +1364,20 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     `g4meover-wifi-relay`-Quellcode zu klären. P9.2 hängt am selben Tool-Existenz-Blocker wie
     P1.3.0/P1.4.0 (siehe Risiken unten) und nutzt für die Ergebnis-Anzeige dasselbe
     Quell-ID-Fallback-Muster wie P1.5c/P1.6b/P2.3a/P3.3a.
+13. Phase 10 (Zigbee-Integration, P10.1/P10.2) ist jetzt ebenfalls in Unterschritte zerlegt. P10.1a
+    zuerst lesen: baut direkt auf dem bereits fertigen P0.3 auf (Punkt 2 oben), kein zweiter
+    Sniffer-Pfad — erst P0.3a-d erledigen, dann P10.1b (fertiger Dauerbetrieb-Befehl mit
+    Line-Buffering) und P10.1c (Live-Feed über denselben P1.6a-Queue-Mechanismus, kein eigener
+    Event-Pfad). P10.2 (Zigbee-Tab) ist reine UI-Arbeit nach demselben `ttk.Treeview`-Muster wie
+    P1.3b, blockiert auf einem laufenden P10.1c-Feed. P10.2c (Z-Stack-Koordinator-Modus) ist eine
+    eigenständige, optionale Entscheidung (eigenes Firmware-Image, nicht gleichzeitig mit
+    Sniffer-Modus nutzbar) — nur verfolgen, falls das Projekt einen eigenen Koordinator braucht,
+    sonst auslassen. Phase 11 (433-MHz) wartet weiterhin auf noch nicht vorhandene Hardware
+    (RA08/CubeCell/ESP32-CAM, siehe Geräte-Inventar Abschnitt 1 „später") — vor Phase 11 zuerst
+    klären, ob/wann diese Geräte überhaupt beschafft werden, bevor hier weiter verfeinert wird.
+    Phase 12 (Politur/Packaging/Doku) baut auf einem funktionierenden P1.3/P1.4/P1.7 auf (siehe
+    P1.7a-Hinweis „kein Packaging eines beweglichen Ziels") — ebenfalls bewusst zurückgestellt, bis
+    dieses Fundament steht.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
@@ -1332,7 +1415,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 34 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 35 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
