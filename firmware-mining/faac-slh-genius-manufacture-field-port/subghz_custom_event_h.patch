@@ -1,0 +1,13 @@
+diff --git a/applications/main/subghz/helpers/subghz_custom_event.h b/applications/main/subghz/helpers/subghz_custom_event.h
+index 5015a99..fa0a948 100644
+--- a/applications/main/subghz/helpers/subghz_custom_event.h
++++ b/applications/main/subghz/helpers/subghz_custom_event.h
+@@ -76,6 +76,8 @@ typedef enum {
+ typedef enum {
+     SetTypeFaacSLH_868,
+     SetTypeFaacSLH_433,
++    SetTypeGeniusSLH_433,
++    SetTypeGeniusSLH_868,
+     SetTypeBFTMitto,
+     SetTypeSomfyTelis,
+     SetTypeANMotorsAT4,

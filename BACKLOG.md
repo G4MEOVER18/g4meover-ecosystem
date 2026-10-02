@@ -3439,6 +3439,50 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (reine ESP-NOW-/USB-HID-Satelliten bzw. -Hub ohne eigenes WiFi-
       Promiscuous-Sniffing) — Fund betrifft nachvollziehbar nur `heltec-ukfe-rx`.
 
+## Firmware-Feature-Mining (Fortsetzung 11)
+- [x] Den in `faac-slh-decode-manufacturer-last-match-fix.md` zurückgestellten Genius-Port
+      aufgegriffen: Unleasheds `dev`-Commit `178a99e5` („subghz: make genius remotes work",
+      @xMasterX) vollständig portiert. Neuer statischer Helfer
+      `subghz_protocol_faac_slh_get_key()` in `lib/subghz/protocols/faac_slh.c` ersetzt die
+      bisherigen zwei Keystore-Schleifen (Senden/Empfangen) durch eine einzige, namensbasierte
+      Suche mit Fallback auf `FAAC_SLH` bei leerem/unbekanntem Dateiwunsch — behebt dabei den
+      dort dokumentierten Auswahl-Bug strukturell mit (beide Patches schließen sich gegenseitig
+      aus, siehe Risiko-Abschnitt der neuen `.md`). Neues optionales `Manufacture`-Textfeld in
+      der `.sub`-Datei (Lesen/Schreiben an allen vier Aufrufstellen von
+      `check_remote_controller()`, Rewind-Muster identisch zu den bereits vorhandenen
+      `Seed`/`AllowZeroSeed`-Feldern), `decoder_get_string()` zeigt bei einem Nicht-FAAC_SLH-
+      Treffer den Herstellernamen statt „Faac SLH". Unleasheds `applications/main/subghz/plugins/
+      add_manually/*`-Pfade existieren bei mir strukturell nicht; stattdessen die drei
+      funktional entsprechenden eigenen Dateien identifiziert und darin je einen neuen
+      Zwei-Fälle-Block ergänzt: `applications/main/subghz/helpers/subghz_custom_event.h`
+      (`SetTypeGeniusSLH_433`/`_868`), `applications/main/subghz/helpers/subghz_gen_info.c`
+      (zwei neue `GenFaacSLH`-Fälle mit `.manuf = "Genius"`),
+      `applications/main/subghz/scenes/subghz_scene_set_type.c` (zwei neue Menüeinträge „Genius
+      SLH 433/868MHz") sowie eine fehlende `Manufacture`-Schreibzeile in
+      `applications/main/subghz/helpers/subghz_txrx_create_protocol_key.c`
+      (`subghz_txrx_gen_faac_slh_protocol()`) — ohne diese hätte eine über „Add Manually"
+      erzeugte Genius-Datei beim nächsten Laden wieder als FAAC_SLH gegolten. Fünf Patches (`git
+      apply --check` je vorab gegen eine frische, unabhängige Kopie meiner eigenen
+      `G4MEOVER18/G4MEOVER-FW`-Basis verifiziert, real angewendet und byte-für-byte mit der
+      beabsichtigten Endfassung abgeglichen) in
+      `firmware-mining/faac-slh-genius-manufacture-field-port/*.patch`. Host-Repro
+      (`subghz_protocol_faac_slh_get_key()` sowie die `display_name`-Auswahl aus
+      `decoder_get_string()` 1:1 transkribiert, Mock-Keystore statt `M_EACH`/
+      `SubGhzKeyArray_t`; acht Szenarien: Regression mit genau einem Eintrag, der eigentliche
+      Fund — ALT wählt bei FAAC_SLH+Genius ohne Dateiwunsch den letzten Eintrag [Genius], NEU
+      weiterhin FAAC_SLH —, Dateiwunsch „Genius" bei zwei Keystore-Reihenfolgen, Fallback auf
+      FAAC_SLH bei fehlendem Genius-Eintrag im Keystore [deckt die unten offene Unsicherheit ab],
+      leerer Keystore ohne Absturz, drei Einträge mit Treffer in der Mitte, Nicht-FAAC-Lerntypen
+      werden übersprungen, drei `display_name`-Fälle) unter
+      `g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined` bei `-O0`/`-O1` verifiziert: 21
+      Einzelprüfungen, ALLE CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine
+      Compiler-Warnungen — in
+      `firmware-mining/repro-faac-slh-genius-manufacture-field/repro.c`. Weiterhin offen (bereits
+      in der Vorsitzung benannt, aus dem Quelltext nicht feststellbar, da der Keystore
+      verschlüsselt ist): ob mein eigener Keystore bereits einen „Genius"-Eintrag vom Typ
+      `KEELOQ_LEARNING_FAAC` enthält — fehlt er, bleiben die neuen Menüpunkte nutzbar, aber
+      wirkungslos (sauberer Fallback auf `FAAC_SLH`, kein Absturz, kein falscher Treffer).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
