@@ -3483,6 +3483,47 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `KEELOQ_LEARNING_FAAC` enthält — fehlt er, bleiben die neuen Menüpunkte nutzbar, aber
       wirkungslos (sauberer Fallback auf `FAAC_SLH`, kein Absturz, kein falscher Treffer).
 
+## Ideen-Recherche (Fortsetzung 12)
+- [x] Letzten offenen Kandidaten aus dem vierteiligen `at0m-b0mb`-Gegenüberwachungs-
+      Werkzeugsatz aufgegriffen: **Argus** (`at0m-b0mb/Argus-FlipperZero`, Commit
+      `bfedeac9`, Tag `v1.0`) — WiFi-Deauth-/Disassoc-Flut- und Evil-Twin-AP-Erkennung
+      über einen externen ESP32 am GPIO-UART. Vollständig gelesen: Flipper-`.fap`
+      (2303 Zeilen über 20 C-Dateien) sowie die separate ESP32-Begleitfirmware
+      `esp32/argus_esp32/argus_esp32.ino` (256 Zeilen) — zusammen 100 % des
+      Quellbestands. API-87-Status des Flipper-Teils gegen den eigenen
+      `Next-Flip/Momentum-Firmware`-Klon (Tag `mntm-012`) verifiziert (dieselbe
+      Expansion-Service-Übernahme/`furi_hal_serial_*`-USART-Anbindung wie bei UART
+      Sniff/RS485 Modbus/GPIO Logic Analyzer/Rogue AP Detector bereits etabliert),
+      kein eigener Fund im Flipper-Teil. In der ESP32-Begleitfirmware
+      (`argus_esp32.ino::sniffer_cb()`) einen Fund gemacht: die SSID-Tag-Extraktion
+      aus Beacon-/Probe-Response-Frames klemmt die vom Sender deklarierte Tag-Länge
+      nur gegen die feste Zielpuffergröße (32 Byte), nicht gegen die tatsächlich im
+      empfangenen Frame nach dem Tag-Header verbleibenden Bytes (`body_len - 2`) —
+      ein Sender kann ein SSID-Information-Element mit deklarierter Länge 32 in einem
+      kürzeren Frame unterbringen und damit einen Overread im ESP32-Empfangspuffer
+      auslösen, dieselbe Fehlerklasse wie der bereits in
+      `app-improvements/heltec-ukfe-rx/wifi-recon-probe-ssid-tag-oob-read-fix.md`
+      gefundene und gefixte SSID-Tag-OOB-Read in einem anderen eigenen ESP32-Projekt.
+      Fix-Skizze (zusätzliche `avail = body_len - 2`-Klemmung vor der bestehenden
+      32-Byte-Klemmung), Fund, Nutzen, Aufwand und Testhinweis in
+      `ideas/argus-wifi-deauth-evil-twin-watchdog-app-status.md`. Host-Repro
+      (`extract_ssid_old()`/`extract_ssid_new()` 1:1 aus dem echten
+      `sniffer_cb()`-SSID-Tag-Block transkribiert, `body`-Puffer exakt auf `body_len`
+      Byte alloziert, je Szenario in einem eigenen `fork()`-Kindprozess; zwei
+      Regressionsfälle, zwei Fund-Szenarien — verkürztes Frame mit `avail=8` bei
+      deklarierter Länge 32, Header-only-Frame mit `avail=0` — sowie ein
+      Äquivalenztest über `body_len` 2–40 × `declared_len` 0–32 für alle
+      Normalfälle) unter `gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined`
+      bei `-O0`/`-O1` verifiziert: ALT crasht beide Fund-Szenarien reproduzierbar mit
+      `AddressSanitizer: heap-buffer-overflow` exakt am jeweiligen Allokationsende,
+      NEU übersteht beide ohne Overread, Regressionsfälle und Äquivalenztest liefern
+      byte-identische Ausgabe zwischen ALT und NEU — ALLE CHECKS BESTANDEN, keine
+      weiteren ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `ideas/repro-argus-ssid-tag-oob-read/repro.c`. `ideas/pentest-app-katalog.md`
+      um eine neue Zeile in der Tabelle „Counter-Surveillance/TSCM" sowie einen neuen
+      Log-Eintrag ergänzt. Damit ist der vierteilige `at0m-b0mb`-Gegenüberwachungs-
+      Werkzeugsatz (Nyx/Specter/GhostTag/Argus) vollständig geprüft.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
