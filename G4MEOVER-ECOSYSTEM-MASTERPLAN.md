@@ -814,13 +814,85 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
   - Verifikation: nur lokal (CC2531 physisch am Pi, echter Zigbee-Traffic in Empfangsreichweite).
 
 ### Phase 11 — 433-MHz-Erweiterung (wenn HW da)
+- [ ] P11.0 **Blocker vor allem anderen:** alle drei Geräte (RA08, CubeCell HTCC-AB01, ESP32-CAM)
+  stehen im Geräte-Inventar (Abschnitt 1) weiterhin als *„später"*. Gegen `ecosystem/devices.json`
+  geprüft (12 Einträge gesamt, nicht nur die 9 aktiven wie in früheren Sitzungen angenommen): alle
+  drei haben bereits einen Platzhalter-Eintrag (`id: esp32-cam`/`ra08`/`cubecell-htcc-ab01`,
+  `status: "planned"`, `host`/`usb_id`/`mac`/`verified_at` durchgehend `null`, `transport: []`) —
+  das Schema ist also schon vorbereitet, nur noch mit echten Werten zu befüllen, sobald das Gerät
+  vorliegt (dieselbe `jq`-Update-Mechanik wie P0.2c, kein neuer Eintrag anzulegen). Beschaffungsstatus/
+  -termin selbst ist von hier aus nicht feststellbar, nur lokal zu klären. Erst wenn mindestens eines
+  der drei Geräte real vorliegt, lohnt sich weitere Verfeinerung von P11.1/P11.2 über das hier
+  Vorliegende hinaus; bis dahin bewusst nicht weiter in die Tiefe planen, um nicht gegen unbekannte
+  Hardware-Revisionen zu entwerfen.
 - [ ] P11.1 RA08 (ASR6601) + CubeCell HTCC-AB01 als 433-LoRa-Knoten integrieren (eigene FW + ESP-NOW/UART-Brücke).
+  - [ ] P11.1a Sobald eines der beiden Geräte vorliegt: den bereits bestehenden `devices.json`-
+    Platzhalter (P11.0) mit `status: "active"`, realem `host`/`usb_id`/`mac`/`verified_at` befüllen
+    (`jq`-Einzeiler wie P0.2c) — keinen neuen Eintrag anlegen, keine zweite Schema-Variante.
+  - [ ] P11.1b Beide Chips (ASR6601/ASR6501) sind **nicht** ESP32 — eigener Vendor-SDK/Toolchain
+    (Ashining/Seeed-SDK bzw. Arduino-Core für diese Boards, nicht `arduino-esp32`) statt des bisher
+    für V3/V4/LilyGo/WROOM genutzten ESP-IDF/Arduino-ESP32-Stacks. Welche Firmware-Basis Momentum/
+    `G4MEOVER-FW`-Pendant dafür vorsieht (eigenständige Mini-FW vs. Portierung von `lora-ukfe`) ist
+    nur lokal zu entscheiden — hier keine Toolchain vorab festlegen, ohne das reale Board in der Hand
+    zu haben.
+  - [ ] P11.1c Brücke zur Flotte: da diese Chips kein ESP-NOW haben (anderer Funk-Stack als die
+    ESP32-Satelliten), kommt nur eine UART-Brücke zu einem vorhandenen ESP32-Satelliten (V3/LilyGo/
+    WROOM) in Frage, der die `ukfe_rf`-Frames weiterreicht — kein eigenständiges drittes Transport-
+    Protokoll entwerfen. Sobald P0.4f (`SRC_ID`) live ist, bekommt der RA08/CubeCell-Knoten eine
+    eigene Quell-ID aus demselben Enum statt eine neue Nummerierung zu erfinden.
+  - Verifikation: nur lokal (reales Board, Vendor-Toolchain-Build, UART-Brücken-Test gegen echten
+    Satelliten).
 - [ ] P11.2 ESP32-CAM als Streaming-Knoten (Bild an GUI).
+  - [ ] P11.2a Sobald das Board vorliegt: denselben bestehenden `devices.json`-Platzhalter (P11.0)
+    befüllen wie P11.1a (ist regulärer ESP32, passt in dasselbe Schema/Toolchain wie
+    V3/V4/LilyGo/WROOM — kein Sonderfall wie bei P11.1b).
+  - [ ] P11.2b Streaming-Ansatz als offene, nur lokal zu treffende Wahl (nicht hier vorentscheiden):
+    (a) eigener MJPEG-HTTP-Stream auf dem ESP32-CAM selbst (wie das verbreitete
+    `esp32-cam-webserver`-Muster, GUI bindet nur ein `<img>`/VideoCapture an die Kamera-IP) — einfach,
+    aber eigener WiFi-AP/-Client-Pfad außerhalb von `ukfe_rf`; (b) Einzelbilder/Chunks über ESP-NOW an
+    den Hub, von dort ins GUI-Log-Panel — passt ins bestehende Fabric, aber ESP-NOW-Framegröße (max.
+    250 Byte) macht Chunking/Reassembly nötig, bisher nirgends im Protokoll vorgesehen. Tendenz (a)
+    für einen ersten, einfachen Stand, (b) falls ein einheitlicher Transportweg wichtiger ist als
+    Einfachheit — endgültige Wahl nur lokal gegen das reale Modul.
+  - [ ] P11.2c GUI-Einbindung folgt dem P1.6a-Tab-Muster (eigener Tab oder Unterbereich, kein
+    zweiter Fenster-Typ), Bild-Anzeige als neues Widget (Tkinter `PhotoImage`/Pillow bei MJPEG, oder
+    reines Byte-Log bei Chunk-Variante) — erst nach P11.2b entscheidbar.
+  - Verifikation: nur lokal (reales Modul, Bildausgabe sichtbar in der GUI).
 
 ### Phase 12 — Politur, Packaging, Doku
 - [ ] P12.1 Einheitliches Branding/Icons über alle Tools.
+  - [ ] P12.1a Blockiert auf demselben, seit 2026-09-14 offenen Blocker wie P1.7c (siehe
+    Risiken/Blocker unten): es existiert noch **kein** Icon-/Branding-Asset im Repo (`docs/img/`
+    enthält nur die zwei Ökosystem-Karten-Screenshots) — ein Motiv/Farbschema ist eine bewusste
+    Design-/Markenentscheidung, hier aus der Cloud nicht eigenmächtig zu treffen. Sobald eines
+    vorliegt (`.ico` für Windows, `.png`/`.svg` für Kali-Desktop-Eintrag und APK), unter
+    `ecosystem/branding/` ablegen statt verstreut je Tool.
+  - [ ] P12.1b Sobald P12.1a vorliegt: auf alle Ziele anwenden, die bereits einen eigenen
+    Fenster-/App-Kontext haben — PyInstaller `--icon` (P1.7b/c), Kali-`.desktop`-Eintrag (bereits aus
+    P1.1 vorhanden, nur Icon-Pfad ergänzen), Android-APK-Launcher-Icon (erst sinnvoll nach Phase 8).
+    Kein eigener zweiter Asset-Satz je Plattform pflegen — eine Quelle (SVG/hochauflösendes PNG),
+    daraus die plattformspezifischen Formate exportieren.
 - [ ] P12.2 Installer: Win-EXE, Kali-.deb/AppImage, APK-Release; Auto-Update optional.
+  - [ ] P12.2a Baut auf P1.7 (PyInstaller-Grundgerüst) auf, das selbst explizit erst nach
+    funktionierendem P1.3/P1.4 angegangen wird (P1.7a: „kein Packaging eines beweglichen Ziels") —
+    P12.2 ist damit zusätzlich auf diese Bedingung gestapelt, kein eigener, früherer Zeitpunkt.
+  - [ ] P12.2b Kali-Paketierung als zweiter Schritt nach dem rohen PyInstaller-Onefile-Build aus
+    P1.7b: `.deb` via `dpkg-deb`/`fpm` oder einfacher zuerst ein AppImage (weniger
+    Abhängigkeits-Pflege als ein echtes `.deb` mit Postinst-Skripten) — AppImage als Vorschlag für
+    den ersten Wurf, `.deb` erst falls Kali-Paketmanager-Integration wirklich gebraucht wird.
+  - [ ] P12.2c APK-Release-Build setzt eine fertige, getestete Phase 8 (Android-APK/BLE) voraus —
+    kein Release-Signing/Store-Vorbereitung für eine noch unfertige App.
+  - [ ] P12.2d Auto-Update **optional** markiert heißt hier konkret: zurückgestellt bis P12.2a-c
+    einmal manuell funktionieren — kein Update-Mechanismus für ein Artefakt, das noch nicht
+    reproduzierbar baut.
 - [ ] P12.3 Benutzer-Doku + Szenario-Handbuch.
+  - [ ] P12.3a Einziger Teil von Phase 12, der schon jetzt ohne Hardware/fertige GUI sinnvoll ist:
+    Gliederung festlegen (Geräte-Setup, Cockpit-Bedienung je Tab, Szenario-Presets aus
+    `ecosystem/topology.json` als Handbuch-Kapitel-Vorlage) — Inhalt selbst aber erst befüllbar,
+    sobald die jeweiligen Tabs (Phase 1) real funktionieren, sonst dokumentiert das Handbuch
+    Platzhalter statt echtem Verhalten.
+  - [ ] P12.3b Szenario-Handbuch nutzt dieselben vier Presets aus `ecosystem/topology.json` (Feld
+    `presets`, P7.2) als Kapitelstruktur statt einer zweiten, separat gepflegten Szenario-Liste.
 
 ---
 
@@ -1247,6 +1319,32 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   2026-08-27, jetzt 35 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am
   2026-09-11 eskaliert; reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht,
   nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-10-02 (Cloud-Heartbeat): P0.2c/d, P0.3a-d, P0.4e/f sowie die komplette Phase-1- bis
+  Phase-10-Kette weiterhin bewusst unverändert (siehe Log 2026-09-11ff.) — letzten unverfeinerten
+  Tier abgeschlossen: Phase 11 (433-MHz, P11.0-P11.2) und Phase 12 (Politur/Packaging/Doku,
+  P12.1-P12.3) in Abschnitt 4 in Unterschritte zerlegt. Damit sind jetzt **alle zwölf Phasen**
+  mindestens einmal in Unterschritte zerlegt — jede weitere Cloud-Sitzung sollte ab hier primär
+  prüfen, ob sich an bereits zerlegten TODOs etwas Sachliches geändert hat (neue Commits,
+  Blocker-Status, Repo-Funde), statt reflexhaft einen neuen Tier zu suchen. Echter Korrektur-Fund
+  dabei: P11.0 ging zunächst (wie die bisherige Prosa in Abschnitt 1) davon aus, RA08/CubeCell/
+  ESP32-CAM hätten **keinen** `devices.json`-Eintrag — ein Blick in die Datei zeigt, sie haben
+  bereits seit P0.2b (2026-09-05) einen vorbereiteten Platzhalter (`status: "planned"`, alle
+  Hardware-Felder `null`) unter den insgesamt 12 (nicht 9) Einträgen; P11.0/P11.1a/P11.2a korrigiert
+  auf „Platzhalter befüllen" statt „neu anlegen". Zweiter kleiner Fund: der eigene Entwurfstext für
+  P12.3b verwies zunächst auf ein nicht existierendes Feld `scenario_presets` in
+  `ecosystem/topology.json` — das reale Feld heißt `presets` (per `python3 -c "json.load(...)"`
+  gegengeprüft, 4 Einträge); vor dem Commit auf den korrekten Feldnamen berichtigt. Vor der
+  Textarbeit den Repo-Zustand geprüft: `HEAD`/lokaler `main`-Branch-Zeiger standen exakt auf
+  `origin/main` (`d23b170`, nach `git fetch` bestätigt, kein Rückstand, keine Zeiger-Drift wie an
+  mehreren Vortagen). Git-Identität dieses Checkouts war bereits korrekt (`Yanis / G4MEOVER18
+  <g4me.over.18@gmail.com>`, kein erneuter Fund wie am 2026-09-26/-27/-30/-10-01). Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/
+  `flipper_ctl.py`/`g4meover_resume.py`) sowie der P4.2a-Fund erneut gegen
+  `git log --all --diff-filter=A` geprüft: unverändert kein Treffer. Zugangsdaten-Rotation (Pi-SSH,
+  LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt 36 Tage) — keine erneute
+  Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist
+  kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
+  geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1287,7 +1385,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 35 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 36 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1378,6 +1476,20 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     Phase 12 (Politur/Packaging/Doku) baut auf einem funktionierenden P1.3/P1.4/P1.7 auf (siehe
     P1.7a-Hinweis „kein Packaging eines beweglichen Ziels") — ebenfalls bewusst zurückgestellt, bis
     dieses Fundament steht.
+14. Phase 11 (433-MHz, P11.0-P11.2) und Phase 12 (Politur/Packaging/Doku, P12.1-P12.3) sind jetzt
+    ebenfalls in Unterschritte zerlegt — damit haben alle zwölf Phasen mindestens eine Verfeinerungs-
+    runde durchlaufen. P11.0 zuerst lesen: RA08/CubeCell/ESP32-CAM haben in `ecosystem/devices.json`
+    bereits vorbereitete Platzhalter (`status: "planned"`, Hardware-Felder `null`) — beim Eintreffen
+    eines Geräts den Platzhalter per `jq` befüllen (wie P0.2c), nicht neu anlegen. P11.1 (RA08/
+    CubeCell) braucht eine eigene Vendor-Toolchain (ASR6601/ASR6501, kein ESP32) und eine UART-Brücke
+    zu einem vorhandenen ESP32-Satelliten statt eigenem ESP-NOW; P11.2 (ESP32-CAM) hat eine offene,
+    nur lokal zu treffende Wahl zwischen eigenem MJPEG-HTTP-Stream (einfacher) und ESP-NOW-Chunking
+    (einheitlicher Transportweg, aber Reassembly nötig) — beides vor P11.1b/P11.2b dort nachlesen.
+    P12.1 (Branding) bleibt auf denselben seit 2026-09-14 offenen Icon-Asset-Blocker wie P1.7c
+    gestapelt (siehe Risiken/Blocker unten); P12.2 (Installer) ist zusätzlich auf P1.7a gestapelt
+    (kein Packaging vor funktionierendem P1.3/P1.4); P12.3a (Doku-Gliederung) ist der einzige Teil
+    von Phase 11/12, der schon jetzt ohne Hardware/fertige GUI sinnvoll ist (Gliederung + die vier
+    `ecosystem/topology.json`-Presets als Kapitelvorlage, Inhalt selbst erst nach Phase 1).
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
@@ -1415,7 +1527,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 35 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 36 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
