@@ -3401,6 +3401,44 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (reiner ESP-NOW-Hub ohne USB-HID) — Fund betrifft nachvollziehbar nur die beiden
       Satelliten-Repos.
 
+## App-Verbesserungen (Fortsetzung 10)
+- [x] **heltec-ukfe-rx**: den in der Vorsitzung vorgemerkten restlichen Code
+      aufgegriffen (`wifi_recon.cpp/.h`, `lorawan_link.cpp/.h`; Repo frisch
+      geklont statt den Vorsitzungs-Stand nur anzunehmen). `lorawan_link.cpp`
+      (On-Demand-OTAA-Join + Status-Uplink auf demselben SX1262 wie `ukfe_rf`,
+      stellt danach immer den FSK-Empfang wieder her) vollständig gelesen — kein
+      Fund. `wifi_recon.cpp::promisc_cb()` vollständig gelesen: alle Zweige außer
+      `RC_PROBE` (`RC_HANDSHAKE`, `RC_PACKETMON`, `RC_PWNA`, `RC_RID`) prüfen die
+      Längengrenze direkt in der jeweiligen Schleifenbedingung, bevor sie einen
+      Index lesen — kein Fund dort. Im `RC_PROBE`-Zweig (SSID aus Probe-Request-
+      Frames) wird das SSID-Tag-Byte an Offset 24 unabhängig von `len` gelesen,
+      während der Funktions-Guard (`len < 24`) ein Frame mit exakt 24 Byte (reiner
+      MAC-Header, keine einzige IE — über die Luft von jedem Gerät in Reichweite
+      frei erzeugbar, da `promisc_cb()` jedes empfangene Frame ungefiltert
+      durchreicht) passieren lässt: ein Lesezugriff ein Byte hinter der von
+      `rx_ctrl.sig_len` gemeldeten Framegrenze. Minimaler, additiver Fix (eine
+      zusätzliche `len > 24`-Bedingung im bestehenden `if`) in
+      `app-improvements/heltec-ukfe-rx/wifi-recon-probe-ssid-tag-oob-read-fix.md`,
+      Patch (`git apply --check` gegen einen frischen, unabhängigen Klon
+      verifiziert, real angewendet und byte-für-byte abgeglichen) in
+      `wifi-recon-probe-ssid-tag-oob-read-fix/wifi_recon_cpp.patch`. Host-Repro
+      (SSID-Tag-Parse-Logik 1:1 aus dem echten Funktionskörper transkribiert,
+      `malloc()`-Puffer exakt auf Framelänge statt des ESP-IDF-Promiscuous-
+      Puffers, damit AddressSanitizer jeden Zugriff über die gemeldete Framelänge
+      hinaus zuverlässig erkennt; fünf Szenarien: der Fund-Grenzfall `len == 24`,
+      `len == 25` mit nur dem Tag-Byte, eine normale benannte SSID, eine
+      Broadcast-Probe mit SSID-Länge 0, eine maximale 32-Byte-SSID — für die vier
+      Nicht-Grenzfall-Szenarien zusätzlich Byte-für-Byte-Diff zwischen
+      unveränderter und gefixter Logik bestätigt: identische Ausgabe) in
+      `repro-wifi-recon-probe-ssid-tag-oob-read/repro.cpp` unter
+      `g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined` bei `-O0`/`-O1`
+      verifiziert: gefixte Logik — ALLE CHECKS BESTANDEN, keine ASan-/UBSan-
+      Meldungen, keine Compiler-Warnungen; unveränderte Logik — AddressSanitizer
+      meldet beim Grenzfall-Szenario zuverlässig `heap-buffer-overflow READ of
+      size 1`. `lilygo-ukfe-rx`/`heltec-v4-hub` besitzen kein `wifi_recon.cpp`
+      (reine ESP-NOW-/USB-HID-Satelliten bzw. -Hub ohne eigenes WiFi-
+      Promiscuous-Sniffing) — Fund betrifft nachvollziehbar nur `heltec-ukfe-rx`.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

@@ -1,0 +1,13 @@
+diff --git a/src/wifi_recon.cpp b/src/wifi_recon.cpp
+index b3a7839..a060d21 100644
+--- a/src/wifi_recon.cpp
++++ b/src/wifi_recon.cpp
+@@ -61,7 +61,7 @@ static void promisc_cb(void* buf, wifi_promiscuous_pkt_type_t type) {
+         if(ftype == 0 && subtype == 4) {   // Probe Request
+             uint8_t slen = (len > 25) ? fr[25] : 0;   // SSID-Tag: fr[24]=0x00, fr[25]=len
+             char ssid[33]; uint8_t n = slen > 32 ? 32 : slen;
+-            if(fr[24] == 0x00 && 26 + n <= len) { memcpy(ssid, &fr[26], n); ssid[n] = 0; }
++            if(len > 24 && fr[24] == 0x00 && 26 + n <= len) { memcpy(ssid, &fr[26], n); ssid[n] = 0; }
+             else { ssid[0] = 0; }
+             s_hits++;
+             Serial.printf("[PROBE] %02X:%02X:%02X:%02X:%02X:%02X sucht '%s'\n",
