@@ -3524,6 +3524,33 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Log-Eintrag ergänzt. Damit ist der vierteilige `at0m-b0mb`-Gegenüberwachungs-
       Werkzeugsatz (Nyx/Specter/GhostTag/Argus) vollständig geprüft.
 
+## Ideen-Recherche (Fortsetzung 13)
+- [x] Den in `ghosttag-anti-stalking-ble-tracker-app-status.md` zurückgestellten Rest
+      aufgegriffen: GhostTag (`at0m-b0mb/GhostTag-FlipperZero`, Commit `1a3f58b9`, Release
+      `2.0.0`) vollständig fertig gelesen. Zuvor geprüft waren ~1716 der 4685 Zeilen
+      (`helpers/*.c` sowie `ghosttag.c`); in dieser Sitzung den gesamten Rest nachgezogen: alle
+      sechs `views/*_view.c`-Dateien (Zeichenroutinen, Eingabe-Callbacks, die `memcmp()`-basierte
+      Wiederauffindung des ausgewählten Geräts nach jedem Re-Sort in `device_list_view.c`), alle
+      zehn `scenes/ghosttag_scene_*.c`-Dateien (Navigationslogik, Alert-Priorität vor
+      Neuzeichnen, bedingte Zeilen-Index-Verwaltung des per Compile-Flag ein-/ausblendbaren Air-
+      Check-Menüpunkts, Einstellungen-Persistenz) sowie `ghosttag_i.h`. Die verbleibenden
+      Header-Dateien gezielt per Grep auf Funktionslogik (`static inline`, Funktions-Makros)
+      durchsucht — keine Treffer außerhalb reiner Konstanten und des Standard-Flipper-
+      ADD_SCENE-Boilerplate-Makros. Kein eigener Fund: jede Index-/Array-Schleife ist durch ein
+      vorab geklemmtes `n = min(count, Kapazität)` gedeckt (`device_list_view_set_records()`,
+      `radar_view_set_data()`), jede `snprintf()`-Formatbreite durch eine vorab geklemmte Zahl
+      bewiesen (`clamp_count()`, `format_dwell()` mit expliziter 99m+-Sonderbehandlung statt
+      einer unbewiesenen Laufzeitbreite), jede Eingabebehandlung akzeptiert `InputTypeShort` und
+      `InputTypeLong` gleich (dokumentiert: die Firmware liefert nach der Long-Press-Schwelle nur
+      noch `Long`). Das CHANGELOG dokumentiert mehrere frühere eigene Funde des Autors in genau
+      diesen jetzt geprüften Dateien (Zwei-Thread-Deadlock beim Teardown, verlorene
+      Long-Press-Eingaben, abgeschnittene vierte Listenzeile, verschmelzende Zeichen im
+      FOLLOWING-YOU-Banner) — alle bereits selbst gefunden und gefixt vorgefunden. Damit ist
+      GhostTag nach Nyx, Specter und Argus das vierte und letzte Werkzeug des `at0m-b0mb`-
+      Vierer-Satzes, dessen Flipper-seitiger Quelltext vollständig durchgesehen ist.
+      `ideas/ghosttag-anti-stalking-ble-tracker-app-status.md` und `ideas/pentest-app-katalog.md`
+      entsprechend aktualisiert.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

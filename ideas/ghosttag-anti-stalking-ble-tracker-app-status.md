@@ -97,29 +97,57 @@ Gegen den eigenen `Next-Flip/Momentum-Firmware`-Klon (Tag `mntm-012`, API 87.1) 
   `storage_file_*`, `storage_common_mkdir`, ViewDispatcher/SceneManager/NotificationApp) ist
   Standard-Furi-Kern-API, bei API 87.1 unverändert vorhanden.
 
-**Geprüfter Codeumfang (~1716 von 4685 Zeilen, gezielt auf Kernlogik/sicherheitsrelevante Schicht
-statt breit über alle Views/Szenen):** vollständig `helpers/tracker_db.c` (Verweilzeit-/
-Sichtungs-Zustandsmaschine, Eviction-Strategie, Alert-Warteschlange — als "die Records SIND die
-Warteschlange" statt separater Ein-Slot-Puffer bewusst gegen Alert-Verlust bei schnell
-aufeinanderfolgenden Promotions ausgelegt), `helpers/air_check.c` (RF-Sampling-Worker inkl.
-Histogramm-basiertem Band-Floor/Busy-Perzentil, Zwei-Radio-Modus-Fallback,
-Bluetooth-Stack-Restore beim Beenden), `helpers/uart_link.c` (Worker-Thread-/ISR-Übergabe,
-dokumentierte Teardown-Reihenfolge gegen Deadlock bei einer Detection, die während der
-Abschaltung eintrifft), `helpers/gt_parse.c` (der einzige Code, der aus dem UART
-angreiferreichbare Bytes liest — begrenzte, vorzeichenbewusste, sättigende RSSI-Zahlenparsing
-statt `atoi()`+Cast, exakte statt "mindestens" MAC-Feldlängenprüfung, Namensfeld hart auf
-Puffergröße begrenzt), `helpers/session_log.c` (SD-Schreibpfad, Größendeckel, Header nur bei
-leerer Datei), `helpers/settings.c` (Laden/Speichern/Sanitisierung, `_Bool`-Normalisierung gegen
-eine manipulierte Einstellungsdatei), `helpers/ble_signatures.c` (Typ-Klassifikation,
-Code-zu-Enum-Grenzprüfung), `helpers/demo_source.c` (deterministisches Szenario, keine
-Zufallszahlenquelle für Reproduzierbarkeit) sowie `ghosttag.c` (App-Lebenszyklus, Quellwechsel
-Hunt/Demo, Alert-Übergabe von Worker- an GUI-Thread über reines Datenbank-Polling statt
-Cross-Thread-Aufruf in den ViewDispatcher). Kein eigener Fund — wie bei Nyx und Specter ist auch
-dieser Autor bereits ungewöhnlich gründlich selbstauditierend: das `CHANGELOG.md` dokumentiert
-mehrere frühere eigene Funde (Zwei-Thread-Deadlock beim Teardown, verlorene Long-Press-Eingaben,
-verworfene Alerts bei einer zweiten Promotion) inklusive Root-Cause und Fix. Ungeprüfter Rest
-(~2969 Zeilen, überwiegend `views/*_view.c` Zeichenroutinen sowie die verbleibenden
-`scenes/ghosttag_scene_*.c`) für eine künftige Sitzung vorgemerkt.
+**Geprüfter Codeumfang: vollständig, 4685 von 4685 Zeilen.** In der Vorsitzung bereits gelesen:
+`helpers/tracker_db.c` (Verweilzeit-/Sichtungs-Zustandsmaschine, Eviction-Strategie,
+Alert-Warteschlange — als "die Records SIND die Warteschlange" statt separater Ein-Slot-Puffer
+bewusst gegen Alert-Verlust bei schnell aufeinanderfolgenden Promotions ausgelegt),
+`helpers/air_check.c` (RF-Sampling-Worker inkl. Histogramm-basiertem Band-Floor/Busy-Perzentil,
+Zwei-Radio-Modus-Fallback, Bluetooth-Stack-Restore beim Beenden), `helpers/uart_link.c`
+(Worker-Thread-/ISR-Übergabe, dokumentierte Teardown-Reihenfolge gegen Deadlock bei einer
+Detection, die während der Abschaltung eintrifft), `helpers/gt_parse.c` (der einzige Code, der
+aus dem UART angreiferreichbare Bytes liest — begrenzte, vorzeichenbewusste, sättigende
+RSSI-Zahlenparsing statt `atoi()`+Cast, exakte statt "mindestens" MAC-Feldlängenprüfung,
+Namensfeld hart auf Puffergröße begrenzt), `helpers/session_log.c` (SD-Schreibpfad, Größendeckel,
+Header nur bei leerer Datei), `helpers/settings.c` (Laden/Speichern/Sanitisierung,
+`_Bool`-Normalisierung gegen eine manipulierte Einstellungsdatei), `helpers/ble_signatures.c`
+(Typ-Klassifikation, Code-zu-Enum-Grenzprüfung), `helpers/demo_source.c` (deterministisches
+Szenario, keine Zufallszahlenquelle für Reproduzierbarkeit) sowie `ghosttag.c`
+(App-Lebenszyklus, Quellwechsel Hunt/Demo, Alert-Übergabe von Worker- an GUI-Thread über reines
+Datenbank-Polling statt Cross-Thread-Aufruf in den ViewDispatcher).
+
+In dieser Sitzung den gesamten restlichen Codeumfang nachgezogen: alle sechs View-Dateien
+(`views/splash_view.c`, `air_view.c`, `alert_view.c`, `device_detail_view.c`, `radar_view.c`,
+`device_list_view.c` — Zeichenroutinen, Eingabe-Callbacks, Reframe-/Anker-Logik der Gerätliste
+inkl. der `memcmp()`-basierten Wiederauffindung des zuvor ausgewählten Geräts nach jedem
+Re-Sort), alle zehn Szenen-Dateien (`scenes/ghosttag_scene.c`, `_splash.c`, `_air.c`, `_alert.c`,
+`_list.c`, `_detail.c`, `_scan.c`, `_start.c`, `_about.c`, `_settings.c` — Navigationslogik,
+Alert-Priorität vor Neuzeichnen, Zeilen-Index-Verwaltung des per Compile-Flag bedingten
+„Air Check"-Menüpunkts, Einstellungen-Persistenz) sowie `ghosttag_i.h` (reine Struct-/Funktions-
+Deklarationen, keine Logik). Die verbleibenden, bislang nicht einzeln aufgeführten Header-Dateien
+(`views/*.h`, `scenes/ghosttag_scene.h`/`_config.h`) wurden gezielt auf Funktions-Makros und
+`static inline`-Definitionen durchsucht (`grep -rn "static inline\|^#define.*(.*)"`): keine
+Treffer außerhalb reiner Konstanten und des Standard-Flipper-`ADD_SCENE`-Boilerplate-Makros — kein
+Code mit eigener Logik darin übersehen.
+
+**Kein eigener Fund in diesem gesamten Rest.** Dieselben Muster wie im bereits geprüften Teil:
+jede Indexzugriff-Schleife über `records[]`/`blips[]` ist durch ein vorab geklemmtes `n = min(count,
+<Array-Kapazität>)` gedeckt (`device_list_view_set_records()`, `radar_view_set_data()`), jede
+`snprintf()`-Formatbreite ist durch eine vorab geklemmte Zahl bewiesen (`clamp_count()`,
+`format_dwell()` mit expliziter "99m+"-Sonderbehandlung statt einer Laufzeitbreite, die
+`-Werror=format-truncation` nicht beweisen könnte) und jede Eingabebehandlung akzeptiert sowohl
+`InputTypeShort` als auch `InputTypeLong` (mit durchgängigem Kommentar, warum: ein über die
+Long-Press-Schwelle gehaltener Tastendruck liefert auf dieser Firmware nur noch `Long`, nie
+`Short`). Wie bei Nyx und Specter bereits festgestellt ist auch dieser Autor ungewöhnlich
+gründlich selbstauditierend: das `CHANGELOG.md` dokumentiert mehrere frühere eigene Funde
+(Zwei-Thread-Deadlock beim Teardown, verlorene Long-Press-Eingaben, verworfene Alerts bei einer
+zweiten Promotion, zu kurze Zeilenzahl in der Gerätliste, die Reihe vier abschnitt, das
+„!1FOLLOWING YOU"-Zeichenverschmelzungsproblem auf der Radaransicht) inklusive Root-Cause und
+Fix — durchweg genau die Fehlerklassen, auf die bei diesem Review gezielt geprüft wurde, und
+jeweils bereits vom Autor selbst behoben vorgefunden.
+
+Damit ist GhostTag nach Nyx, Specter und Argus das vierte und letzte Werkzeug aus dem
+`at0m-b0mb`-Vierer-Satz, dessen Flipper-seitiger Quelltext vollständig gegen die eigene
+`mntm-012`-Basis durchgesehen ist.
 
 ## Sicherheitsrahmen
 
@@ -132,11 +160,8 @@ wird — autorisierte Selbstprüfung von eigenem Gepäck/Fahrzeug).
 
 ## Nächste Recherche-Aufträge
 
-- Restlichen Codeumfang (Views/verbleibende Szenen, überwiegend Zeichenroutinen) für eine
-  künftige Sitzung vorgemerkt.
-- **Argus** (WiFi Deauth-/Evil-Twin-Watchdog, laut README ESP32-gestützt) als letzter noch offener
-  Kandidat desselben Autors/Werkzeugsatzes — Vierer-Set damit fast vollständig durchgesehen,
-  noch nicht quelltextlich verifiziert.
+- Quelltextlich vollständig geprüft, kein eigener Fund — für dieses Werkzeug keine weitere
+  Code-Recherche vorgemerkt.
 - Lokal offen: ESP32 (S3/C3/C6/klassisch, **nicht** das offizielle S2-Devboard) beschaffen,
   Companion-Sketch flashen, Hunt-Modus gegen eigene AirTag/Tile/SmartTag testen; Demo-Modus kann
   vorher ohne Zusatzhardware gegengeprüft werden.
