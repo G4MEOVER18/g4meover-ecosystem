@@ -3551,6 +3551,45 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ideas/ghosttag-anti-stalking-ble-tracker-app-status.md` und `ideas/pentest-app-katalog.md`
       entsprechend aktualisiert.
 
+## Firmware-Feature-Mining (Fortsetzung 14)
+- [x] NFC-Tools-Cluster (`applications/external/nfctools/`, Autor `wakdev`) erneut aufgegriffen, obwohl
+      laut Sektor-Analyse-Sitzung bereits als vollständig durchgesehen vermerkt (einzig
+      `chameleon`/`nfc_relay` als Fremd-/Zweitgerät-Fälle offen) — gezielt `core/nfc_tools_icode.c`
+      (635 Zeilen) ein zweites Mal gegen dieselbe Fehlerklasse geprüft, die bereits in
+      `firmware-mining/nfctools-icode-cc-mlen-overflow-fix.md` einen Fund in `iso15693_write_ndef_blocks()`
+      ergab. Fund: `cc_expected` ist ein lokales 4-Byte-Array (die kurze NFC-Forum-Type-5-Tag-CC), wird
+      aber zusammen mit der tag-gemeldeten `block_size` an `nfcv_build_write_blk()` übergeben, die davon
+      `block_size` Bytes per `bit_buffer_append_bytes()` kopiert — bei jedem ISO15693-Tag mit einer laut
+      ISO/IEC 15693-3 gültigen, aber von 4 Byte abweichenden Blockgröße (5-Bit-Systeminfo-Feld, 1-32 Byte
+      möglich, wie bereits in `firmware-mining/nfc-iso15693-read-multi-blocks-and-parser-overrun-fix.md`
+      als variabler Wert bestätigt) ein Stack-Overread von bis zu 28 Byte, dessen Inhalt anschließend als
+      Teil des WRITE_BLOCK-Frames über das HF-Feld gesendet wird. Die vorherige CC.MLEN-Sitzung hatte
+      dieselbe Funktion und sogar dieselbe Zeile bereits geprüft, aber nur die Blockgrößen-Abhängigkeit
+      der *Format*-Callbacks als spekulativen Kandidat zurückgestellt — die hier betroffene
+      NDEF-Schreibfunktion dabei nicht erfasst. Fix: `cc_expected` auf 32 Byte (volle laut Standard
+      mögliche Blockgrößenspanne) vergrößert, führende Nullen, plus defensive Klammerung der gesendeten
+      Länge auf die Puffergröße an der Aufrufstelle — kompatibel mit dem noch nicht als Patch vorliegenden
+      CC.MLEN-Fix (unterschiedliche Zeilen derselben Funktion). Patch (`git apply --check` vorab gegen
+      eine frische, unabhängige Kopie von `RogueMaster/flipperzero-firmware-wPlugins` Branch `420`
+      verifiziert, real angewendet und byte-für-byte abgeglichen) in
+      `firmware-mining/nfctools-icode-cc-write-oob-read-fix/nfc_tools_icode_c.patch`. Host-Repro
+      (`nfcv_build_write_blk()` sowie der CC-Schreibzweig 1:1 transkribiert, `cc_expected` wie im echten
+      Aufrufkontext auf dem Stack alloziert, drei Szenarien: Regression bei Blockgröße 4, Fund bei
+      Blockgröße 8, Fund bei der laut Standard maximalen Blockgröße 32, dazu ein Äquivalenztest der
+      CC-Bytes über `block_count` 2–256 bei Blockgröße 4) unter
+      `gcc -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert: ALT crasht beide
+      Fund-Szenarien reproduzierbar mit `stack-buffer-overflow` exakt am Ende von `cc_expected`, NEU
+      übersteht beide, Äquivalenztest ALT/NEU identisch — ALLE CHECKS BESTANDEN, keine weiteren
+      ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-nfctools-icode-cc-write-oob-read/repro.c`. Dabei `cc_current`/den
+      `padded`-NDEF-Datenblockpuffer gegengeprüft (beide korrekt an `block_size` gekoppelt bzw. von ihr
+      unabhängig) — kein weiterer Fund. `ideas/pentest-app-katalog.md` um eine Korrektur ergänzt: die dort
+      zu `nfctools` vermerkten "~10 100/~11 200 Zeilen offen" sind veraltet, der Cluster ist laut dieser
+      Sitzung tatsächlich bereits vollständig durchgesehen (nur `chameleon`/`nfc_relay` als
+      Fremd-/Zweitgerät-Fälle bleiben offen) — dieser Fund selbst zeigt, dass ein gezielter zweiter Blick
+      auf eine bereits "vollständig" geprüfte Datei trotzdem noch etwas finden kann, wenn er auf eine
+      andere Fehlerklasse zielt als der erste Durchgang.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
