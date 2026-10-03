@@ -1345,6 +1345,33 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist
   kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
   geschrieben.
+- 2026-10-03 (Cloud-Heartbeat): wie am 2026-10-02 vermerkt, sind jetzt alle zwölf Phasen mindestens
+  einmal in Unterschritte zerlegt — eine weitere reflexhafte Verfeinerung wäre reine Wiederholung
+  (Qualität-vor-Menge-Leitlinie aus WORKFLOW.md), daher diese Sitzung bewusst auf Sachstand-Prüfung
+  statt neuer Textmenge beschränkt. Echter, neuer Repo-Fund: dieser Checkout stand zu Sitzungsbeginn
+  mit losgelöstem `HEAD` 11 Commits **vor** dem lokalen `main`-Zeiger (andere Richtung als die
+  bisherige Drift vom 2026-09-15/17/19/21/22, bei der `main` jeweils hinter `origin/main`
+  zurücklag) — die 11 Commits (Firmware-Mining/Ideen-Recherche, u. a. NFC-ICODE-CC-Write-OOB-Fix,
+  GhostTag-Vollprüfung, Argus-SSID-Tag-OOB-Fix, Genius-SLH-Port, FAAC-SLH-Decoder-Fix) waren bereits
+  gepusht (bestätigt über die GitHub-API: `pushed_at` deckt sich mit dem jüngsten lokalen Commit),
+  aber der lokale `main`-Branch-Zeiger selbst zeigte noch auf einen alten Stand — ohne Korrektur
+  hätte ein künftiger Force-Push von `main` diese bereits veröffentlichten Commits lokal wieder
+  verdecken können. Per `git checkout -B main HEAD` + `git push -u origin main` behoben; `git
+  status` bestätigt „up to date with origin/main". Git-Identität dieses frischen Checkouts stand
+  erneut (sechster Fund dieser Art) auf dem Cloud-Default `Claude <noreply@anthropic.com>` statt der
+  CONSTRAINTS.md-Vorgabe — vor dieser Sitzung korrigiert. Wiederkehrende Prüfungen, alle
+  unverändert: Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) sowie der
+  P4.2a-Fund gegen `git log --all --diff-filter=A` geprüft: weiterhin kein Treffer.
+  `ecosystem/devices.json`/`ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide
+  gültig. Repo-Sichtbarkeit per GitHub-API geprüft (`visibility`-Feld direkt): weiterhin `private`.
+  Die fünf seit dem letzten Masterplan-Log-Eintrag (`d23b170`, 2026-10-02) gelandeten Commits sind
+  ausschließlich dieselbe separate, häufiger laufende Firmware-Mining-/Ideen-Recherche-Routine
+  (`git log d23b170..HEAD` gegen diese Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/
+  `WORKFLOW.md` geprüft: keine Überschneidung). Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin)
+  weiterhin unverändert offen (seit 2026-08-27, jetzt 37 Tage) — keine erneute Push-Notification
+  ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist kein neuer
+  Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1385,7 +1412,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 36 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 37 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1527,7 +1554,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 36 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 37 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -1557,6 +1584,14 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Repo-Pfad, sondern als lokalen Stand kennzeichnen). Blockiert die sinnvolle Vertiefung von P1.3/
   P1.4/P1.5, P0.2d und der `get_device_port()`-Integration aus der Cloud, da der tatsächliche
   Code-Stand von hier aus nicht einsehbar ist.
+- **Neu (2026-10-03), Repo-Hygiene:** wiederholt tritt Branch-Zeiger-Drift in diesem Checkout auf
+  (siehe Log 2026-09-15/17/19/21/22/27/30 für die eine Richtung: lokaler `main`-Zeiger hinter
+  `origin/main`). Diese Sitzung trat die **andere** Richtung auf: `HEAD` losgelöst 11 Commits
+  **vor** dem lokalen `main`-Zeiger, obwohl die Commits bereits auf `origin/main` gepusht waren —
+  gefährlicher als die bisherige Drift, weil ein Force-Push von `main` in diesem Zustand bereits
+  veröffentlichte Commits lokal unsichtbar gemacht hätte. Behoben per `git checkout -B main HEAD` +
+  Push. Für künftige Sitzungen: vor jeder Branch-Operation `git status`/`git log
+  --oneline main..HEAD`/`git log --oneline HEAD..main` prüfen, nicht nur `git fetch`.
 
 **Nur lokal möglich (Hardware: flashen/serial/BLE/Pi-SSH):**
 - P0.2c/d: echte Port-/MAC-Verifikation (Prüfschritt-Liste steht), Tool-Umstellung gegen den
@@ -1597,8 +1632,18 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   eigenmächtig getroffen werden sollte; lokal erstellen oder beisteuern, dann unter `docs/img/` oder
   einem neuen `ecosystem/branding/` ablegen.
 
-**Cloud hat in dieser Sitzung erledigt (2026-09-27):** Phase 8 (Android-APK/BLE, P8.1-P8.3) in
-Abschnitt 4 zerlegt. P8.1 (BLE-GATT-Transport am V4) verweist auf die P0.4e-UUIDs statt eines
+**Hinweis (2026-10-03):** dieses zweiteilige „Cloud hat in dieser Sitzung erledigt" /
+„Vorherige Cloud-Sitzung"-Rollfeld wurde zuletzt am 2026-09-27 aktualisiert, während der
+durchnummerierte Log in Abschnitt 5 seither täglich fortgeschrieben wurde — zwei parallele
+Log-Quellen wären genau die Art Doku-Konsistenzlücke, die diese Datei an anderer Stelle (z. B.
+Tool-Pfad-Blocker, Feldname-Korrekturen) selbst aufspürt. Statt das Rollfeld hier nachträglich zu
+rekonstruieren: **aktueller Stand steht ausschließlich im Log unter Abschnitt 5** (jüngster Eintrag
+zuoberst beim Lesen von unten, chronologisch von 2026-08-26 bis heute). Die beiden folgenden
+Einträge (2026-09-26/-27) bleiben als Archiv-Schnappschuss stehen, sind aber **nicht** mehr die
+aktuelle Quelle.
+
+**Cloud hat in dieser Sitzung erledigt (2026-09-27, Archiv — siehe Hinweis oben):** Phase 8
+(Android-APK/BLE, P8.1-P8.3) in Abschnitt 4 zerlegt. P8.1 (BLE-GATT-Transport am V4) verweist auf die P0.4e-UUIDs statt eines
 zweiten Entwurfs, schlägt eine Zwei-Schritt-Patch-Reihenfolge vor (erst P0.4f-SRC_ID, dann BLE
 getrennt) und markiert die ATT-MTU-/Fragmentierungsfrage als „lokal, nicht aus der Cloud
 lieferbar" (Firmware-Repos außerhalb des Cloud-Zugriffs-Scopes, dieselbe Begründung wie
@@ -1619,7 +1664,7 @@ Rotation weiterhin offen, jetzt 31 Tage — keine erneute Push-Notification ohne
 (zuletzt am 2026-09-11 eskaliert). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/
 GUI-Code geschrieben.
 
-**Vorherige Cloud-Sitzung (2026-09-26):** Phase 7 (Szenario-Visualizer, P7.1/P7.2) in Abschnitt 4
+**Vorherige Cloud-Sitzung (2026-09-26, Archiv — siehe Hinweis oben):** Phase 7 (Szenario-Visualizer, P7.1/P7.2) in Abschnitt 4
 zerlegt — mit einem fertigen Artefakt statt nur Textmenge: [`ecosystem/topology.json`](ecosystem/topology.json),
 die bisher nur als Mermaid-Prosa (Abschnitt 2) geführte Fabric-Topologie plus die
 Phase-2b-Direktverbindungen (K1–K6) als maschinenlesbarer Graph (13 Knoten, 19 Kanten,
