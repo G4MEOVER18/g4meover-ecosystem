@@ -3619,6 +3619,50 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
   - Damit liegen jetzt für beide bislang dokumentierten `core/nfc_tools_icode.c`-Funde eigenständige,
     unabhängig voneinander anwendbare Patches vor.
 
+## Firmware-Feature-Mining (Fortsetzung 16)
+- [x] Den in `ideas/i2ctools-app-status.md` ("Quelltext-Review (Speichersicherheit) und
+      gefundene Einschränkung") bereits dokumentierten, aber damals bewusst ohne eigenen
+      Fix-Vorschlag zurückgestellten Fund im I2C-Sniffer von `NaejEL/flipperzero-i2ctools`
+      aufgegriffen — der Verzicht war eine Fehleinordnung als reine Dritt-App-Einschränkung,
+      tatsächlich dieselbe Fehlerklasse (fehlende Kapazitätsprüfung vor einem Pufferzugriff),
+      die bei allen anderen `applications/external`-Funden in diesem Repo einen Port-Vorschlag
+      inkl. Fix erhalten hat. In `i2csniffer.c::SCLcallback()` zählt `data_index` (`uint8_t`,
+      Feld von `i2cFrame`) im ACK-Zweig jedes vollständigen Bytes unbedingt hoch, ohne Prüfung
+      gegen `MAX_MESSAGE_SIZE` (128) — anders als `frame_index`, der vor jedem Gebrauch gegen
+      `MAX_RECORDS` geprüft wird. Eine einzelne I2C-Transaktion mit mehr als 128 Byte ohne
+      zwischenzeitliche Stop-/Start-Bedingung lässt `data_index` auf 128 wachsen und indiziert
+      `data[]`/`ack[]` (je `uint8_t[128]`/`bool[128]`) außerhalb ihrer deklarierten Grenzen.
+      Dabei die bisherige Einordnung präzisiert: `data`/`ack` sind zwei direkt
+      aufeinanderfolgende Arrays desselben `i2cFrame`-Structs (zusammen 256 Byte) — der
+      `uint8_t`-Index bleibt auf dieses Feldpaar begrenzt und erreicht nie den nächsten
+      `frames[]`-Eintrag, anders als zuvor vermerkt.
+  - Fix: additive Grenzprüfung (`if(data_idx >= MAX_MESSAGE_SIZE) return;`) direkt vor dem
+    bestehenden Zugriff in `SCLcallback()` — der Frame friert bei 128 Byte ein (keine weiteren
+    Bits/Bytes dieser einen Transaktion werden aufgezeichnet) statt `data[]`/`ack[]`
+    außerhalb ihrer Grenzen zu indizieren. Patch (`git apply --check` vorab gegen eine frische,
+    unabhängige Kopie von `NaejEL/flipperzero-i2ctools`, Commit `1840c30` — unverändert seit
+    der letzten Prüfung — verifiziert, real angewendet und byte-für-byte abgeglichen) in
+    `firmware-mining/i2ctools-sniffer-data-index-oob-fix/i2csniffer_c.patch`.
+  - Host-Repro (`SCLcallback()` 1:1 transkribiert, GPIO-Lesewert durch Funktionsparameter
+    ersetzt; fünf Szenarien: Regression bei 20 Byte, Grenzfall bei exakt 128 Byte, Fund beim
+    129. Byte auf dem letzten Frame-Slot in einem eigenen `fork()`-Kindprozess, Fix-Nachweis
+    mit 129. Byte plus 300 weiteren Taktpulsen ohne Crash, Äquivalenztest über alle
+    Transaktionslängen 1–128 Byte) unter
+    `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined` verifiziert: ALT bricht im Fund-Szenario reproduzierbar
+    mit `UndefinedBehaviorSanitizer: runtime error: index 128 out of bounds for type
+    'uint8_t [128]'` ab, NEU übersteht dasselbe Szenario ohne Fehler, Regressions- und
+    Grenzfall-Szenario sowie Äquivalenztest liefern byte-identische Ausgabe zwischen ALT und
+    NEU — 10/10 Einzelprüfungen bestanden, ALLE CHECKS BESTANDEN, keine weiteren ASan-/
+    UBSan-Meldungen, keine Compiler-Warnungen — in
+    `firmware-mining/repro-i2ctools-sniffer-data-index-oob/repro.c`.
+  - `ideas/i2ctools-app-status.md` (Fund-Beschreibung präzisiert, Verweis auf den jetzt
+    vorliegenden Fix ergänzt, "Offen"/"Sicherheitsrahmen"-Abschnitte aktualisiert) und
+    `ideas/pentest-app-katalog.md` (Tabellenzeile aktualisiert) entsprechend angepasst.
+  - Repo-Zustand zu Sitzungsbeginn korrigiert: lokaler `main`-Branch-Zeiger stand auf
+    `6d0d064` (13 Commits hinter `origin/main`, HEAD war stattdessen detached auf dem
+    aktuellen Stand `5401c8d`) — siebter Fund dieser Art, per Fast-Forward behoben.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

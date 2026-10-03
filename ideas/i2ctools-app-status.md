@@ -75,14 +75,17 @@ ohne Prüfung gegen `MAX_MESSAGE_SIZE` — anders als beim Frame-Zähler gibt es
 Reset-Pfad. Eine einzelne I2C-Transaktion mit mehr als 128 übertragenen Bytes ohne
 zwischenzeitliche Stop-/Start-Bedingung (z. B. ein EEPROM- oder Flash-Sequential-Read mit
 großem Blockzähler, oder ein absichtlich so konstruiertes Zielgerät) lässt `data_index` über
-127 hinauswachsen und schreibt dadurch außerhalb der `data[]`/`ack[]`-Arrays — zunächst in
-benachbarte Felder desselben `i2cFrame`-Structs, bei fortgesetztem Schreiben (bis `data_index`
-als `uint8_t` bei 255 umläuft) in nachfolgende `i2cFrame`-Einträge des `frames[MAX_RECORDS]`-
-Arrays hinein. Da der Callback in einem GPIO-EXTI-Interrupt-Kontext läuft, ist der Effekt
-Speicherkorruption statt eines kontrollierten Fehlers. Kein Fix-Vorschlag hierfür angelegt
-(externe Drittanwendung außerhalb dieses Repos, analog zur bereits dokumentierten
-Abtastraten-Diskrepanz beim GPIO Logic Analyzer) — für den lokalen Einsatz relevant und unten
-unter "Sicherheitsrahmen" vermerkt.
+127 hinauswachsen und schreibt dadurch außerhalb der `data[]`/`ack[]`-Arrays. Nachträglich
+präzisiert (vorige Einordnung "in nachfolgende `i2cFrame`-Einträge hinein" war ungenau): `data`
+und `ack` sind zwei direkt aufeinanderfolgende `uint8_t`-Arrays desselben `i2cFrame`-Structs,
+zusammen exakt 256 Byte groß — da `data_index` ein `uint8_t` ist (Wertebereich 0–255), bleibt
+der OOB-Zugriff auf dieses Feldpaar desselben Frame-Slots begrenzt und erreicht nie den
+nächsten `frames[]`-Eintrag. Da der Callback in einem GPIO-EXTI-Interrupt-Kontext läuft, ist
+der praktische Effekt eine stille Verwechslung von Datenbytes und ACK-Flags statt eines
+kontrollierten Fehlers. Port-Vorschlag inkl. Fix (additive Grenzprüfung vor dem bestehenden
+Zugriff, Host-Repro mit UBSan-Array-Bounds-Nachweis) jetzt nachgereicht, siehe
+`firmware-mining/i2ctools-sniffer-data-index-oob-fix.md` — für den lokalen Einsatz bis zum Port
+weiterhin unten unter "Sicherheitsrahmen" vermerkt.
 
 ## Aufwand
 Gering. Acht kompakte Quelldateien, reine externe `.fap`, keine Firmware-Änderung, keine
@@ -92,11 +95,10 @@ bei Zielsystemen mit abweichendem Logikpegel, siehe README-Warnhinweis).
 ## Sicherheitsrahmen
 Scanner/Sender sind aktiv (senden auf den Bus) — nur an eigenen oder ausdrücklich für den Test
 freigegebenen I2C-Bussen einsetzen, passt in den autorisierten Rahmen aus CONSTRAINTS Punkt 5.
-Sniffer ist rein passiv (liest nur Pegel). Für den eigenen Einsatz wichtig: bei einem Zielsystem
-mit potenziell sehr langen I2C-Transaktionen (siehe oben, `data_index`-Überlauf im Sniffer) im
-Hinterkopf behalten, dass ein Absturz/Fehlverhalten der App möglich ist — kein Sicherheitsrisiko
-für das beobachtete Zielsystem selbst (der Sniffer sendet nichts), aber ein möglicher
-App-/Firmware-Crash auf dem eigenen Flipper während des Mitschnitts.
+Sniffer ist rein passiv (liest nur Pegel). Kein Sicherheitsrisiko für das beobachtete
+Zielsystem selbst (der Sniffer sendet nichts); der oben dokumentierte `data_index`-Überlauf bei
+Zielsystemen mit sehr langen I2C-Transaktionen betrifft nur die eigene App-Zuverlässigkeit und
+ist jetzt mit Port-Vorschlag inkl. Fix dokumentiert (siehe oben).
 
 ## Offen
 - Lokale Bauprobe (Klon des Repos gegen die eigene `mntm-012`-Basis, `ufbt launch_app` bzw.
@@ -104,8 +106,10 @@ App-/Firmware-Crash auf dem eigenen Flipper während des Mitschnitts.
   Scanner findet die bekannte Adresse, Sender liest ein bekanntes Register korrekt, Sniffer
   zeigt eine kurze, bekannte Transaktion (Adresse, Byte(s), ACK) korrekt an.
   Pegelwandler/Isolator bereithalten, falls das Zielsystem nicht mit 3,3 V arbeitet.
-  Den oben dokumentierten `data_index`-Überlauf beim eigenen Testlauf im Hinterkopf behalten —
-  keine Zielsysteme mit sehr langen Einzeltransaktionen (> 128 Byte ohne Stop/Start) am Sniffer
-  mitschneiden, ohne mit einem möglichen App-Absturz zu rechnen.
+  Den jetzt vorliegenden Sniffer-Fix (`firmware-mining/i2ctools-sniffer-data-index-oob-fix.md`)
+  vor diesem Testlauf einspielen, danach denselben Funktionstest durchführen (muss laut
+  Host-Repro-Äquivalenztest unverändert funktionieren) und, falls ein passendes Zielgerät
+  vorliegt, zusätzlich eine Transaktion > 128 Byte ohne Stop-Bedingung mitschneiden (darf jetzt
+  weder abstürzen noch die ersten 128 Byte verfälschen).
 - Damit ist die aus der GPIO-Logic-Analyzer-Suche vorgemerkte "GPIO / Serial Bus"-Kandidatenliste
   abgearbeitet; keine weiteren Rückstellpunkte aus dieser Suche offen.
