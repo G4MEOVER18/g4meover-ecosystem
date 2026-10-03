@@ -3590,6 +3590,35 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       auf eine bereits "vollständig" geprüfte Datei trotzdem noch etwas finden kann, wenn er auf eine
       andere Fehlerklasse zielt als der erste Durchgang.
 
+## Firmware-Feature-Mining (Fortsetzung 15)
+- [x] NFC-Tools-Cluster (`applications/external/nfctools/`, Autor `wakdev`) fortgesetzt: den in
+      `firmware-mining/nfctools-icode-cc-mlen-overflow-fix.md` bereits vollständig analysierten und per
+      Host-Repro bestätigten CC.MLEN-Fund (`core/nfc_tools_icode.c::iso15693_write_ndef_blocks()`, bei
+      großer Tag-Kapazität läuft das einzelne CC.MLEN-Byte unbemerkt um statt den Schreibvorgang
+      abzulehnen) hatte bislang keinen eigenen `.patch` — nur Analyse und Repro. Für diese Sitzung den
+      fehlenden Patch nachgereicht statt eine neue Codefläche zu öffnen.
+  - Patch exakt nach der bereits dokumentierten Port-Skizze gegen eine frische, unabhängige Kopie von
+    `RogueMaster/flipperzero-firmware-wPlugins` Branch `420` erzeugt (`git apply --check` davor
+    verifiziert, real angewendet, byte-für-byte mit der Skizze abgeglichen) in
+    `firmware-mining/nfctools-icode-cc-mlen-overflow-fix/nfc_tools_icode_c.patch`: vor dem Cast von
+    `mlen` auf `uint8_t` eine Bereichsprüfung auf die 32-Bit-Zwischengröße, bei Überschreitung von
+    `0xFF` bricht die Funktion mit "Tag too large!" ab statt eine defekte Capability Container zu
+    schreiben. Bereits vorliegendes Host-Repro
+    (`firmware-mining/repro-nfctools-icode-cc-mlen-overflow/repro.c`) erneut unter
+    `gcc -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` ausgeführt: identische Ausgabe wie in
+    der ursprünglichen Fund-Sitzung, ALLE CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine
+    Compiler-Warnungen.
+  - Geprüft, ob sich dieser neue Patch mit dem bereits vorliegenden
+    `firmware-mining/nfctools-icode-cc-write-oob-read-fix/nfc_tools_icode_c.patch` (ändert denselben
+    kurzen Codeblock, aber einen disjunkten Teilausdruck: dort `cc_expected`-Größe/Schreiblänge, hier
+    die `mlen`-Berechnung davor) per `git apply` hintereinander anwenden lässt: lehnt beide wegen
+    überschneidendem Diff-Kontext ab. Probeweise von Hand zu einer gemeinsamen Fassung zusammengeführt
+    und geprüft: kein semantischer Konflikt, beide Änderungen betreffen getrennte Teilausdrücke
+    derselben Zeilen — beide `.md`-Dateien um einen entsprechenden Hinweis ergänzt (von Hand
+    zusammenführen statt beide `.patch`-Dateien nacheinander mit `git apply`/`patch` anwenden).
+  - Damit liegen jetzt für beide bislang dokumentierten `core/nfc_tools_icode.c`-Funde eigenständige,
+    unabhängig voneinander anwendbare Patches vor.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

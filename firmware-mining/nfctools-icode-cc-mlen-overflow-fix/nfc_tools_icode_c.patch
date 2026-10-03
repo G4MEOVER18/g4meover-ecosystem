@@ -1,0 +1,24 @@
+diff --git a/applications/external/nfctools/core/nfc_tools_icode.c b/applications/external/nfctools/core/nfc_tools_icode.c
+index e8a7611ea2..48ae0d0f5a 100644
+--- a/applications/external/nfctools/core/nfc_tools_icode.c
++++ b/applications/external/nfctools/core/nfc_tools_icode.c
+@@ -414,7 +414,18 @@ static bool iso15693_write_ndef_blocks(
+         return false;
+     }
+ 
+-    uint8_t mlen = (uint8_t)(((uint32_t)(block_count - 1) * block_size) >> 3);
++    // The short NFC Forum Type 5 Tag CC below can only encode up to 0xFF * 8
++    // = 2040 bytes of NDEF capacity in its one-byte MLEN field. A tag whose
++    // full capacity exceeds that must not get a silently wrapped MLEN value.
++    uint32_t mlen_full = ((uint32_t)(block_count - 1) * block_size) >> 3;
++    if(mlen_full > 0xFF) {
++        furi_string_printf(
++            app->info_str,
++            "Tag too large!\nNDEF needs ext. CC\n(short CC max %u B)",
++            (unsigned)(0xFF * 8));
++        return false;
++    }
++    uint8_t mlen = (uint8_t)mlen_full;
+     const uint8_t cc_expected[4] = {0xE1, 0x40, mlen, 0x00};
+ 
+     uint8_t cc_current[4] = {0};

@@ -121,9 +121,26 @@ Problem — die kurze CC kann Tags über 2040 Byte grundsätzlich nicht korrekt 
 bestehen. Eine vollständige Unterstützung der erweiterten (8-Byte-)CC für solche Tags wäre ein separates,
 größeres Feature und ist hier bewusst nicht mitportiert.
 
+## Patch
+Jetzt als eigenständiger Patch nachgereicht: `firmware-mining/nfctools-icode-cc-mlen-overflow-fix/nfc_tools_icode_c.patch`,
+1:1 wie oben skizziert (`git apply --check` gegen eine frische, unabhängige Kopie von
+`RogueMaster/flipperzero-firmware-wPlugins` Branch `420` verifiziert, real angewendet, byte-für-byte
+mit der beabsichtigten Endfassung abgeglichen). Beide zu diesem Zeitpunkt vorliegenden
+`core/nfc_tools_icode.c`-Patches (dieser und `firmware-mining/nfctools-icode-cc-write-oob-read-fix/`)
+sind unabhängig voneinander gegen denselben unveränderten Stand erzeugt und ändern beide Zeilen im
+selben kurzen Codeblock (Berechnung von `mlen`/`cc_expected`) — `git apply` lehnt sie deshalb in
+Folge aneinander ab (Kontextüberschneidung), probeweise von Hand zu einer gemeinsamen Fassung
+zusammengeführt (dieselbe `if(mlen_full > 0xFF) return false;`-Vorprüfung dieses Fixes, gefolgt vom
+auf 32 Byte vergrößerten `cc_expected` samt Schreiblängen-Klammerung des anderen Fixes): kein
+semantischer Konflikt, beide Änderungen betreffen disjunkte Teilausdrücke derselben wenigen Zeilen.
+Beim lokalen Übernehmen beider Fixes daher von Hand zusammenführen statt beide `.patch`-Dateien
+nacheinander mit `git apply`/`patch` anzuwenden.
+
 ## Testhinweis (lokal nachvollzogen)
 `firmware-mining/repro-nfctools-icode-cc-mlen-overflow/repro.c`, host-kompilierbar, keine
-Flipper-/NFC-Abhängigkeiten (Befehl und tatsächliche Ausgabe siehe Host-Repro oben).
+Flipper-/NFC-Abhängigkeiten (Befehl und tatsächliche Ausgabe siehe Host-Repro oben; erneut unter
+`gcc -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` bestätigt, identische Ausgabe, ALLE
+CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen).
 
 Für den lokalen Funktionstest an echter Hardware: einen eigenen ISO15693-3-Tag mit einer über die
 `GET_SYSTEM_INFO`-Antwort meldbaren Kombination aus `block_count`/`block_size`, deren Produkt (minus

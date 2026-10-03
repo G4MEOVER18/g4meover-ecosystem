@@ -132,11 +132,14 @@ konformer Tag einen noch größeren Wert meldet (schützt auch vor einem hypothe
 Spezifikation herausfallenden `block_size`, ohne dass dafür ein reales Tag bekannt sein muss). Verhalten
 beim weit überwiegenden realen Fall (Blockgröße 4, siehe Regressionsfall im Repro) bleibt unverändert.
 
-Kompatibel mit dem in `firmware-mining/nfctools-icode-cc-mlen-overflow-fix.md` vorgeschlagenen, bisher
-nicht als Patch vorliegenden Fix: jener ändert nur die `mlen`-Berechnung direkt davor (Bereichsprüfung vor
-dem Cast auf `uint8_t`), dieser hier nur die Deklaration/Befüllung von `cc_expected` selbst sowie die
-Aufrufstelle — beide Änderungen lassen sich ohne Konflikt von Hand zusammenführen (die `mlen`-Prüfung läuft
-vor den hier geänderten Zeilen und ändert an ihnen nichts).
+Kompatibel mit dem in `firmware-mining/nfctools-icode-cc-mlen-overflow-fix.md` vorgeschlagenen Fix,
+inzwischen ebenfalls als eigenständiger Patch nachgereicht
+(`firmware-mining/nfctools-icode-cc-mlen-overflow-fix/nfc_tools_icode_c.patch`): jener ändert nur die
+`mlen`-Berechnung direkt davor (Bereichsprüfung vor dem Cast auf `uint8_t`), dieser hier nur die
+Deklaration/Befüllung von `cc_expected` selbst sowie die Aufrufstelle — beide Änderungen lassen sich
+ohne semantischen Konflikt von Hand zusammenführen (per probeweiser Zusammenführung in der
+Mlen-Overflow-Sitzung bestätigt), auch wenn `git apply`/`patch` beide `.patch`-Dateien wegen
+überschneidendem Kontext nicht hintereinander anwenden.
 
 ## Port-Skizze / Fix
 1. `cc_expected` von einer 4-Byte-Initialisierungsliste auf ein 32-Byte-Array mit führenden Nullen
