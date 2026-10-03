@@ -1,0 +1,23 @@
+diff --git a/applications/external/chameleon/lib/chameleon_protocol/chameleon_protocol.c b/applications/external/chameleon/lib/chameleon_protocol/chameleon_protocol.c
+index 11ab3f43..465a73c9 100644
+--- a/applications/external/chameleon/lib/chameleon_protocol/chameleon_protocol.c
++++ b/applications/external/chameleon/lib/chameleon_protocol/chameleon_protocol.c
+@@ -122,6 +122,18 @@ bool chameleon_protocol_parse_frame(
+     // Extract LEN (Big Endian)
+     *data_len = ((uint16_t)frame_data[6] << 8) | frame_data[7];
+ 
++    // The device-reported LEN field is attacker/peer controlled (any byte sequence
++    // arriving over the paired UART/BLE link) and is used below as the memcpy() length
++    // into the caller's `data` buffer, which every caller in this app sizes to exactly
++    // CHAMELEON_MAX_DATA_LEN. Reject an oversized LEN here, the same way
++    // chameleon_protocol_build_frame() already rejects an oversized data_len on the
++    // send path, instead of writing past the destination buffer.
++    if(*data_len > CHAMELEON_MAX_DATA_LEN) {
++        FURI_LOG_E(
++            TAG, "Data length %u exceeds maximum %u", *data_len, CHAMELEON_MAX_DATA_LEN);
++        return false;
++    }
++
+     // Verify LRC2
+     uint8_t expected_lrc2 = chameleon_protocol_calculate_lrc(&frame_data[2], 6);
+     if(frame_data[8] != expected_lrc2) {

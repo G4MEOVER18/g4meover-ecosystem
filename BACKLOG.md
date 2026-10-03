@@ -3663,6 +3663,49 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     `6d0d064` (13 Commits hinter `origin/main`, HEAD war stattdessen detached auf dem
     aktuellen Stand `5401c8d`) — siebter Fund dieser Art, per Fast-Forward behoben.
 
+## Firmware-Feature-Mining (Fortsetzung 17)
+- [x] Einen der beiden verbliebenen, bisher pauschal als "Fremd-/Zweitgerät-Fall" zurückgestellten
+      Kandidaten aus dem restlichen NFC-Werkzeug-Cluster aufgegriffen: **Chameleon Ultra Client**
+      (`muylder/Chameleon_Flipper`, über das RogueMaster-Bündel, `applications/external/chameleon/`).
+      Reiner Fernsteuerungsclient für ein externes Chameleon-Ultra-Gerät ohne eigenen
+      NFC-Hardwarezugriff, aber mit einem eigenen Protokoll-Parser für dessen Antworten — dort
+      geprüft statt den Fremdhardware-Status unbesehen zu übernehmen.
+  - Fund: `lib/chameleon_protocol/chameleon_protocol.c::chameleon_protocol_parse_frame()`
+    extrahiert das LEN-Antwortfeld (big-endian `uint16_t`, 0–65535, von der Gegenseite der
+    USB-CDC-Verbindung frei wählbar — korrekt gegengecheckte LRC2/LRC3 sind reine Prüfsummen,
+    kein Geheimnis) und verwendet es ungeprüft als `memcpy()`-Länge in den vom einzigen
+    Aufrufer `chameleon_app_rx_callback()` übergebenen `uint8_t data_buffer[512]`
+    (`== CHAMELEON_MAX_DATA_LEN`, Teil des `malloc()`-allozierten `ChameleonApp`-Structs) —
+    anders als die Sendefunktion `chameleon_protocol_build_frame()` im selben File, die genau
+    diese Prüfung für den umgekehrten Weg bereits hat. Jede Antwort mit `LEN > 512` schreibt bis
+    zu 65023 Byte über das Ende des Zielpuffers hinaus in die anschließenden Struct-Felder —
+    ein echter Heap-Buffer-Overflow, kein reiner `furi_check()`-Abbruch. Den tatsächlichen
+    BLE-Pfad gegengeprüft: laut eigenem Code-Kommentar noch ein Stub ohne echte
+    GATT-Verbindung, der praktisch nutzbare Auslösekanal ist ausschließlich USB-CDC
+    (`lib/uart_handler/uart_handler.c`).
+  - Fix: additive Grenzprüfung (`if(*data_len > CHAMELEON_MAX_DATA_LEN) return false;`) direkt
+    nach dem Extrahieren von LEN, vor LRC2-Prüfung und `memcpy()` — identisches Muster zur
+    bereits vorhandenen Prüfung in `chameleon_protocol_build_frame()`. Patch (`git apply --check`
+    vorab gegen eine frische, unabhängige Kopie von `RogueMaster/flipperzero-firmware-wPlugins`,
+    Branch `420`, verifiziert, real angewendet und byte-für-byte mit der beabsichtigten
+    Endfassung abgeglichen) in
+    `firmware-mining/chameleon-protocol-parse-frame-oob-write-fix/chameleon_protocol_c.patch`.
+  - Host-Repro (SOF/LRC1/CMD/STATUS/LEN/LRC2-Extraktion und DATA-`memcpy()` 1:1 transkribiert;
+    acht Szenarien: Regression bei 20 Byte und beim Grenzfall exakt 512 Byte, Fund bei
+    `LEN = 513`/`2000`/`65535` je in einem eigenen `fork()`-Kindprozess, Fix-Nachweis bei
+    `LEN = 513`/`65535` mit Wachposten-Muster im Zielpuffer, Äquivalenztest über `data_len`
+    0–512 Byte) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined`
+    verifiziert: ALT bricht alle drei Fund-Szenarien reproduzierbar mit
+    `AddressSanitizer: heap-buffer-overflow ... 0 bytes after 512-byte region` ab, NEU übersteht
+    dieselben Antworten ohne jeden Schreibzugriff auf den Zielpuffer, Regressions- und
+    Äquivalenztest liefern byte-identische Ausgabe zwischen ALT und NEU — 14/14 Einzelprüfungen
+    bestanden, ALLE CHECKS BESTANDEN, keine weiteren ASan-/UBSan-Meldungen, keine
+    Compiler-Warnungen — in
+    `firmware-mining/repro-chameleon-protocol-parse-frame-oob-write/repro.c`.
+  - `ideas/pentest-app-katalog.md`: neuen Log-Eintrag ergänzt, letzter verbliebener
+    Cluster-Kandidat jetzt nur noch `nfc_relay` (zwei eigene Flipper-Geräte, UART-Direktverbindung,
+    weiterhin zurückgestellt).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
