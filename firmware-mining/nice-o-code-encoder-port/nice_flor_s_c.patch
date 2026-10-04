@@ -1,0 +1,100 @@
+diff --git a/lib/subghz/protocols/nice_flor_s.c b/lib/subghz/protocols/nice_flor_s.c
+index ca203be..5711202 100644
+--- a/lib/subghz/protocols/nice_flor_s.c
++++ b/lib/subghz/protocols/nice_flor_s.c
+@@ -48,6 +48,15 @@ struct SubGhzProtocolEncoderNiceFlorS {
+     SubGhzBlockGeneric generic;
+ 
+     const char* nice_flor_s_rainbow_table_file_name;
++
++    /* Nice O-Code: set from an "IC" hex field on .sub load (see
++     * subghz_protocol_encoder_nice_flor_s_deserialize()), consumed by
++     * subghz_protocol_encoder_nice_flor_s_get_upload() to re-encrypt each of the 16
++     * parcels under its own mask instead of sending plain Flor-S's single repeated
++     * ciphertext. A file without that field leaves o_code == false and get_upload()
++     * takes the existing, unmodified plain path. */
++    uint16_t ic;
++    bool o_code;
+ };
+ 
+ typedef enum {
+@@ -112,6 +121,8 @@ void* subghz_protocol_encoder_nice_flor_s_alloc(SubGhzEnvironment* environment)
+         FURI_LOG_D(
+             TAG, "Loading rainbow table from %s", instance->nice_flor_s_rainbow_table_file_name);
+     }
++    instance->ic = NICE_FLOR_S_IC_PLAIN;
++    instance->o_code = false;
+     instance->encoder.repeat = 10;
+     instance->encoder.size_upload = 2400; //wrong!! upload 186*16 = 2976 - actual size about 1728
+     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+@@ -205,6 +216,22 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
+ 
+         uint8_t byte;
+ 
++        if(instance->o_code) {
++            /* Nice O-Code: every parcel re-encrypts (serial, cnt) under its own mask
++             * instead of repeating one ciphertext 16 times (see
++             * firmware-mining/nice-o-code-subghz-port.md) -- overwrites the enc_part
++             * computed once above, exactly mirroring the decode side's per-parcel
++             * decrypt_ic() call in subghz_protocol_decoder_nice_flor_s_get_string(). */
++            uint32_t mask_32 = 0;
++            uint16_t mask_16 = 0;
++            subghz_protocol_nice_o_mask((uint8_t)loops[i], &mask_32, &mask_16);
++            uint64_t plain = ((uint64_t)((instance->generic.serial ^ mask_32) & 0x0FFFFFFFu)
++                               << 16) |
++                              instance->generic.cnt;
++            enc_part = subghz_protocol_nice_flor_s_encrypt_ic(
++                plain, (uint16_t)(instance->ic ^ mask_16), file_name);
++        }
++
+         byte = btn << 4 | (0xF ^ btn ^ loops[i]);
+         instance->generic.data = (uint64_t)byte << 44 | enc_part;
+ 
+@@ -300,8 +327,45 @@ SubGhzProtocolStatus
+             nice_flors_counter_mode = 0;
+         }
+ 
+-        subghz_protocol_nice_flor_s_remote_controller(
+-            &instance->generic, instance->nice_flor_s_rainbow_table_file_name);
++        if(!flipper_format_rewind(flipper_format)) {
++            FURI_LOG_E(TAG, "Rewind error");
++            break;
++        }
++        /* Optional Nice O-Code installer code, same "IC" field and rewind pattern as
++         * subghz_protocol_decoder_nice_flor_s_deserialize(). Absent on every plain
++         * Flor-S/Nice One file (including all previously saved ones): o_code stays
++         * false, the plain remote_controller() path below runs exactly as before this
++         * field existed, and get_upload() above takes its own unmodified plain path. */
++        uint8_t ic_data[2] = {0};
++        if(flipper_format_read_hex(flipper_format, "IC", ic_data, sizeof(ic_data))) {
++            instance->ic = ((uint16_t)ic_data[0] << 8) | ic_data[1];
++            instance->o_code = true;
++        } else {
++            instance->ic = NICE_FLOR_S_IC_PLAIN;
++            instance->o_code = false;
++        }
++
++        if(instance->o_code) {
++            /* remote_controller() only knows plain Flor-S's single-ciphertext scheme, so
++             * O-Code recovers (serial, cnt, btn) from the loaded "Key" frame the same way
++             * subghz_protocol_decoder_nice_flor_s_get_string() does on the decode side:
++             * parcel index from the unencrypted P0/P1 nibbles, then decrypt_ic() under
++             * that parcel's mask. */
++            uint8_t n = subghz_protocol_nice_o_get_parcel(instance->generic.data);
++            uint32_t mask_32;
++            uint16_t mask_16;
++            subghz_protocol_nice_o_mask(n, &mask_32, &mask_16);
++            uint64_t decrypted = subghz_protocol_nice_flor_s_decrypt_ic(
++                instance->generic.data & 0xFFFFFFFFFFFULL,
++                (uint16_t)(instance->ic ^ mask_16),
++                instance->nice_flor_s_rainbow_table_file_name);
++            instance->generic.cnt = (uint16_t)decrypted;
++            instance->generic.serial = (uint32_t)((decrypted >> 16) ^ mask_32) & 0x0FFFFFFFu;
++            instance->generic.btn = (uint8_t)((instance->generic.data >> 48) & 0xF);
++        } else {
++            subghz_protocol_nice_flor_s_remote_controller(
++                &instance->generic, instance->nice_flor_s_rainbow_table_file_name);
++        }
+         subghz_protocol_encoder_nice_flor_s_get_upload(
+             instance, instance->generic.btn, instance->nice_flor_s_rainbow_table_file_name);
+ 

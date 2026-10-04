@@ -3747,6 +3747,42 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     Empfangspfad), Encoder-Gegenstück (Senden), Installateurcode-Recovery-App — alle drei in
     `firmware-mining/nice-o-code-decode-display-port.md` unter "Offen" benannt.
 
+## Firmware-Feature-Mining (Fortsetzung 19)
+- [x] Phase 3 des Nice-O-Code-Ports aufgegriffen: das in Phase 1 unter „Port-Skizze Schritt 5"
+      benannte Encoder-Gegenstück zu Phase 2 (Decoder-Anzeige) tatsächlich verdrahtet — eine
+      bereits mit `IC`-Feld versehene `.sub`-Datei lässt sich jetzt senden, nicht nur anzeigen.
+      `feed()` (Live-Erkennung am produktiven Empfangspfad) und die
+      Installateurcode-Recovery-App bleiben wie in allen Vorsitzungen dokumentiert
+      zurückgestellt — dieser Patch berührt ausschließlich den Encoder.
+  - `SubGhzProtocolEncoderNiceFlorS` um `ic`/`o_code` erweitert (Pendant zum Decoder-Struct aus
+    Phase 2). `subghz_protocol_encoder_nice_flor_s_deserialize()` liest optional ein `IC`-Feld
+    und rekonstruiert bei dessen Vorhandensein `serial`/`cnt`/`btn` aus dem geladenen
+    `Key`-Rahmen über Paketindex → Maske → `decrypt_ic()` (dieselbe in Phase 2 verifizierte
+    Pipeline) statt über die bestehende `remote_controller()`, die nur Plain-Flor-S kennt.
+    `subghz_protocol_encoder_nice_flor_s_get_upload()` berechnet bei `o_code` den
+    Chiffretext jedes der 16 pro Tastendruck gesendeten Pakete einzeln neu (Maske + IC +
+    `encrypt_ic()`) statt den einmal berechneten Chiffretext 16-mal zu wiederholen. Ohne
+    `IC`-Feld (jede bisherige Datei) bleibt `o_code = false`, beide Funktionen nehmen exakt
+    den unveränderten, bisherigen Plain-Pfad.
+  - Patch (baut auf Phase 1 auf, unabhängig von Phase 2 — disjunkte Funktionen/Structs,
+    `git apply --check` in beiden Reihenfolgen P1→P3 und P1→P2→P3 gegen eine frische,
+    unabhängige Kopie von `Next-Flip/Momentum-Firmware` Tag `mntm-012` verifiziert, real
+    angewendet und byte-für-byte abgeglichen) in
+    `firmware-mining/nice-o-code-encoder-port/nice_flor_s_c.patch`.
+  - Host-Repro (`alloc()`/`deserialize()`/`get_upload()` neue Zeilen 1:1 als eigene
+    Funktionen transkribiert; vier Prüfschritte: Rückwärtskompatibilitäts-Regression gegen
+    eine unabhängige Transkription des unveränderten Encoders, O-Code Send→Receive über
+    alle 16 erzeugten Pakete einzeln gegen den bereits in Phase 2 verifizierten Decoder-Pfad
+    dekodiert plus Falsch-IC-Probe, `IC`-Feld-Abwesenheitssymmetrie, ein durchgerechnetes
+    Beispiel) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined`
+    verifiziert: **13 467 921 Prüfungen, ALLE CHECKS BESTANDEN**, keine Compiler-Warnungen,
+    keine ASan-/UBSan-Meldung — in `firmware-mining/repro-nice-o-code-encoder/repro.c`.
+  - Damit sind von der ursprünglichen Nice-O-Code-Port-Skizze nur noch `feed()`
+    (Live-Erkennung, weiterhin der riskanteste Teil) und die Installateurcode-Recovery-App
+    offen — Laden, Anzeigen und Senden einer bereits mit bekanntem Installateurcode
+    versehenen Datei sind jetzt vollständig verdrahtet.
+  - Dokumentation: `firmware-mining/nice-o-code-encoder-port.md`.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
