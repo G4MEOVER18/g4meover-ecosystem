@@ -3783,6 +3783,39 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     versehenen Datei sind jetzt vollständig verdrahtet.
   - Dokumentation: `firmware-mining/nice-o-code-encoder-port.md`.
 
+## Firmware-Feature-Mining (Fortsetzung 20)
+- [x] **Nice O-Code Phase 3 (Encoder-Port)**: den in der Vorsitzung unter „Offen" vermerkten
+      Rückstellpunkt „Nice One (72 Bit) + O-Code kombiniert" aufgegriffen — bislang nur
+      strukturell begründet („sollte funktionieren"), nicht durch ein eigenes Host-Repro-
+      Szenario abgedeckt. Dafür den tatsächlichen, unveränderten Nice-One-72-Bit-Anhang aus
+      `lib/subghz/protocols/nice_flor_s.c` (`Next-Flip/Momentum-Firmware`, Tag `mntm-012`,
+      frisch per `raw.githubusercontent.com` bezogen) im Detail nachvollzogen:
+      `subghz_protocol_nice_one_get_data()`/`_crc()` sowie `subghz_protocol_blocks_
+      get_bit_array()` (`lib/subghz/blocks/encoder.c`) — alle drei von diesem Patch nicht
+      berührt. Bestätigt: `get_upload()`s `NICE_ONE_COUNT_BIT`-Verzweigung berechnet den
+      20-Bit-CRC-Anhang aus einer *Kopie* des bereits gebildeten 52-Bit-Rahmens (Header-Byte +
+      Chiffretext), nie aus dem Rahmen selbst — die Kombination mit der in Phase 3 pro Paket
+      neu verschlüsselten O-Code-Variante dieses Rahmens ist daher strukturell unproblematisch,
+      jetzt mit echtem Host-Repro statt nur Einschätzung bestätigt.
+  - `firmware-mining/repro-nice-o-code-encoder/repro.c` um ein fünftes Prüfszenario erweitert
+      (50 000 O-Code- plus 2 000 Plain-Iterationen): je Paket (a) der 52-Bit-Rahmen bleibt über
+      den bereits verifizierten O-Code-Decoder-Pfad unverändert korrekt dekodierbar, unabhängig
+      von einem zusätzlich berechneten Nice-One-Anhang; (b) der Anhang ist deterministisch;
+      (c) ein unabhängig aus (Seriennummer, Zähler, Taste, IC, Paketindex) über die Masken-/
+      `encrypt_ic()`-Formel neu zusammengesetzter Rahmen liefert denselben Anhang wie der von
+      `get_upload()` erzeugte; (d) der Anhang variiert über die 16 Pakete statt auf einen Wert
+      einzufrieren. Dieselben vier Prüfungen (ohne (a), da hier kein IC existiert) zusätzlich
+      für den unveränderten Plain-Pfad (Nice One ohne O-Code) wiederholt, um zu bestätigen,
+      dass die bereits bestehende Kombination durch diesen Patch unangetastet bleibt.
+  - Unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert:
+      **16 783 921 Prüfungen (zuvor 13 467 921), ALLE CHECKS BESTANDEN**, keine
+      Compiler-Warnungen, keine ASan-/UBSan-Meldung.
+  - `firmware-mining/nice-o-code-encoder-port.md` aktualisiert: „Nice One (72 Bit) + O-Code
+      kombiniert" aus „Offen" in die „Verifikation" verschoben (Schritt 5), „Warum nicht mehr"
+      und „Quellen" entsprechend ergänzt. Damit bleiben für die ursprüngliche Nice-O-Code-
+      Port-Skizze nur noch `feed()` (Live-Erkennung) und die Installateurcode-Recovery-App
+      offen — unverändert gegenüber der Vorsitzung.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

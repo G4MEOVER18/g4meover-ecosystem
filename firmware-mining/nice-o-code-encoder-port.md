@@ -83,12 +83,12 @@ pro Tastendruck übertragenen Pakete eine eigene, paket-abhängig maskierte Vers
 - **Installateurcode-Recovery-App** weiterhin nicht begonnen — ohne sie bleibt der praktische
   Weg zu einer gültigen `IC` entweder eine andere Quelle (z. B. am Empfänger abgelesen) oder
   manuelles Eintragen in eine Kopie einer vorhandenen Flor-S-Datei.
-- **Nice One (72 Bit) + O-Code kombiniert** nicht gesondert getestet: die zusätzlichen 20 Bit
-  für Nice One (`data_2`, CRC) werden unverändert aus dem bereits gebildeten
-  `instance->generic.data` abgeleitet (`subghz_protocol_nice_one_get_data()`), unabhängig davon,
-  ob dessen unterer 44-Bit-Teil aus dem Plain- oder dem IC-Pfad stammt — strukturell sollte die
-  Kombination also funktionieren, Host-Repro und Phase 2 decken beide nur den 52-Bit-Fall ab.
-  Als offener Punkt unten vermerkt.
+- **Nice One (72 Bit) + O-Code kombiniert**: in dieser Sitzung nachträglich mit einem eigenen
+  Host-Repro-Szenario abgedeckt (siehe „Verifikation" unten) — war in der Vorsitzung unter
+  „Offen" vermerkt, da die zusätzlichen 20 Bit für Nice One (`data_2`, CRC) unverändert aus dem
+  bereits gebildeten `instance->generic.data` abgeleitet werden (`subghz_protocol_nice_one_get_
+  data()`), unabhängig davon, ob dessen unterer 44-Bit-Teil aus dem Plain- oder dem IC-Pfad
+  stammt. Bestätigt jetzt mit echtem Host-Repro statt nur struktureller Einschätzung.
 - Wie in Phase 1/2: die exakte Byte-Reihenfolge/Vorzeichen stammt aus Unleashed, nicht gegen
   eine echte O-Code-Funkaufnahme verifizierbar (keine eigene Aufnahme vorhanden,
   `CONSTRAINTS.md` untersagt ohnehin fremde Kartendaten/Captures in diesem Repo). Die
@@ -116,8 +116,8 @@ identisch zur tatsächlich editierten Arbeitskopie dieser Sitzung.
 tatsächlich neue Encoder-Integrationslogik selbst — `alloc()`s zwei neue Zeilen, das
 `IC`-Feld-Lesen samt neuem Entschlüsselungszweig aus `deserialize()`, und exakt die neue
 `get_upload()`-Verzweigung — als eigene, benannte Funktionen, die 1:1 den im Patch stehenden
-Anweisungen entsprechen. Vier Prüfschritte unter
-`gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined`:
+Anweisungen entsprechen. Fünf Prüfschritte (der fünfte in dieser Sitzung ergänzt, siehe unten)
+unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined`:
 
 1. **Rückwärtskompatibilitäts-Regression** (2000 zufällige Plain-Flor-S-Dateien, `IC`-Feld
    fehlend): `deserialize()` rekonstruiert `serial`/`cnt`/`btn` exakt aus dem geladenen Rahmen;
@@ -142,8 +142,25 @@ Anweisungen entsprechen. Vier Prüfschritte unter
    wenn kein `IC`-Feld vorhanden ist, unabhängig vom (nicht gelesenen) Pufferinhalt.
 4. **Durchgerechnetes Beispiel** (fester Seriennummer-/Zähler-/Tasten-/IC-Wert, Paket 9 von 16)
    zur manuellen Gegenprobe ausgegeben.
+5. **Nice One (72 Bit) + O-Code kombiniert** (neu in dieser Sitzung, 50 000 O-Code- plus 2 000
+   Plain-Iterationen): transkribiert zusätzlich den unveränderten, von diesem Patch nicht
+   berührten Nice-One-Anhang (`subghz_protocol_blocks_get_bit_array()`,
+   `subghz_protocol_nice_one_crc()`, `subghz_protocol_nice_one_get_data()`) und wendet ihn auf
+   die bereits in Schritt 2 erzeugten 16 Sendepakete an — exakt wie `get_upload()`s reale
+   `NICE_ONE_COUNT_BIT`-Verzweigung, die auf einer *Kopie* des bereits gebildeten 52-Bit-Rahmens
+   arbeitet, nie auf dem Rahmen selbst. Je Paket vier Prüfungen: (a) der 52-Bit-Rahmen bleibt
+   über den bereits in Schritt 2 verifizierten Decoder-Pfad unverändert korrekt dekodierbar,
+   unabhängig davon, ob zusätzlich ein Nice-One-Anhang berechnet wird; (b) der Anhang ist
+   deterministisch (zweimalige Berechnung desselben Rahmens/Paketindex liefert denselben Wert);
+   (c) ein unabhängig aus (Seriennummer, Zähler, Taste, IC, Paketindex) über die Masken-/
+   `encrypt_ic()`-Formel neu zusammengesetzter 52-Bit-Rahmen stimmt mit dem von `get_upload()`
+   erzeugten exakt überein, und beide liefern denselben Nice-One-Anhang; (d) der Anhang variiert
+   über die 16 Pakete (kein konstanter/eingefrorener Wert). Zusätzlich dieselben vier Prüfungen
+   (ohne (a), da hier kein IC existiert) auch für den unveränderten Plain-Pfad (Nice One ohne
+   O-Code) wiederholt, um zu bestätigen, dass die bereits bestehende Kombination durch diesen
+   Patch unangetastet bleibt.
 
-**Ergebnis: 13 467 921 Prüfungen, ALLE CHECKS BESTANDEN, keine Compiler-Warnungen, keine
+**Ergebnis: 16 783 921 Prüfungen, ALLE CHECKS BESTANDEN, keine Compiler-Warnungen, keine
 ASan-/UBSan-Meldung bei `-O0` oder `-O1`.**
 
 ## Lokaler Testhinweis
@@ -178,10 +195,6 @@ gelassenen Sende-Pfad ab.
   den bereits produktiven Empfangspfad, siehe Begründung in
   `firmware-mining/nice-o-code-subghz-port.md`.
 - **Installateurcode-Recovery-App**: eigenständiges `.fap`, weiterhin nicht begonnen.
-- **Nice One (72 Bit) + O-Code kombiniert**: strukturell unterstützt (siehe „Warum nicht mehr"),
-  aber nicht gesondert durch ein eigenes Host-Repro-Szenario abgedeckt — bei Gelegenheit
-  nachholen, bevor diese Kombination für eine reale Nice-One-Fernbedienung mit
-  Installateurcode genutzt wird.
 
 ## Sicherheitsrahmen
 
@@ -198,4 +211,8 @@ erzeugt — die Host-Verifikation läuft ausschließlich mit synthetisch erzeugt
   `firmware-mining/nice-o-code-decode-display-port.md` (Phase 2, Decoder-Pendant dieses
   Patches, hier als Empfangsstelle für die Host-Verifikation wiederverwendet).
 - Momentum-Firmware, Tag `mntm-012`: `lib/subghz/protocols/nice_flor_s.c` (Ausgangszustand
-  dieser Sitzung inklusive der bereits vorgeschlagenen Phase-1-Hilfsfunktionen).
+  dieser Sitzung inklusive der bereits vorgeschlagenen Phase-1-Hilfsfunktionen) sowie für
+  Schritt 5 zusätzlich frisch per `raw.githubusercontent.com` bezogen und im Detail
+  nachvollzogen: der unveränderte Nice-One-Anhang (`subghz_protocol_nice_one_crc()`/
+  `subghz_protocol_nice_one_get_data()` in derselben Datei) und `subghz_protocol_blocks_
+  get_bit_array()` (`lib/subghz/blocks/encoder.c`).

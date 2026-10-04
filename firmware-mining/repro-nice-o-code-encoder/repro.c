@@ -15,6 +15,13 @@
  * and, critically, that a file produced by this encoder is actually decodable by the
  * already-verified decoder logic for every one of the 16 transmitted parcels.
  *
+ * Scenario 5 below closes the "Nice One (72 Bit) + O-Code kombiniert" item left open under
+ * nice-o-code-encoder-port.md's "Offen": it transcribes the unmodified Nice One 72-bit tail
+ * computation (get_bit_array()/nice_one_crc()/nice_one_get_data(), lib/subghz/protocols/
+ * nice_flor_s.c, mntm-012) and exercises it together with this patch's per-parcel o_code
+ * re-encryption, since get_upload()'s real Nice One branch runs on the same per-parcel 52-bit
+ * body this patch already varies.
+ *
  * Build: gcc -O0/-O1 -std=c11 -Wall -Wextra -fsanitize=address,undefined repro.c -o repro
  */
 #include <stdbool.h>
@@ -178,6 +185,72 @@ static void nice_o_mask(uint8_t n, uint32_t* mask_32, uint16_t* mask_16) {
 
 static uint8_t nice_o_get_parcel(uint64_t data) {
     return (uint8_t)((((data >> 48) & 0x0Fu) ^ ((data >> 44) & 0x0Fu)) ^ 0x0Fu);
+}
+
+/* ---- Nice One (72-bit) tail, transcribed 1:1 from the unmodified nice_flor_s.c (mntm-012):
+ * subghz_protocol_blocks_get_bit_array() (lib/subghz/blocks/encoder.c), subghz_protocol_
+ * nice_one_crc() and subghz_protocol_nice_one_get_data(). Untouched by this patch -- the
+ * encoder's existing NICE_ONE_COUNT_BIT branch in get_upload() runs on a *copy* of the
+ * per-parcel 52-bit body (header byte + enc_part) this patch already varies for o_code, so
+ * this is exercised here to close the "Nice One + O-Code kombiniert" open item. ---- */
+
+static bool get_bit_array(const uint8_t* p, size_t idx) {
+    return (bool)((p[idx >> 3] >> (7 - (idx & 7))) & 1);
+}
+
+static uint8_t nice_one_crc(const uint8_t* p) {
+    uint8_t crc = 0;
+    uint8_t crc_data = 0xff;
+    for(uint8_t i = 4; i < 68; i++) {
+        if(get_bit_array(p, i)) {
+            crc = crc_data ^ 1;
+        } else {
+            crc = crc_data;
+        }
+        crc_data >>= 1;
+        if(crc & 0x01) {
+            crc_data ^= 0x97;
+        }
+    }
+    crc = 0;
+    for(uint8_t i = 0; i < 8; i++) {
+        crc <<= 1;
+        if((crc_data >> i) & 0x01) crc |= 1;
+    }
+    return crc;
+}
+
+/* p is a 10-byte array; p[0..6] must already hold the parcel's 52-bit on-air body
+ * (big-endian, same layout as the existing "data" field), p[7..9] are scratch/output. */
+static void nice_one_get_data(uint8_t* p, uint8_t num_parcel, uint8_t hold_bit) {
+    uint8_t k = (uint8_t)((0x0f ^ (p[0] & 0x0Fu) ^ num_parcel) << 4);
+    p[1] = (uint8_t)((p[1] & 0x0f) | k);
+    k = (uint8_t)((num_parcel < 4) ? 0x8f : 0x80);
+    hold_bit = (uint8_t)(hold_bit ? 0x10 : 0);
+    k = (uint8_t)(num_parcel ^ k);
+    p[7] = k;
+    p[8] = (uint8_t)(hold_bit ^ (uint8_t)(k << 4));
+
+    uint8_t crc = nice_one_crc(p);
+    p[8] = (uint8_t)(p[8] | (crc >> 4));
+    p[9] = (uint8_t)(crc << 4);
+}
+
+/* 1:1 with get_upload()'s "if(data_count_bit == NICE_ONE_COUNT_BIT)" branch: add_data[0..6]
+ * is a *copy* of the already-produced 52-bit body, never the body itself -- the real caller
+ * passes loops[i] for both num_parcel and hold_bit. Returns the 24-bit add_data[7..9], of
+ * which the real encoder transmits only the top 20 bits (bits 23..4). */
+static uint32_t nice_one_tail_for_parcel(uint64_t body52, uint8_t parcel_index) {
+    uint8_t add_data[10] = {0};
+    for(size_t i = 0; i < 7; i++) {
+        add_data[i] = (uint8_t)((body52 >> (48 - i * 8)) & 0xFF);
+    }
+    nice_one_get_data(add_data, parcel_index, parcel_index);
+    uint32_t data_2 = 0;
+    for(size_t j = 7; j < 10; j++) {
+        data_2 = (data_2 << 8) + add_data[j];
+    }
+    return data_2;
 }
 
 /* 1:1 with the decode-side dispatch already proposed/verified in
@@ -404,7 +477,7 @@ int main(void) {
     }
     fprintf(
         stderr,
-        "[1/4] backward-compat regression: %llu checks so far, %llu failures\n",
+        "[1/5] backward-compat regression: %llu checks so far, %llu failures\n",
         (unsigned long long)g_checks,
         (unsigned long long)g_failures);
 
@@ -473,7 +546,7 @@ int main(void) {
     }
     fprintf(
         stderr,
-        "[2/4] O-Code Send->Receive round trip over all 16 parcels: %llu checks so far, "
+        "[2/5] O-Code Send->Receive round trip over all 16 parcels: %llu checks so far, "
         "%llu failures\n",
         (unsigned long long)g_checks,
         (unsigned long long)g_failures);
@@ -496,7 +569,7 @@ int main(void) {
     }
     fprintf(
         stderr,
-        "[3/4] absent-IC round trip: %llu checks so far, %llu failures\n",
+        "[3/5] absent-IC round trip: %llu checks so far, %llu failures\n",
         (unsigned long long)g_checks,
         (unsigned long long)g_failures);
 
@@ -526,7 +599,7 @@ int main(void) {
 
         fprintf(
             stderr,
-            "[4/4] worked example: IC=%04X Key-frame=0x%013llX -> TX parcel[9]=0x%013llX -> "
+            "[4/5] worked example: IC=%04X Key-frame=0x%013llX -> TX parcel[9]=0x%013llX -> "
             "decoded Sn:%05lX Cnt:%04X Btn:%02X (want Sn:%05lX Cnt:%04X Btn:%02X)\n",
             ic,
             (unsigned long long)st.data,
@@ -540,6 +613,132 @@ int main(void) {
         CHECK(got_serial == serial && got_cnt == cnt && got_btn == btn,
               "worked example mismatch");
     }
+
+    /* --- 5. Nice One (72 Bit) + O-Code kombiniert, the "Offen" item from the previous
+     *        session: the real NICE_ONE_COUNT_BIT branch in get_upload() runs on a *copy*
+     *        of the per-parcel 52-bit body this patch already varies for o_code, never on
+     *        the body itself -- verify both halves independently. --- */
+    for(int t = 0; t < 50000; t++) {
+        fill_random_table(g_table, &rng);
+        uint32_t serial = (uint32_t)(xorshift64(&rng) & 0x0FFFFFFFu);
+        uint16_t cnt = (uint16_t)(xorshift64(&rng) & 0xFFFF);
+        uint8_t btn = (uint8_t)(xorshift64(&rng) & 0x0F);
+        uint16_t ic = (uint16_t)(xorshift64(&rng) & 0xFFFF);
+        uint8_t key_n = (uint8_t)(xorshift64(&rng) & 0x0F);
+
+        EncoderState st;
+        encoder_alloc(&st);
+        st.data = build_o_code_frame(serial, cnt, btn, ic, key_n, g_table);
+        encoder_deserialize(&st, true, ic, g_table);
+
+        uint64_t frames[16];
+        encoder_get_upload_frames(&st, btn, g_table, frames);
+
+        uint32_t tails[16];
+        for(int n = 0; n < 16; n++) {
+            tails[n] = nice_one_tail_for_parcel(frames[n], (uint8_t)n);
+        }
+
+        bool saw_tail_difference = false;
+        for(int n = 0; n < 16; n++) {
+            /* 5a. the Nice One tail is computed from a *copy* of the 52-bit body -- the
+             *     body itself, and therefore its O-Code decode, must be byte-identical to
+             *     the already-verified o_code-only case (scenario 2), independent of
+             *     whether a Nice One tail was additionally computed for the same parcel. */
+            uint32_t got_serial;
+            uint16_t got_cnt;
+            uint8_t got_btn;
+            get_string_decode(
+                frames[n], true, ic, g_table, &got_serial, &got_cnt, &got_btn);
+            CHECK(got_serial == serial && got_cnt == cnt && got_btn == btn,
+                  "nice-one+o-code: parcel %d body decode mismatch", n);
+
+            /* 5b. determinism: recomputing the tail for the same body/parcel index must
+             *     reproduce the same 24-bit value. */
+            CHECK(nice_one_tail_for_parcel(frames[n], (uint8_t)n) == tails[n],
+                  "nice-one+o-code: parcel %d tail is not deterministic", n);
+
+            /* 5c. independent cross-check: rebuild add_data[0..6] directly from
+             *     (serial,cnt,btn,ic,n) via the mask/encrypt_ic formulas (bypassing
+             *     frames[n]/encoder_get_upload_frames() entirely) and confirm the same
+             *     tail results -- a second, independently-assembled path to the same
+             *     52-bit body. */
+            uint32_t mask_32;
+            uint16_t mask_16;
+            nice_o_mask((uint8_t)n, &mask_32, &mask_16);
+            uint64_t plain = ((uint64_t)((serial ^ mask_32) & 0x0FFFFFFFu) << 16) | cnt;
+            uint64_t enc_body = neu_encrypt_ic(plain, (uint16_t)(ic ^ mask_16), g_table);
+            uint8_t byte = (uint8_t)(btn << 4 | (0xF ^ btn ^ (uint8_t)n));
+            uint64_t independent_body = ((uint64_t)byte << 44) | (enc_body & 0xFFFFFFFFFFFULL);
+            CHECK(independent_body == frames[n],
+                  "nice-one+o-code: parcel %d body diverges from independent rebuild", n);
+            CHECK(nice_one_tail_for_parcel(independent_body, (uint8_t)n) == tails[n],
+                  "nice-one+o-code: parcel %d tail diverges when fed the independently "
+                  "rebuilt body",
+                  n);
+
+            if(n > 0 && tails[n] != tails[0]) saw_tail_difference = true;
+        }
+        /* 5d. sensitivity: across 16 parcels with varying num_parcel (and, for o_code,
+         *     varying body), the tail must not collapse to one constant value. */
+        CHECK(saw_tail_difference,
+              "nice-one+o-code: tail must vary across the 16 parcels, not stay constant");
+    }
+    fprintf(
+        stderr,
+        "[5/5] Nice One (72 Bit) + O-Code combined: %llu checks so far, %llu failures\n",
+        (unsigned long long)g_checks,
+        (unsigned long long)g_failures);
+
+    /* --- 5e. Nice One + plain (o_code == false) backward-compat: same body across all 16
+     *         parcels (scenario 1), but the Nice One tail must still vary per parcel via
+     *         num_parcel alone, and must match an independent rebuild -- the counterpart to
+     *         5a-5d for the pre-existing plain path, which this patch does not touch. --- */
+    for(int t = 0; t < 2000; t++) {
+        fill_random_table(g_table, &rng);
+        uint32_t serial = (uint32_t)(xorshift64(&rng) & 0x0FFFFFFFu);
+        uint16_t cnt = (uint16_t)(xorshift64(&rng) & 0xFFFF);
+        uint8_t btn = (uint8_t)(xorshift64(&rng) & 0x0F);
+        uint8_t key_n = (uint8_t)(xorshift64(&rng) & 0x0F);
+
+        EncoderState st;
+        encoder_alloc(&st);
+        st.data = build_plain_frame(serial, cnt, btn, key_n, g_table);
+        encoder_deserialize(&st, false, 0, g_table);
+
+        uint64_t frames[16];
+        encoder_get_upload_frames(&st, btn, g_table, frames);
+
+        uint64_t expect_enc_part = alt_encrypt(((uint64_t)serial << 16) | cnt, g_table);
+        bool saw_tail_difference = false;
+        uint32_t tail0 = 0;
+        for(int n = 0; n < 16; n++) {
+            uint8_t byte = (uint8_t)(btn << 4 | (0xF ^ btn ^ (uint8_t)n));
+            uint64_t independent_body =
+                ((uint64_t)byte << 44) | (expect_enc_part & 0xFFFFFFFFFFFULL);
+            CHECK(independent_body == frames[n],
+                  "nice-one+plain: parcel %d body diverges from independent rebuild", n);
+
+            uint32_t tail = nice_one_tail_for_parcel(frames[n], (uint8_t)n);
+            CHECK(nice_one_tail_for_parcel(independent_body, (uint8_t)n) == tail,
+                  "nice-one+plain: parcel %d tail diverges when fed the independently "
+                  "rebuilt body",
+                  n);
+            if(n == 0) {
+                tail0 = tail;
+            } else if(tail != tail0) {
+                saw_tail_difference = true;
+            }
+        }
+        CHECK(saw_tail_difference,
+              "nice-one+plain: tail must still vary across parcels via num_parcel alone");
+    }
+    fprintf(
+        stderr,
+        "[5/5 cont'd] Nice One (72 Bit) + plain backward-compat: %llu checks so far, %llu "
+        "failures\n",
+        (unsigned long long)g_checks,
+        (unsigned long long)g_failures);
 
     if(g_failures == 0) {
         printf("ALL CHECKS PASSED (%llu checks)\n", (unsigned long long)g_checks);
