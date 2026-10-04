@@ -3816,6 +3816,56 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Port-Skizze nur noch `feed()` (Live-Erkennung) und die Installateurcode-Recovery-App
       offen — unverändert gegenüber der Vorsitzung.
 
+## App-Verbesserungen (Fortsetzung 11)
+- [x] **lora-ukfe**: den in `trigger-catalog-number-input-port.md` und
+      `payload-run-catalog-number-input-port.md` jeweils identisch unter „Bewusst nicht
+      mitgeliefert"/„Offen" vermerkten Rückstellpunkt aufgegriffen —
+      `scenes/scene_payload_list.c`s `payload_callback()` rief beim Anklicken eines Eintrags
+      aus der vom Heltec gemeldeten Payload-Liste (JSON-Kommando `payload_list`, eigener
+      „Payloads"-Menüpunkt, unabhängig vom Katalog-Pfad) bislang `ukfe_uart_send_trigger(app,
+      id, 0)` mit fest verdrahtetem `delay_ms=0` auf — eine Payload auszuwählen löste sie immer
+      sofort aus, ohne Möglichkeit zur Delay-Eingabe. Gefixt: `payload_callback()` merkt sich
+      jetzt nur noch die angeklickte Payload-ID, schaltet auf die bereits vom
+      `trigger_catalog_number_input.patch` eingebundene `NumberInput`-View um und fragt „Delay
+      ms (0-300000)" ab (dieselbe `TRIGGER_DELAY_MS_MAX`-Konvention/derselbe Wert wie in
+      `scene_trigger_confirm.c`, als eigenes `#define` wiederholt, da C-Makros nicht über
+      Übersetzungseinheiten geteilt werden); erst der Ergebnis-Callback sendet
+      `ukfe_uart_send_trigger(app, id, delay_ms)` und geht danach wie bisher über
+      `scene_manager_previous_scene()` zurück ins Menü. Anders als bei den beiden
+      Katalog-Funden keine neue Scene (kein reservierter, ungenutzter Scene-Slot vorhanden) —
+      stattdessen ein View-Wechsel innerhalb der bestehenden Scene; `build_list()`, die
+      `0x12`-Refresh- und `0x11`-Ack-Behandlung sowie `on_enter`/`on_exit` bleiben
+      unverändert. Back während der Delay-Eingabe verlässt bewusst die gesamte Scene (bereits
+      bestehendes, unkonditionales `on_event()`-Verhalten, unverändert übernommen statt eines
+      zusätzlichen Zurück-zur-Liste-Zwischenschritts) — dieselbe „einfachste Lösung für den
+      Einschritt-Fall" wie bei `scene_payload_run_confirm.c`.
+  - Patch (setzt auf `trigger_catalog_number_input.patch` auf; beide zusammen `git apply
+      --check` gegen eine frische, unabhängige Kopie der unveränderten
+      `G4MEOVER18/lora-ukfe`-Basis, Commit `0dba410a`, verifiziert, real angewendet und
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch) in
+      `payload-list-delay-input-port/payload_list_delay_input.patch`, einzige geänderte Datei
+      `scenes/scene_payload_list.c`.
+  - Host-Repro (kompiliert die echte, unveränderte `scenes/scene_payload_list.c` dieser Sitzung
+      direkt mit, nur `lora_ukfe.h`/`scenes.h` als schlanke Mock-Header nach demselben Muster
+      wie in den beiden vorherigen lora-ukfe-Repros; `ukfe_uart_send_trigger()` als
+      aufzeichnender Stub wie zuvor `ukfe_uart_send_rf()`) in
+      `repro-payload-list-delay-input/repro.c`: acht Szenarien — Normalablauf (Auswahl mit
+      `id`≠Index, Delay-Eingabe, korrekter `ukfe_uart_send_trigger(id,delay_ms)`-Aufruf erst
+      nach Bestätigung, danach `previous_scene()`), `delay_ms=0`-Randfall (wird weiterhin
+      gesendet), Obergrenze `delay_ms=300000`, `index >= payload_count` (Callback kehrt
+      unverändert sofort zurück), `0x12`-Refresh/`0x11`-Ack bleiben auch während einer
+      laufenden Delay-Eingabe unverändert funktionsfähig, Back während der Delay-Eingabe
+      verlässt die Scene ohne zu senden, `on_exit()` räumt auch mit aktiver
+      NumberInput-View auf, Randfall-Rundlauf über sechs ID/Delay-Kombinationen. Unter `gcc
+      -std=c11 -Wall -Wextra -fsanitize=address,undefined` bei `-O0`/`-O1` verifiziert: 8/8
+      Szenarien bestanden, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen.
+  - Dokumentiert in `app-improvements/lora-ukfe/payload-list-delay-input-port.md`. Offen
+      bleibt bewusst: Back während der Delay-Eingabe verlässt die ganze Liste statt nur zur
+      Liste zurückzugehen (reiner Bedienungskomfort-Punkt); ein `0x12`-Refresh, der die gerade
+      ausgewählte ID beim Hub neu vergibt, wird von der laufenden Delay-Eingabe nicht erkannt
+      (dieselbe Grenze, die auch das bisherige Sofort-Senden schon hatte, keine
+      Verschlechterung).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

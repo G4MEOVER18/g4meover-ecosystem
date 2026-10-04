@@ -1,0 +1,45 @@
+diff --git a/scenes/scene_payload_list.c b/scenes/scene_payload_list.c
+index f04b11b..85df1a4 100644
+--- a/scenes/scene_payload_list.c
++++ b/scenes/scene_payload_list.c
+@@ -1,15 +1,36 @@
+ #include "../lora_ukfe.h"
+ #include "scenes.h"
+ 
++// Obergrenze fuer delay_ms im UI, dieselbe Konvention/derselbe Wert wie in
++// scene_trigger_confirm.c: 5 Minuten UI-Obergrenze (NumberInput rechnet mit
++// int32_t), das JSON-Protokoll (ukfe_uart_send_trigger()) traegt delay_ms
++// weiterhin als volles uint32_t -- reine UI-Grenze, kein Protokolllimit.
++#define TRIGGER_DELAY_MS_MAX 300000
++
++// Payload-ID, fuer die gerade ein Delay abgefragt wird (zwischen
++// payload_callback() und payload_delay_cb() gueltig).
++static uint8_t s_selected_id;
++
++static void payload_delay_cb(void* ctx, int32_t number) {
++    LораUkfeApp* app = ctx;
++    ukfe_uart_send_trigger(app, s_selected_id, (uint32_t)number);
++
++    // Kurzes visuelles Feedback → dann zurück ins Menü
++    scene_manager_previous_scene(app->scene_manager);
++}
++
+ static void payload_callback(void* ctx, uint32_t index) {
+     LораUkfeApp* app = ctx;
+     if(index >= app->payload_count) return;
+ 
+-    uint8_t id = app->payloads[index].id;
+-    ukfe_uart_send_trigger(app, id, 0);
++    s_selected_id = app->payloads[index].id;
+ 
+-    // Kurzes visuelles Feedback → dann zurück ins Menü
+-    scene_manager_previous_scene(app->scene_manager);
++    // Delay (ms) abfragen statt sofort mit delay_ms=0 zu senden -- Senden
++    // passiert erst aus payload_delay_cb(), nach Bestaetigung der Eingabe.
++    number_input_set_header_text(app->number_input, "Delay ms (0-300000)");
++    number_input_set_result_callback(
++        app->number_input, payload_delay_cb, app, 0, 0, TRIGGER_DELAY_MS_MAX);
++    view_dispatcher_switch_to_view(app->view_dispatcher, UkfeViewNumberInput);
+ }
+ 
+ static void build_list(LораUkfeApp* app) {
