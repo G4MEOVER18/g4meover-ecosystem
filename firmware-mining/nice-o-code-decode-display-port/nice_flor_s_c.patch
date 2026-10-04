@@ -1,0 +1,123 @@
+diff --git a/lib/subghz/protocols/nice_flor_s.c b/lib/subghz/protocols/nice_flor_s.c
+index ca203be..e9324ab 100644
+--- a/lib/subghz/protocols/nice_flor_s.c
++++ b/lib/subghz/protocols/nice_flor_s.c
+@@ -39,6 +39,13 @@ struct SubGhzProtocolDecoderNiceFlorS {
+ 
+     const char* nice_flor_s_rainbow_table_file_name;
+     uint64_t data;
++
++    /* Nice O-Code: set from an "IC" hex field on .sub load (see
++     * subghz_protocol_decoder_nice_flor_s_deserialize()). Decode-only for now: a live
++     * capture always has o_code == false (see subghz_protocol_decoder_nice_flor_s_reset()),
++     * get_string() is the only reader (see subghz_protocol_decoder_nice_flor_s_get_string()). */
++    uint16_t ic;
++    bool o_code;
+ };
+ 
+ struct SubGhzProtocolEncoderNiceFlorS {
+@@ -694,6 +701,8 @@ void* subghz_protocol_decoder_nice_flor_s_alloc(SubGhzEnvironment* environment)
+         FURI_LOG_D(
+             TAG, "Loading rainbow table from %s", instance->nice_flor_s_rainbow_table_file_name);
+     }
++    instance->ic = NICE_FLOR_S_IC_PLAIN;
++    instance->o_code = false;
+     return instance;
+ }
+ 
+@@ -708,6 +717,11 @@ void subghz_protocol_decoder_nice_flor_s_reset(void* context) {
+     furi_assert(context);
+     SubGhzProtocolDecoderNiceFlorS* instance = context;
+     instance->decoder.parser_step = NiceFlorSDecoderStepReset;
++    /* Drop a previously loaded O-Code IC: otherwise the next live capture (always plain
++     * Flor-S on this decode path, see get_string() below) would keep decoding through
++     * decrypt_ic() with a stale ic/mask instead of falling back to remote_controller(). */
++    instance->ic = NICE_FLOR_S_IC_PLAIN;
++    instance->o_code = false;
+ }
+ 
+ void subghz_protocol_decoder_nice_flor_s_feed(void* context, bool level, uint32_t duration) {
+@@ -892,6 +906,18 @@ SubGhzProtocolStatus subghz_protocol_decoder_nice_flor_s_serialize(
+             ret = SubGhzProtocolStatusErrorParserOthers;
+         }
+     }
++    if(instance->o_code) {
++        if(!flipper_format_rewind(flipper_format)) {
++            FURI_LOG_E(TAG, "Rewind error");
++            ret = SubGhzProtocolStatusErrorParserOthers;
++        }
++        uint8_t ic_data[2] = {(uint8_t)(instance->ic >> 8), (uint8_t)instance->ic};
++        if((ret == SubGhzProtocolStatusOk) &&
++           !flipper_format_insert_or_update_hex(flipper_format, "IC", ic_data, sizeof(ic_data))) {
++            FURI_LOG_E(TAG, "Unable to add IC");
++            ret = SubGhzProtocolStatusErrorParserOthers;
++        }
++    }
+     return ret;
+ }
+ 
+@@ -937,6 +963,23 @@ SubGhzProtocolStatus
+         } else {
+             nice_flors_counter_mode = 0;
+         }
++
++        if(!flipper_format_rewind(flipper_format)) {
++            FURI_LOG_E(TAG, "Rewind error");
++            break;
++        }
++        /* Optional Nice O-Code installer code. Absent on every plain Flor-S/Nice One file
++         * (including all previously saved ones): o_code stays false, get_string() below
++         * then takes the existing, unmodified remote_controller() path exactly as before
++         * this field existed. */
++        uint8_t ic_data[2] = {0};
++        if(flipper_format_read_hex(flipper_format, "IC", ic_data, sizeof(ic_data))) {
++            instance->ic = ((uint16_t)ic_data[0] << 8) | ic_data[1];
++            instance->o_code = true;
++        } else {
++            instance->ic = NICE_FLOR_S_IC_PLAIN;
++            instance->o_code = false;
++        }
+     } while(false);
+     return ret;
+ }
+@@ -1043,8 +1086,30 @@ void subghz_protocol_decoder_nice_flor_s_get_string(void* context, FuriString* o
+     furi_assert(context);
+     SubGhzProtocolDecoderNiceFlorS* instance = context;
+ 
+-    subghz_protocol_nice_flor_s_remote_controller(
+-        &instance->generic, instance->nice_flor_s_rainbow_table_file_name);
++    if(instance->o_code) {
++        /* Nice O-Code: each of the 16 parcels of a press re-encrypts (serial, cnt) under
++         * its own mask instead of repeating one ciphertext (see
++         * firmware-mining/nice-o-code-subghz-port.md) — remote_controller() below assumes
++         * the latter and must not be used here. n/mask/decrypt_ic() are the same
++         * additive helpers from that port, exercised end to end by
++         * firmware-mining/repro-nice-o-code-decode-display/repro.c against this exact
++         * sequence. btn is read from the frame directly, same as the plain path (P0 is
++         * never encrypted either way). */
++        uint8_t n = subghz_protocol_nice_o_get_parcel(instance->generic.data);
++        uint32_t mask_32;
++        uint16_t mask_16;
++        subghz_protocol_nice_o_mask(n, &mask_32, &mask_16);
++        uint64_t decrypted = subghz_protocol_nice_flor_s_decrypt_ic(
++            instance->generic.data & 0xFFFFFFFFFFFULL,
++            (uint16_t)(instance->ic ^ mask_16),
++            instance->nice_flor_s_rainbow_table_file_name);
++        instance->generic.cnt = (uint16_t)decrypted;
++        instance->generic.serial = (uint32_t)((decrypted >> 16) ^ mask_32) & 0x0FFFFFFFu;
++        instance->generic.btn = (uint8_t)((instance->generic.data >> 48) & 0xF);
++    } else {
++        subghz_protocol_nice_flor_s_remote_controller(
++            &instance->generic, instance->nice_flor_s_rainbow_table_file_name);
++    }
+ 
+     if(instance->generic.data_count_bit == NICE_ONE_COUNT_BIT) {
+         furi_string_cat_printf(
+@@ -1074,4 +1139,7 @@ void subghz_protocol_decoder_nice_flor_s_get_string(void* context, FuriString* o
+             instance->generic.cnt,
+             instance->generic.btn);
+     }
++    if(instance->o_code) {
++        furi_string_cat_printf(output, "IC:%04X\r\n", instance->ic);
++    }
+ }

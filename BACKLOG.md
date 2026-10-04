@@ -3706,6 +3706,47 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     Cluster-Kandidat jetzt nur noch `nfc_relay` (zwei eigene Flipper-Geräte, UART-Direktverbindung,
     weiterhin zurückgestellt).
 
+## Firmware-Feature-Mining (Fortsetzung 18)
+- [x] Phase 2 des Nice-O-Code-Ports aus der Fortsetzung-5-Sitzung aufgegriffen: die dort
+      verifizierten, additiven und bis dahin unverwendeten Hilfsfunktionen
+      (`subghz_protocol_nice_flor_s_encrypt_ic()`/`_decrypt_ic()`, `subghz_protocol_nice_o_mask()`,
+      `subghz_protocol_nice_o_get_parcel()`) jetzt tatsächlich verdrahtet — aber bewusst nur den
+      risikoärmsten Ausschnitt aus der dortigen Port-Skizze: Struct-Erweiterung
+      (`SubGhzProtocolDecoderNiceFlorS` um `ic`/`o_code`), `.sub`-I/O für ein neues optionales
+      `IC`-Hex-Feld, und die Decoder-Anzeige (`get_string()`). `feed()` (Live-Zwei-Pakete-Heuristik
+      am bereits produktiven Plain-FloR-S-Empfangspfad) und der Encoder (`get_upload()`) bleiben
+      wie in der Vorsitzung dokumentiert zurückgestellt — beide unverändert.
+  - `reset()` setzt `ic`/`o_code` ebenfalls zurück (Port-Skizze Schritt 1), damit eine zuvor
+    geladene O-Code-Datei nicht den Zustand einer späteren, unabhängigen Live-Aufnahme in
+    derselben Decoder-Instanz verfälscht. `deserialize()`/`serialize()` lesen/schreiben das neue
+    `IC`-Feld nach demselben Rewind-Muster wie das bestehende `CounterMode`-Feld — fehlt es (jede
+    bisherige Datei), bleibt der Zustand exakt wie nach `alloc()`. `get_string()` bekommt eine
+    neue Verzweigung an der Spitze: bei `o_code` wird Paketindex → Maske → `decrypt_ic()` auf den
+    unteren 44 Bit von `instance->generic.data` angewandt (identisches Schema zur bereits in der
+    Vorsitzung verifizierten Pipeline), `btn` weiterhin direkt aus dem unverschlüsselten
+    Rahmenbyte; ohne `o_code` bleibt der bestehende `remote_controller()`-Aufruf und die
+    bestehenden `furi_string_cat_printf()`-Formatstrings byte-identisch unverändert, nur um eine
+    zusätzliche `IC:%04X`-Zeile ergänzt.
+  - Patch (baut auf dem bereits vorliegenden Phase-1-Patch der Vorsitzung auf, Anwendungsreihenfolge
+    dokumentiert; `git apply --check` beider Patches hintereinander sowie real angewendet gegen
+    eine frische, unabhängige Kopie von `Next-Flip/Momentum-Firmware` Tag `mntm-012` verifiziert,
+    Ergebnis byte-für-byte mit der Sitzungs-Arbeitskopie abgeglichen) in
+    `firmware-mining/nice-o-code-decode-display-port/nice_flor_s_c.patch`.
+  - Host-Repro (`alloc()`/`reset()`/`deserialize()`/`serialize()`/`get_string()` neue Zeilen 1:1
+    als eigene Funktionen transkribiert, nicht nur die Chiffre wie in der Vorsitzung; fünf
+    Prüfschritte: Rückwärtskompatibilitäts-Regression bei fehlendem `IC`-Feld, O-Code
+    Ende-zu-Ende über die echten Integrationspunkte inkl. Feld-Rückschreiben und Falsch-IC-Probe,
+    `reset()`-Lösch-Nachweis im genauen Cross-Contamination-Szenario, Symmetrie des
+    Feld-Fehlens beim Schreiben, ein durchgerechnetes Beispiel) unter
+    `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert:
+    **1 621 999 Prüfungen, ALLE CHECKS BESTANDEN**, keine Compiler-Warnungen, keine
+    ASan-/UBSan-Meldung — in `firmware-mining/repro-nice-o-code-decode-display/repro.c`.
+  - Damit liegt für Nice O-Code jetzt eine tatsächlich nutzbare (wenn auch auf das Laden bereits
+    IC-versehener Dateien beschränkte) Erweiterung vor statt nur toter, unverdrahteter Krypto-
+    Grundlagen. Verbleibend offen: `feed()`-Live-Erkennung (Phase 3, berührt den produktiven
+    Empfangspfad), Encoder-Gegenstück (Senden), Installateurcode-Recovery-App — alle drei in
+    `firmware-mining/nice-o-code-decode-display-port.md` unter "Offen" benannt.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
