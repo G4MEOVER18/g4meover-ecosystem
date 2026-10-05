@@ -217,12 +217,14 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Katalog-Zeile ergänzt. Gen3-(APDU)/Gen4-GDM-Blanks bleiben unabgedeckt (neuere
       Community-Version könnte das nachrüsten, noch nicht geprüft). Parser-Teilaspekt weiterhin
       offen (unklar spezifiziert, in künftiger Sitzung zu konkretisieren).
-- [ ] MIFARE Plus / Ultralight AES: schlüsselbasierte Authentifizierung (`MfPlusKey`,
+- [~] MIFARE Plus / Ultralight AES: schlüsselbasierte Authentifizierung (`MfPlusKey`,
       `MfUltralightAesKey`, Auth-Poller-Zustände) fehlt mir komplett — nur beim
       `nfc-unified-key-dictionary.md`-Vorschlag als Lücke entdeckt, noch nicht selbst als
       Firmware-Mining-Fund bearbeitet. Eigenes, größeres Portierungsvorhaben (neue Datenfelder in
       `MfPlusData`/`MfUltralightData`, neue Poller-Logik), vermutlich über mehrere
-      Unleashed-Versionen gewachsen statt in einem Commit — Quellsuche noch offen.
+      Unleashed-Versionen gewachsen statt in einem Commit — Quellsuche jetzt abgeschlossen, siehe
+      Fortsetzung 21 unten; eigentliche Portierung weiterhin offen (mehrteilig, Phase 1 von 4
+      noch nicht umgesetzt).
 - [x] Unleashed `unlshd-092` vs. `unlshd-091` (letzter zuvor geprüfter Stand): großer,
       gesquashter RAM-Reduktions-Commit `2b4411f23` (PR #1073) geprüft. Daraus den in sich
       abgeschlossenen Teilschritt "ein gemeinsamer Schlüssel-Dictionary-Manager statt Duplikat je
@@ -3865,6 +3867,38 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       ausgewählte ID beim Hub neu vergibt, wird von der laufenden Delay-Eingabe nicht erkannt
       (dieselbe Grenze, die auch das bisherige Sofort-Senden schon hatte, keine
       Verschlechterung).
+
+## Firmware-Feature-Mining (Fortsetzung 21)
+- [x] Den seit Beginn offenen Backlog-Punkt "MIFARE Plus / Ultralight AES ... Quellsuche noch
+      offen" aufgegriffen und die Quellsuche abgeschlossen. Gegen meinen eigenen `mntm-012`-Baum
+      verifiziert (Grep über `lib/nfc/protocols/mf_plus/` und `.../mf_ultralight/`): `MfPlusKey`
+      und `MfUltralightAesKey` existieren bei mir tatsächlich nirgends — `MfPlusData` kennt nur
+      Version/Typ/Größe/Security-Level (reine Erkennung über GET_VERSION + ISO14443-4A), der
+      Poller hat nur sechs Zustände ohne jede Auth-/Sektor-Logik; `MfUltralightC3DesAuthKey`
+      (Ultralight-C) und die Passwort-Auth (EV1/NTAG) sind zwar bereits vorhanden, aber kein
+      AES-Key-Typ. Unleashed (`dev`, aktueller Stand) hat beide Protokolle um eine vollständige
+      AES-128-Drei-Pass-Authentifizierung samt Secure-Messaging erweitert: `mf_plus` wächst von
+      1125 auf 4084 Zeilen (+2959, u. a. neue `mf_plus_crypto.c/.h` und
+      `mf_plus_listener{,_i}.c/.h`), `mf_ultralight` von 4652 auf 10019 Zeilen (+5367, u. a. neue
+      `mf_ultralight_aes_crypto.c/.h`). Eigener Fund beim Lesen von Unleasheds
+      `mf_plus_crypto.h`-Datei-Header: der Schreibpfad (Write-IV) ist dort selbst als noch nicht
+      hardwarevalidiert markiert ("not yet hardware-validated ... confirm with a real-card write
+      trace before the write / emulation paths (PR6/7)") — selbst die Quelle behandelt dies als
+      mehrteiliges, stufenweise validiertes Vorhaben, kein abgeschlossener Einzelcommit.
+  - Scoping-Dokument mit vollständiger Dateiliste (betroffene Dateien beider Protokolle einzeln
+      benannt, mit Zeilenzahlen aus der Unleashed-Quelle), Risikobewertung (Umfang, Krypto-
+      Korrektheit in beide Richtungen, unvalidierter Schreibpfad bei der Quelle selbst, bewusste
+      Trennung der beiden Krypto-Module) und vierphasiger Port-Skizze (Phase 1: host-verifizierter
+      Krypto-Kern gegen öffentliche RFC-4493-/FIPS-197-Testvektoren, ohne Poller-Integration;
+      Phase 2: MIFARE-Plus-SL3-Lese-Authentifizierung ohne Schreiben/Emulation; Phase 3: analog
+      für Ultralight-AES; Phase 4: Anbindung an den bereits portierten gemeinsamen
+      Schlüssel-Dictionary-Manager) in `firmware-mining/mifare-plus-ultralight-aes-auth-port.md`.
+  - Damit ist der Backlog-Punkt von "Quellsuche offen" zu "Portierungsvorhaben konkret geplant,
+      Phase 1 von 4 als nächster kleiner Schritt einer künftigen Sitzung" fortgeschritten — kein
+      Patch in dieser Sitzung, da der Gesamtumfang (>8000 Zeilen Diff kombiniert) deutlich über
+      jedem bisher hier portierten Einzelfund liegt und eine seriöse Krypto-Verifikation
+      (Testvektoren statt nur Selbstvergleich) eigenen Host-Repro-Aufwand in einer eigenen
+      Sitzung verdient.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
