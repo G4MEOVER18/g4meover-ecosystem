@@ -1,0 +1,23 @@
+diff --git a/applications/external/nfc_relay/as_reader_worker.c b/applications/external/nfc_relay/as_reader_worker.c
+index 26b8baa..a32ae36 100644
+--- a/applications/external/nfc_relay/as_reader_worker.c
++++ b/applications/external/nfc_relay/as_reader_worker.c
+@@ -298,6 +298,18 @@ int32_t as_reader_worker_task(void* context) {
+                 continue;
+             }
+             FURI_LOG_D(TAG, "Recv NfcRelayPacketApduReq");
++            if(recv_packet->len == 0) {
++                // recv_packet->len is peer-controlled (comm_wait_packet() only checks the
++                // packet type, not its length) and a zero-length packet is a perfectly
++                // valid wire frame. Without this guard, `recv_packet->len - 1` underflows
++                // (uint8_t promoted to int, then to the size_t `size_bytes` parameter of
++                // bit_buffer_copy_bytes()) and trips its internal capacity furi_check(),
++                // crashing the device on an otherwise unremarkable relay packet.
++                FURI_LOG_E(TAG, "Recv NfcRelayPacketApduReq with zero length, dropping");
++                free(recv_packet);
++                recv_packet = NULL;
++                continue;
++            }
+             // drop PCB
+             bit_buffer_copy_bytes(
+                 as_reader_worker->bitbuffer_tx, &recv_packet->buf[1], recv_packet->len - 1);

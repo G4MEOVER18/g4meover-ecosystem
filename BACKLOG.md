@@ -404,7 +404,8 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `simultaneous_rfid_reader` dabei endgültig als Fremdhardware-Fall (externes
       YRM100-/M6E-/M7E-UHF-Lesegerät) bestätigt und abgeschlossen. Restlicher Cluster nur noch
       `nfctools` (~11 200 Zeilen, größter verbleibender Kandidat).
-- [ ] Restlichen NFC-Werkzeug-Cluster begonnen: **NFC Tools** (`applications/external/nfctools`,
+- [x] Restlichen NFC-Werkzeug-Cluster begonnen (**abgeschlossen, siehe Fortsetzung 23**): **NFC
+      Tools** (`applications/external/nfctools`,
       Autor `wakdev`, ~11 200 Zeilen) — in dieser Sitzung nur den NDEF-Kern
       (`core/nfc_tools_ndef.c`, 1080 Zeilen) vollständig geprüft. Fund: `ndef_fill_record()`
       extrahiert das vCard-Namensfeld im strukturierten Anzeigepfad mit unbegrenztem
@@ -3962,6 +3963,63 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Dateinamen gegen `firmware-mining/`/`app-improvements/`/`ideas/` ergab keinen zweiten Fall,
       in dem ein als offen markierter Punkt bereits anderswo unter abweichendem Dateinamen
       vollständig bearbeitet vorliegt.
+
+## Firmware-Feature-Mining (Fortsetzung 23)
+- [x] Den letzten im NFC-Werkzeug-Cluster verbliebenen Kandidaten aufgegriffen: **NFC Relay**
+      (`leommxj/nfc_relay`, über das RogueMaster-Bündel) war bisher nur als "Fremd-/Zweitgerät-
+      Fall (zwei eigene Flipper-Geräte, UART-Direktverbindung), weiterhin zurückgestellt"
+      eingeordnet (siehe `ideas/pentest-app-katalog.md`, Chameleon-Fortsetzung), nie
+      quelltextlich geprüft. Analog zum bereits dokumentierten `chameleon`-Fund gilt: auch ein
+      Werkzeug, das zwingend zwei eigene Geräte braucht, hat einen eigenen Paket-Parser für die
+      Relaisverbindung, der unabhängig vom Zweitgerät-Status geprüft werden kann — App
+      vollständig gelesen (15 Dateien, 1708 Zeilen: `nfc_relay.c/.h`, `comm.c/.h`,
+      `packet.c/.h`, `uart_worker.c/.h`, `as_reader_worker.c/.h`, `as_card_worker.c/.h`, fünf
+      Szenen-Dateien).
+  - Fund in `as_reader_worker.c::as_reader_worker_task()` (Zustand
+    `AsReaderWorkerStateInteractive`): `comm_wait_packet()` prüft beim Entgegennehmen eines
+    `NfcRelayPacketApduReq`-Pakets nur den Pakettyp, nicht dessen Länge; `uart_worker_task()`
+    erzeugt für `len == 0` einen vollkommen gültigen Null-Byte-Payload-Rahmen. Die bestehende
+    Behandlung wertet aber ungeprüft `recv_packet->len - 1` aus ("drop PCB") — bei `len == 0`
+    promotet die `uint8_t`-Subtraktion nach `int` (`0 - 1 = -1`), und dieser Wert erreicht als
+    riesiger `size_t`-Wert (`0xFFFFFFFF` auf der 32-Bit-Zielarchitektur) den
+    `size_bytes`-Parameter von `bit_buffer_copy_bytes()`. Dessen bereits vorhandene
+    `furi_check(buf->capacity_bytes >= size_bytes)`-Prüfung schlägt fehl (Zielpuffer nur 256
+    Byte) und bricht den Prozess kontrolliert ab (`furi_crash()` am echten Gerät) — ein
+    sauberer, aber über die Relaisverbindung aus der Ferne auslösbarer Denial-of-Service
+    (Geräteabsturz des "AsReader"-Geräts durch ein einzelnes, drei Byte kurzes Paket), keine
+    Speicherkorruption, da der Abbruch vor dem eigentlichen `memcpy()` greift. Laut eigenem
+    `README.md` brückt der Autor die Relaisverbindung selbst wahlweise über zwei
+    ESP-AT-WLAN-Module durch einen Cloud-Relay-Server aus dem Internet statt nur per direktem
+    UART-Kabel — die Angriffsfläche ist damit potenziell größer als "zwei Geräte nebeneinander
+    auf dem Tisch".
+  - Die naheliegende Geschwisterstelle in `as_card_worker.c`
+    (`as_card_worker->apdu_buf_len = recv_packet->len + 1`, reine Addition, passt auch bei
+    `len = 255` unverändert in das 260 Byte große `apdu_buf`) gegengeprüft: nicht betroffen.
+    Einen zunächst vermuteten zweiten Fund — ein Ganzzahlüberlauf-Bypass der
+    Längen-Konsistenzprüfung im `NfcRelayPacketNfcDevData`-Pfad derselben Datei
+    (`recv_packet->len == ((SerializedIso14443_4a*)recv_packet->buf)->len_t1_tk +
+    sizeof(SerializedIso14443_4a)`) — beim rigorosen Durchrechnen der zugrundeliegenden
+    Kongruenzgleichung wieder verworfen: die vorab verlangte Bedingung
+    `recv_packet->len > sizeof(SerializedIso14443_4a)` erzwingt bereits, dass die einzige
+    Lösung für `len_t1_tk` in der vollen 32-Bit-Wertemenge klein und legitim ist — kein
+    zweiter, böswillig großer Lösungswert möglich. Diese Stelle ist entgegen der ersten
+    Vermutung tatsächlich bereits korrekt; nicht mitgefixt, da kein echter Fund.
+  - Patch (`git apply --check` vorab gegen eine frische, unabhängige Kopie von
+    `RogueMaster/flipperzero-firmware-wPlugins` Branch `420` verifiziert, real angewendet und
+    byte-für-byte abgeglichen) in
+    `firmware-mining/nfc-relay-apdu-req-zero-length-underflow-fix/as_reader_worker_c.patch`.
+  - Host-Repro (Paketempfang, `bit_buffer_copy_bytes()`s Kapazitätsprüfung und der
+    ApduReq-Behandlungsausschnitt 1:1 transkribiert, `size_t` explizit als `uint32_t`
+    nachgebildet, um die 32-Bit-Zielarchitektur statt eines ggf. 64-Bit-Hosts abzubilden; sechs
+    Prüfschritte: Fund bei `len=0` in einem `fork()`-Kindprozess, Fix-Nachweis bei `len=0`,
+    Randfall `len=1`, Sanity-Fälle `len=5`/`len=255`, Äquivalenztest über `len=1..255`) unter
+    `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert: ALLE
+    CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+    `firmware-mining/repro-nfc-relay-apdu-req-zero-length-underflow/repro.c`. Details inkl.
+    Testhinweis in `firmware-mining/nfc-relay-apdu-req-zero-length-underflow-fix.md`,
+    `ideas/pentest-app-katalog.md` aktualisiert. Damit ist der komplette NFC-Werkzeug-Cluster
+    (`nfctools`, `uhf_rfid`, `chameleon`, `nfc_relay`) jetzt vollständig quelltextlich
+    durchgesehen — kein weiterer Kandidat in diesem Cluster offen.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
