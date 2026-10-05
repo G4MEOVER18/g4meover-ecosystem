@@ -1,5 +1,37 @@
 # MIFARE Plus SL3 / Ultralight-AES (MF0AES20): schlüsselbasierte Authentifizierung fehlt mir komplett
 
+## Korrekturhinweis (nachträglich ergänzt)
+
+Diese Datei dopplt unwissentlich eine bereits vorher existierende Quellsuche zu demselben Fund:
+`firmware-mining/mfplus-mfultralight-aes-auth-port.md` (ebenfalls bei mir vorhanden). Beim
+Schreiben dieser Datei habe ich `firmware-mining/` nicht auf einen bereits vorhandenen
+MIFARE-Plus-/Ultralight-AES-Eintrag durchsucht und dadurch fälschlich "seit Beginn offen"
+geschrieben, obwohl zu diesem Zeitpunkt bereits geliefert waren:
+
+- **Phase 1** (Krypto-Kern, identisch zu dem hier unten skizzierten Phase-1-Schritt) — bereits
+  host-verifiziert gegen FIPS-197, alle vier RFC-4493-CMAC-Testvektoren **und** einen
+  4000-Fälle-Differenzfuzz gegen OpenSSL `EVP_MAC` (strenger als unten vorgesehen), siehe
+  `firmware-mining/mfplus-mfultralight-aes-auth-port.md` + `firmware-mining/repro-mfplus-
+  mfultralight-aes-crypto/repro.c`.
+- **Phase 2** für **beide** Kartenfamilien (Struct-/Serialisierungserweiterung) — siehe
+  `firmware-mining/mfplus-phase2-sl3-struct-serialization.md` und `firmware-mining/
+  mfultralight-aes-phase2-struct-serialization.md`.
+- Der host-testbare Teil von **Phase 3** (SL0-vs-SL3-SAK-/ATQA-Korrekturen) — siehe
+  `firmware-mining/mfplus-sl0-sl3-detection-port.md`.
+
+Gegengeprüft, ob der hier verwendete neuere Unleashed-Commit (`197ed204`, 2026-10-05) gegenüber
+dem in den obigen Dokumenten verwendeten Commit (`945234a`, 2026-09-10) inhaltlich neuen Umfang
+für dieses Feature brachte: `mf_plus_crypto.c` ist zwischen beiden Commits byte-identisch, die
+Ultralight-Listener-Dateien sind zeilenzahlidentisch — kein neuer Umfang, diese Datei ist eine
+reine, sachlich überflüssige Dopplung der bereits vorhandenen Arbeit.
+
+Die ursprünglichen Inhalte unten bleiben unverändert stehen (siehe `CONSTRAINTS.md` Punkt 6,
+nicht destruktiv), sind aber durch diesen Hinweis als Zweitquelle statt als "Phase 1 von 4
+noch nicht umgesetzt" einzuordnen. Tatsächlich wirklich offen: Phase 3 Rest (Poller-
+Zustandsautomaten), Phase 4 (Schreibfluss/Admin-Keys), Phase 5 (Listener/Emulation), Phase 6
+(UI/Dictionary-Anbindung) — alle vier hardwaregebunden bzw. auf den vorherigen aufbauend, siehe
+`BACKLOG.md` "Firmware-Feature-Mining (Fortsetzung 22)" für die vollständige Korrektur.
+
 ## Was
 
 Dies ist die vertiefte Quellsuche/Scoping-Analyse zu der in `firmware-mining/nfc-unified-key-dictionary.md`

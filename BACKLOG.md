@@ -218,13 +218,20 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Community-Version könnte das nachrüsten, noch nicht geprüft). Parser-Teilaspekt weiterhin
       offen (unklar spezifiziert, in künftiger Sitzung zu konkretisieren).
 - [~] MIFARE Plus / Ultralight AES: schlüsselbasierte Authentifizierung (`MfPlusKey`,
-      `MfUltralightAesKey`, Auth-Poller-Zustände) fehlt mir komplett — nur beim
-      `nfc-unified-key-dictionary.md`-Vorschlag als Lücke entdeckt, noch nicht selbst als
-      Firmware-Mining-Fund bearbeitet. Eigenes, größeres Portierungsvorhaben (neue Datenfelder in
-      `MfPlusData`/`MfUltralightData`, neue Poller-Logik), vermutlich über mehrere
-      Unleashed-Versionen gewachsen statt in einem Commit — Quellsuche jetzt abgeschlossen, siehe
-      Fortsetzung 21 unten; eigentliche Portierung weiterhin offen (mehrteilig, Phase 1 von 4
-      noch nicht umgesetzt).
+      `MfUltralightAesKey`, Auth-Poller-Zustände) — **korrigiert, siehe Fortsetzung 22**: dieser
+      Eintrag behauptete zuletzt (Fortsetzung 21) fälschlich "noch nicht selbst als
+      Firmware-Mining-Fund bearbeitet" bzw. "Phase 1 von 4 noch nicht umgesetzt". Tatsächlich
+      bereits vor Fortsetzung 21 geliefert (dort übersehen, kein Querverweis geprüft): Phase 1
+      (Krypto-Kern, host-verifiziert gegen FIPS-197/RFC-4493/OpenSSL-Differenzfuzz,
+      `firmware-mining/mfplus-mfultralight-aes-auth-port.md`), Phase 2 für beide Kartenfamilien
+      (Struct-/Serialisierungs-Erweiterung, `firmware-mining/mfplus-phase2-sl3-struct-
+      serialization.md` + `firmware-mining/mfultralight-aes-phase2-struct-serialization.md`)
+      sowie der host-testbare Teil von Phase 3 (SAK-/ATQA-Korrekturen,
+      `firmware-mining/mfplus-sl0-sl3-detection-port.md`). Wirklich offen (unverändert durch die
+      Korrektur): die eigentlichen Poller-Auth-Zustandsautomaten (Rest von Phase 3), Schreibfluss/
+      Admin-Keys (Phase 4, Write-IV bei der Quelle selbst unvalidiert), Listener/Emulation
+      (Phase 5), UI/Dictionary-Anbindung (Phase 6) — alle vier brauchen echte Hardware zum
+      sinnvollen Testen bzw. bauen auf den vorherigen, noch nicht hardwaregetesteten Phasen auf.
 - [x] Unleashed `unlshd-092` vs. `unlshd-091` (letzter zuvor geprüfter Stand): großer,
       gesquashter RAM-Reduktions-Commit `2b4411f23` (PR #1073) geprüft. Daraus den in sich
       abgeschlossenen Teilschritt "ein gemeinsamer Schlüssel-Dictionary-Manager statt Duplikat je
@@ -3899,6 +3906,62 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       jedem bisher hier portierten Einzelfund liegt und eine seriöse Krypto-Verifikation
       (Testvektoren statt nur Selbstvergleich) eigenen Host-Repro-Aufwand in einer eigenen
       Sitzung verdient.
+
+## Firmware-Feature-Mining (Fortsetzung 22)
+- [x] Vor der eigentlichen Arbeit wie in `WORKFLOW.md` vorgeschrieben `reports/` durchgesehen, um
+      den in Fortsetzung 21 als nächsten Schritt vermerkten Punkt (Phase 1 der MIFARE-Plus-/
+      Ultralight-AES-Port-Skizze: `mf_plus_crypto.c/.h`/`mf_ultralight_aes_crypto.c/.h`
+      übernehmen, gegen RFC-4493/FIPS-197 verifizieren) aufzugreifen. Dabei `firmware-mining/`
+      nach bereits existierenden MIFARE-Plus-/Ultralight-AES-Dateien durchsucht (`grep -rl`
+      über typische Namensmuster) und festgestellt: `firmware-mining/repro-mfplus-
+      mfultralight-aes-crypto/`, `firmware-mining/mfplus-phase2-sl3-struct-serialization/`,
+      `firmware-mining/mfultralight-aes-phase2-struct-serialization/` und `firmware-mining/
+      mfplus-sl0-sl3-detection-port/` existierten bereits, mit zugehörigen `.md`-Dokumenten und
+      Backlog-Einträgen aus `reports/2026-09-12-1230.md`, `reports/2026-09-15-0032.md`,
+      `reports/2026-09-15-0637.md`, `reports/2026-09-15-1229.md`, `reports/2026-09-18-1233.md` —
+      allesamt älter als der in Fortsetzung 21 behauptete Stand "seit Beginn offen".
+- [x] Nachvollzogen, was dort bereits geliefert wurde (gegen die jeweiligen `.md`-Dokumente und
+      Host-Repros gelesen, nicht nur die Dateinamen): Phase 1 (`mf_plus_crypto.c/.h`/
+      `mf_ultralight_aes_crypto.c/.h`, 1:1 aus Unleashed übernommen) war bereits mit acht
+      Host-Prüfungen verifiziert — FIPS-197-AES-Referenzvektor, alle vier RFC-4493-CMAC-
+      Testvektoren, 4000-Fälle-Differenzfuzz gegen OpenSSL `EVP_MAC` "CMAC", Truncated-MAC
+      gegen dieselbe Referenz, AES-CBC-Rundlauf plus Block-für-Block-Handrechnung, Rotations-
+      Helfer, Read-/Write-IV-Byte-Layout, Session-Schlüssel-Determinismus — strenger als der in
+      Fortsetzung 21 für Phase 1 vorgesehene Umfang (dort nur RFC-4493/FIPS-197 ohne
+      Differenzfuzz geplant). Phase 2 war bereits für **beide** Kartenfamilien geliefert (nicht
+      nur MIFARE Plus): `MfPlusData`-Struct-Erweiterung samt Serialisierung und
+      Rückwärtskompatibilität zu Alt-Dumps, sowie analog `MfUltralightData` um die optionale
+      AES-Originalitätssignatur und einen neuen Kartentyp-Eintrag, je mit eigenem Host-Repro
+      (`ALL CHECKS PASSED`, kein LeakSanitizer-Fund). Zusätzlich war der host-testbare Teilschritt
+      von Phase 3 (SL0-vs-SL3-SAK-/ATQA-Auswertung, zwei eigenständige Korrektheitsfehler in der
+      bisherigen SAK-Zuordnung behoben) bereits als eigener Patch geliefert.
+- [x] Damit war der in Fortsetzung 21 geschriebene Satz "seit Beginn offen" sachlich falsch, und
+      die dort neu angelegte Scoping-Datei `firmware-mining/mifare-plus-ultralight-aes-auth-
+      port.md` eine unbemerkte Dopplung der bereits existierenden `firmware-mining/mfplus-
+      mfultralight-aes-auth-port.md` — beide dokumentieren denselben Fund anhand praktisch
+      identischer Unleashed-Commits (`945234a` vom 2026-09-10 bzw. `197ed204` vom 2026-10-05).
+      Gegengeprüft, ob der neuere Commit tatsächlich zusätzlichen Umfang brachte (sonst wäre die
+      Fortsetzung-21-Analyse trotz der Dopplung sachlich neuwertig gewesen): `mf_plus_crypto.c`
+      byte-für-byte zwischen beiden Commits identisch (`diff` ohne Ausgabe), `mf_ultralight_
+      listener.c/_i.c/.h/_i.h` in Zeilenzahl zwischen beiden Commits ebenfalls unverändert (1074/
+      657/28/155 Zeilen an beiden Commits) — kein inhaltlicher Fortschritt bei Unleashed zwischen
+      den beiden Pin-Daten für dieses Feature, die Fortsetzung-21-Sitzung hat also tatsächlich nur
+      bereits vorhandene eigene Arbeit unwissentlich doppelt erfasst, keine neue Quellenlage
+      entdeckt.
+- [x] Korrektur statt Weiterarbeit an einer falschen Prämisse geliefert (kein Firmware-Patch in
+      dieser Sitzung, da sonst eine dritte, überflüssige Kopie der bereits zweimal vorhandenen
+      Phase-1-Arbeit entstanden wäre): `firmware-mining/mifare-plus-ultralight-aes-auth-port.md`
+      um einen Korrekturhinweis am Dateianfang ergänzt (nicht gelöscht, siehe `CONSTRAINTS.md`
+      Punkt 6 — nur ergänzt), der auf die bereits existierenden September-Dokumente verweist und
+      den tatsächlichen Stand richtigstellt, sowie den oben stehenden Backlog-Eintrag korrigiert.
+      Damit verweisen jetzt beide Scoping-Dokumente konsistent auf denselben Fortschritt, und eine
+      künftige Sitzung liest beim nächsten Aufgreifen dieses Punkts den korrekten Stand (Phase 3
+      Rest/4/5/6, hardwaregebunden) statt erneut bei Phase 1 anzusetzen.
+- [x] Keine weiteren offenen Backlog-Punkte mit demselben Dopplungsrisiko gefunden: Grep über
+      `BACKLOG.md` nach allen `- [ ]`/`- [~]`-Einträgen und Gegenprüfung ihrer referenzierten
+      Dateinamen gegen `firmware-mining/`/`app-improvements/`/`ideas/` ergab keinen zweiten Fall,
+      in dem ein als offen markierter Punkt bereits anderswo unter abweichendem Dateinamen
+      vollständig bearbeitet vorliegt.
 
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
