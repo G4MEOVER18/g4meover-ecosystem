@@ -1393,6 +1393,23 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   38 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
   reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht,
   kein Firmware-/GUI-Code geschrieben.
+- 2026-10-05 (Cloud-Heartbeat): bewusst keine weitere TODO-Zerlegung — alle zwölf Phasen haben laut
+  Log 2026-10-03/-04 bereits acht Verfeinerungsrunden durchlaufen, eine neunte an denselben drei
+  vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f) wäre reine Wiederholung ohne Mehrwert. Stattdessen
+  nur Sachstand geprüft und zwei wiederkehrende Repo-Hygiene-Funde behoben: lokaler `main`-
+  Branch-Zeiger stand (wie schon mehrfach zuvor, siehe Log 2026-09-15ff.) 21 Commits hinter
+  `origin/main`/`HEAD` zurück — per `git checkout -B main HEAD` nachgezogen, kein Datenverlust
+  (reiner Fast-Forward, `origin/main` unverändert). Git-Identität dieses Checkouts stand erneut auf
+  dem Cloud-Default `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor diesem
+  Commit auf `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Wiederkehrende Prüfungen,
+  alle unverändert: Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut gegen
+  `git log --all --diff-filter=A` geprüft: weiterhin kein Treffer. `ecosystem/devices.json`/
+  `ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide gültig. Zugangsdaten-
+  Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt 39 Tage) —
+  keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
+  Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1433,7 +1450,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 38 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 39 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1575,7 +1592,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 38 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 39 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
