@@ -1,0 +1,96 @@
+diff --git a/applications/external/nfctools/core/nfc_tools_ndef.c b/applications/external/nfctools/core/nfc_tools_ndef.c
+index ac0201d9..1fbcf887 100644
+--- a/applications/external/nfctools/core/nfc_tools_ndef.c
++++ b/applications/external/nfctools/core/nfc_tools_ndef.c
+@@ -557,6 +557,32 @@ static void url_encode(const char* src, char* dest, size_t dest_size) {
+     dest[j] = '\0';
+ }
+ 
++// ── vCard 3.0 TEXT escaping (RFC 6350 §3.4) ─────────────────────────────────
++// Backslash, semicolon and comma are structural delimiters in vCard TEXT
++// values -- N and ADR are themselves semicolon-separated subfields, so an
++// unescaped ';' from free-text user input (e.g. a company name like
++// "Acme; Inc.") re-slices those subfields on every vCard-reading device.
++// Embedded newlines are escaped the same way; a bare '\r' is dropped
++// defensively (the keyboard input this feeds from cannot produce one).
++static void vcard_escape(const char* src, char* dest, size_t dest_size) {
++    size_t j = 0;
++    for(size_t i = 0; src[i] != '\0' && j + 3 < dest_size; i++) {
++        char c = src[i];
++        if(c == '\\' || c == ';' || c == ',') {
++            dest[j++] = '\\';
++            dest[j++] = c;
++        } else if(c == '\n') {
++            dest[j++] = '\\';
++            dest[j++] = 'n';
++        } else if(c == '\r') {
++            continue;
++        } else {
++            dest[j++] = c;
++        }
++    }
++    dest[j] = '\0';
++}
++
+ uint8_t* nfc_tools_ndef_build(NfcToolsApp* app, size_t* out_size) {
+     uint8_t tnf = 0x00;
+     const char* type = "";
+@@ -762,15 +788,49 @@ uint8_t* nfc_tools_ndef_build(NfcToolsApp* app, size_t* out_size) {
+ 
+         FuriString* vc = furi_string_alloc();
+         furi_string_cat_str(vc, "BEGIN:VCARD\r\nVERSION:3.0\r\n");
+-        furi_string_cat_printf(vc, "FN:%s\r\n", app->ndef_buf1);
+-        furi_string_cat_printf(vc, "N:;%s;;;\r\n", app->ndef_buf1);
+-        if(app->ndef_buf2[0]) furi_string_cat_printf(vc, "ORG:%s\r\n", app->ndef_buf2);
+-        if(app->ndef_buf3[0]) furi_string_cat_printf(vc, "ADR:;;%s;;;;\r\n", app->ndef_buf3);
+-        if(app->ndef_buf4[0] && !(app->ndef_buf4[0] == '+' && app->ndef_buf4[1] == '\0'))
+-            furi_string_cat_printf(vc, "TEL:%s\r\n", app->ndef_buf4);
+-        if(app->ndef_buf5[0]) furi_string_cat_printf(vc, "EMAIL:%s\r\n", app->ndef_buf5);
+-        if(app->ndef_buf6[0] && strcmp(app->ndef_buf6, "https://") != 0)
+-            furi_string_cat_printf(vc, "URL:%s\r\n", app->ndef_buf6);
++
++        size_t name_esc_size = strlen(app->ndef_buf1) * 2 + 1;
++        char* name_esc = malloc(name_esc_size);
++        vcard_escape(app->ndef_buf1, name_esc, name_esc_size);
++        furi_string_cat_printf(vc, "FN:%s\r\n", name_esc);
++        furi_string_cat_printf(vc, "N:;%s;;;\r\n", name_esc);
++        free(name_esc);
++
++        if(app->ndef_buf2[0]) {
++            size_t esc_size = strlen(app->ndef_buf2) * 2 + 1;
++            char* esc = malloc(esc_size);
++            vcard_escape(app->ndef_buf2, esc, esc_size);
++            furi_string_cat_printf(vc, "ORG:%s\r\n", esc);
++            free(esc);
++        }
++        if(app->ndef_buf3[0]) {
++            size_t esc_size = strlen(app->ndef_buf3) * 2 + 1;
++            char* esc = malloc(esc_size);
++            vcard_escape(app->ndef_buf3, esc, esc_size);
++            furi_string_cat_printf(vc, "ADR:;;%s;;;;\r\n", esc);
++            free(esc);
++        }
++        if(app->ndef_buf4[0] && !(app->ndef_buf4[0] == '+' && app->ndef_buf4[1] == '\0')) {
++            size_t esc_size = strlen(app->ndef_buf4) * 2 + 1;
++            char* esc = malloc(esc_size);
++            vcard_escape(app->ndef_buf4, esc, esc_size);
++            furi_string_cat_printf(vc, "TEL:%s\r\n", esc);
++            free(esc);
++        }
++        if(app->ndef_buf5[0]) {
++            size_t esc_size = strlen(app->ndef_buf5) * 2 + 1;
++            char* esc = malloc(esc_size);
++            vcard_escape(app->ndef_buf5, esc, esc_size);
++            furi_string_cat_printf(vc, "EMAIL:%s\r\n", esc);
++            free(esc);
++        }
++        if(app->ndef_buf6[0] && strcmp(app->ndef_buf6, "https://") != 0) {
++            size_t esc_size = strlen(app->ndef_buf6) * 2 + 1;
++            char* esc = malloc(esc_size);
++            vcard_escape(app->ndef_buf6, esc, esc_size);
++            furi_string_cat_printf(vc, "URL:%s\r\n", esc);
++            free(esc);
++        }
+         furi_string_cat_str(vc, "END:VCARD\r\n");
+ 
+         payload_len = furi_string_size(vc);

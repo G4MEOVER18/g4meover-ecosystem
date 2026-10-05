@@ -4021,6 +4021,59 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     (`nfctools`, `uhf_rfid`, `chameleon`, `nfc_relay`) jetzt vollständig quelltextlich
     durchgesehen — kein weiterer Kandidat in diesem Cluster offen.
 
+## Firmware-Feature-Mining (Fortsetzung 24)
+- [x] Den in `ideas/pentest-app-katalog.md` als "Restlicher Umfang (~35 Schreib-Szenen,
+      Passwort-Entfernungs-Input, Sektor-Analyse bereits geprüft) offen" vermerkten Rest des
+      `nfctools`-Clusters (`wakdev`, über RogueMaster) aufgegriffen: Passwort-Entfernung,
+      Sektor-Analyse, "NFC Commands", Format/Lock Tag waren bereits aus früheren Sitzungen
+      dokumentiert — wirklich offen waren noch alle ~29 einfachen Schreib-Eingabe-Szenen
+      (`scenes/write/nfc_tools_scene_write_*.c`) und der komplette gemeinsame Schreibpfad
+      `nfc_tools_ndef_build()` (`core/nfc_tools_ndef.c`, alle 17 `NdefType`-Fälle). Beides
+      vollständig gelesen.
+  - Die Eingabe-Szenen selbst sind durchgängig dasselbe kurze Keyboard-Wrapper-Muster
+    (Eingabe in einen `app->ndef_bufN`-Puffer mit `sizeof(...)`-Begrenzung, teils zusätzlich per
+    `keyboard_set_max_length()` enger begrenzt — SSID 32, WiFi-Passwort 64, passend zu den
+    WSC-Klammerungen in `nfc_tools_ndef_build()`) und bieten keine weitere Angriffsfläche.
+    `write_bufs_reset()` (`scenes/nfc_tools_scene_write_menu.c`) setzt beim Wählen eines neuen
+    NDEF-Typs alle sechs Puffer zurück — keine Altdaten-Vermischung zwischen verschiedenen
+    Schreibflüssen, die sich einen Puffer teilen (z. B. WiFi-Passwort/Mail-Betreff/Firma alle in
+    `ndef_buf2`). `nfc_tools_ndef_build()` dimensioniert jede `payload`-Allokation exakt auf die
+    vorher gemessene Länge; der einzige bereits dokumentierte Fund in dieser Funktion
+    (`url_encode()`-Off-by-eins) bleibt der einzige Puffer-/Längenfeld-Fund.
+  - Ein neuer Fund: `case NdefTypeContact:` baut die vCard-3.0-Datei aus sechs frei eingebbaren
+    Textfeldern (Name/Firma/Adresse/Telefon/E-Mail/URL) mit rohem `%s` zusammen, ohne die nach
+    RFC 6350 §3.4 vorgeschriebene Escape-Behandlung von `\`, `;`, `,` und eingebetteten
+    Zeilenumbrüchen. `N:` und `ADR:` sind selbst semikolongetrennte Teilfelder — ein Name wie
+    "Doe;Jane" oder eine Firma wie "Acme; Inc." verschiebt auf jedem vCard-lesenden Smartphone
+    die nachfolgenden Teilfelder (Nachname/Zusatzname bzw. Ort/Region/Postleitzahl/Land) und
+    verstümmelt die Kontaktkarte sichtbar beim eigentlichen Verwendungszweck (Antippen durch ein
+    drittes Gerät) — kein Speicherfehler auf dem Flipper selbst, ein Korrektheitsfehler in der
+    erzeugten Datei.
+  - Fix: neue additive Hilfsfunktion `vcard_escape()` (nach demselben Muster wie das bestehende
+    `url_encode()` direkt darüber in derselben Datei), aufgerufen an allen sechs Stellen innerhalb
+    des einen `case NdefTypeContact:`-Blocks; keine andere `NdefType`-Verzweigung, keine
+    Szenen-Datei, keine Puffergröße ändert sich. Ohne Sonderzeichen bleibt die erzeugte Datei
+    byte-identisch zum bisherigen Verhalten.
+  - Patch (`git apply --check` vorab gegen eine frische, unabhängige Kopie von
+    `RogueMaster/flipperzero-firmware-wPlugins` Branch `420` verifiziert, real angewendet und
+    byte-für-byte abgeglichen) in
+    `firmware-mining/nfctools-vcard-unescaped-delimiter-fix/nfc_tools_ndef_c.patch`.
+  - Host-Repro (`vcard_escape()` 1:1 aus dem Patch transkribiert, ALT-/NEU-Fassung des
+    `case NdefTypeContact:`-Blocks mit einem einfachen wachsenden Host-Puffer statt
+    `FuriString`, plus ein RFC-6350-konformer, zeilenanker-sicherer Teilfeld-Splitter zur
+    Round-Trip-Prüfung; neun Szenarien: Regression ohne Sonderzeichen, Name mit `;`
+    [ALT zerlegt `N:` in 6 statt 5 Teilfelder, Name verstümmelt — NEU korrekt], Name mit `,`/`\`,
+    Adresse mit `;` [ALT 8 statt 7 `ADR:`-Teilfelder — NEU korrekt], Firma mit `;`, leere
+    optionale Felder weiterhin ausgelassen, "+"/"https://"-Sentinelwerte weiterhin unterdrückt,
+    Telefon/E-Mail/URL ebenfalls escaped, Randfall leerer Name) unter
+    `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert: ALLE CHECKS
+    BESTANDEN, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+    `firmware-mining/repro-nfctools-vcard-unescaped-delimiter/repro.c`. Details inkl. Testhinweis
+    in `firmware-mining/nfctools-vcard-unescaped-delimiter-fix.md`,
+    `ideas/pentest-app-katalog.md` aktualisiert (Schreibpfad jetzt vollständig durchgesehen,
+    offen bleiben die fünf Lese-Szenen, Haupt-/Sonstiges-Menü, Tastatur-View sowie die
+    MD5-/QR-Code-Hilfsmodule — noch nicht einzeln geprüft).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
