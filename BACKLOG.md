@@ -4170,6 +4170,41 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       setzen, dort aber nicht mitgeliefert, um diesen Beitrag klein und
       abgeschlossen zu halten.
 
+## App-Verbesserung (RollJam — Fortsetzung 2)
+- [x] Den in der letzten Sitzung als nächster Schritt vermerkten Punkt aufgegriffen:
+      `exit-button-left-key-unhandled-fix.md` (Left-Taste auf `IDLE`/`DONE` ohne
+      Wirkung) an den inzwischen gelieferten `abort-right-key-quits-app-fix`
+      angepasst. Der alte Patch war gegen die unveränderte Basis erzeugt und hätte
+      sich mit dem neuen `app->quit`-Feld/der neuen Abort-Auflösung nicht mehr
+      konfliktfrei zusammenführen lassen (beide Patches ändern dieselbe Stelle in
+      `rj_input_cb()`).
+- [x] Frische, unabhängige Kopie von `G4MEOVER18/RollJam` (Commit `1f90c00e1`)
+      geklont, `abort-right-key-quits-app-fix`-Patch dagegen angewendet (`git apply
+      --check` verifiziert) um den tatsächlichen Zwischenstand nachzubilden, und den
+      Left-Tasten-Fix dagegen neu erzeugt: `InputKeyLeft` setzt auf `IDLE`/`DONE` jetzt
+      sowohl `app->abort` als auch `app->quit` (analog zu `InputKeyBack`, nicht zu
+      `InputKeyRight`) — das zusätzliche `quit`-Flag ist beim aktuellen Stand der
+      Abort-Auflösung redundant zum `state==IDLE||state==DONE`-Teil der
+      ODER-Bedingung, macht die Taste aber unabhängig von dieser Nebenwirkung und
+      konsistent mit der tatsächlichen Absicht (wirklich beenden).
+- [x] Patch (`git apply --check` gegen die genannte Zwischenbasis verifiziert, real
+      angewendet, byte-für-byte mit der Arbeitskopie abgeglichen) in
+      `app-improvements/RollJam/exit-button-left-key-unhandled-fix/rolljam_app_c.patch`.
+      Host-Repro erweitert (23 Prüfungen: End-Zustand UND `quit`-Flag für Left auf
+      `IDLE`/`DONE`, Regression Left in den vier aktiven Phasen, Regression Back/Right
+      je Zustand) unter `gcc -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined`
+      verifiziert: ALLE CHECKS BESTANDEN (identischer Output beider
+      Optimierungsstufen), keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `app-improvements/RollJam/repro-exit-button-left-key-unhandled/repro.c`.
+      `exit-button-left-key-unhandled-fix.md` (Reihenfolge-Hinweis, Port-Skizze,
+      Testhinweis, Quelle) entsprechend überarbeitet.
+- [x] Damit sind beide App-Verbesserungs-Funde dieser `RollJam`-Durchsicht
+      (`abort-right-key-quits-app-fix`, `exit-button-left-key-unhandled-fix`) jetzt
+      als zusammenhängendes, konfliktfrei anwendbares Patch-Paar dokumentiert
+      (Reihenfolge: zuerst Abort-Fix, dann Exit-Fix). Kein weiterer offener
+      Teilumfang bei `RollJam` bekannt (siehe bereits durchgesehener Restumfang in
+      `abort-right-key-quits-app-fix.md`/`exit-button-left-key-unhandled-fix.md`).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
