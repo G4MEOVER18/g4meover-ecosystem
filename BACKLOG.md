@@ -4127,6 +4127,49 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     RogueMaster-Bündel) jetzt vollständig quelltextlich durchgesehen — kein weiterer
     Teilumfang in diesem Cluster offen.
 
+## App-Verbesserung (RollJam — Fortsetzung)
+- [x] Nach Abschluss des NFC-Werkzeug-Clusters (siehe Firmware-Feature-Mining
+      Fortsetzung 23-25) diese Sitzung auf eine App-Verbesserung statt weiteres
+      Firmware-Mining gelegt. `reports/` durchgesehen (letzter Eintrag
+      `2026-10-06-0035.md`), keine offene App-Verbesserung als nächsten Schritt
+      vermerkt — eigenständig `app-improvements/RollJam/` gegen den aktuellen
+      Stand von `G4MEOVER18/RollJam` (Commit `1f90c00e1`, unverändert zur
+      letzten Prüfung) erneut durchgesehen.
+- [x] Zwei zusammenhängende Funde in der `app->abort`-Buchhaltung gemacht: (1)
+      die Right-Taste ("Abort") während `PHASE1_JAMMING`/`PHASE2_JAMMING`/
+      `PHASE3_REPLAY` setzt dasselbe Flag wie die Zurück-Taste — die
+      Hauptschleife `while(!app->abort)` kennt aber nur "App beenden", kein
+      "zurück ins Menü"; abweichend vom eigenen Bildschirm-Versprechen
+      ("Abort" statt "Exit") und abweichend vom korrekt implementierten
+      Abort-zu-Menü-Verhalten der Schwester-App `RollLab`. (2) derselbe
+      gezeichnete "Abort"-Hinweis im Zustand `CAPTURED` ist wirkungslos, da
+      `CAPTURED` in der Right-Zustandsliste fehlt — analog zum bereits
+      dokumentierten `exit-button-left-key-unhandled-fix.md`-Fund, nur beim
+      "Abort"- statt beim "Exit"-Hinweis.
+- [x] Fix: neues `app->quit`-Feld trennt "App wirklich beenden" (Back) von
+      "laufende Phase abbrechen" (Right); Hauptschleife löst `app->abort` am
+      Schleifenanfang zu `running=false` (quit oder bereits IDLE/DONE) oder
+      `ROLLJAM_IDLE` auf; `CAPTURED` in die Right-Zustandsliste ergänzt;
+      fehlender "Abort"-Hinweis in `PHASE3_REPLAY` nachgezogen. Patch (`git
+      apply --check` gegen frische, unabhängige Kopie verifiziert, real
+      angewendet, byte-für-byte abgeglichen) in `app-improvements/RollJam/
+      abort-right-key-quits-app-fix/rolljam_app_c.patch`. Host-Repro (reine
+      Zustandsmaschine, sechs Szenarien inkl. Back-Regression über alle
+      sechs Zustände) unter `gcc -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined` verifiziert: ALLE CHECKS BESTANDEN, keine
+      ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `app-improvements/RollJam/repro-rolljam-abort-right-key-quits-app/
+      repro.c`. Details, Nutzen, Testhinweis, Risiko in
+      `app-improvements/RollJam/abort-right-key-quits-app-fix.md`.
+- [x] Dabei bewusst nicht angefasst: `rolljam_rf.c` (RF-Konfiguration/Timing
+      unverändert), `rj_run_jam_capture_phase()` selbst (nur ihr
+      Rückgabewert-Konsument in der Hauptschleife ändert sich), sowie der
+      separat dokumentierte, weiterhin offene `InputKeyLeft`-Fund
+      (`exit-button-left-key-unhandled-fix.md`) — dessen Patch sollte bei
+      künftiger Umsetzung konsequenterweise ebenfalls `app->quit = true`
+      setzen, dort aber nicht mitgeliefert, um diesen Beitrag klein und
+      abgeschlossen zu halten.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

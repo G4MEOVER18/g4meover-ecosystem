@@ -1,0 +1,76 @@
+diff --git a/rolljam_app.c b/rolljam_app.c
+index 1d956bd..e30d56a 100644
+--- a/rolljam_app.c
++++ b/rolljam_app.c
+@@ -79,6 +79,7 @@ static void rj_draw_cb(Canvas* canvas, void* ctx) {
+         canvas_set_font(canvas, FontSecondary);
+         canvas_draw_str(canvas, 0, 22, "Sending Signal A...");
+         canvas_draw_str(canvas, 0, 32, app->status);
++        elements_button_right(canvas, "Abort"); // NEU: Right bricht hier bereits ab (s.u.)
+         break;
+ 
+     case ROLLJAM_DONE:
+@@ -102,12 +103,17 @@ static void rj_input_cb(InputEvent* ev, void* ctx) {
+ 
+     if(ev->key == InputKeyBack) {
+         app->abort = true;
++        app->quit  = true; // Back beendet die App vollstaendig (wie bisher)
+         return;
+     }
+ 
+-    // Right button = abort during active phases
++    // Right button = Abort: bricht NUR die laufende Phase ab (zurueck ins
++    // Menu) -- genauso auf jedem Bildschirm, der per
++    // elements_button_right(canvas, "Abort") diesen Hinweis zeichnet.
++    // app->quit bleibt hier bewusst false (s. rolljam_app()-Hauptschleife).
+     if(ev->key == InputKeyRight) {
+         if(app->state == ROLLJAM_PHASE1_JAMMING ||
++           app->state == ROLLJAM_CAPTURED ||
+            app->state == ROLLJAM_PHASE2_JAMMING ||
+            app->state == ROLLJAM_PHASE3_REPLAY) {
+             app->abort = true;
+@@ -219,6 +225,7 @@ int32_t rolljam_app(void* p) {
+     app->frequency = ROLLJAM_FREQUENCY;
+     app->modulation = "AM650 (OOK)";
+     app->abort     = false;
++    app->quit      = false;
+     app->rf_mode   = RF_MODE_IDLE;
+     strncpy(app->status, "Ready", sizeof(app->status) - 1);
+ 
+@@ -235,7 +242,24 @@ int32_t rolljam_app(void* p) {
+     // -----------------------------------------------------------------------
+     // MAIN LOOP
+     // -----------------------------------------------------------------------
+-    while(!app->abort) {
++    bool running = true;
++    while(running) {
++        // Abort handling: app->abort alone used to mean "quit the app" no
++        // matter which key set it -- Back (quit=true, intended) just like
++        // Right/"Abort" during an active phase (quit=false, NOT intended:
++        // that button only promises to cancel the current phase, same as
++        // the sibling RollLab app's rolllab_app()-main-loop abort-to-menu
++        // handling). Resolve that here instead of in every phase case below.
++        if(app->abort) {
++            if(app->quit || app->state == ROLLJAM_IDLE || app->state == ROLLJAM_DONE) {
++                running = false;
++            } else {
++                app->state = ROLLJAM_IDLE;
++            }
++            app->abort = false;
++            continue;
++        }
++
+         // Guard: block RF states if CC1101 unavailable
+         if(!app->device && app->state != ROLLJAM_IDLE && app->state != ROLLJAM_DONE) {
+             snprintf(app->status, sizeof(app->status), "ERR: CC1101 not found");
+diff --git a/rolljam_app.h b/rolljam_app.h
+index 5ac8465..43e1218 100644
+--- a/rolljam_app.h
++++ b/rolljam_app.h
+@@ -44,5 +44,6 @@ typedef struct {
+ 
+     uint32_t            phase_start;
+     volatile bool       abort;
++    volatile bool       quit; // NEU: true nur bei echtem Beenden (Back), s. rj_input_cb()
+     char                status[48];
+ } RollJamApp;
