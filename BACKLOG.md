@@ -4205,6 +4205,51 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Teilumfang bei `RollJam` bekannt (siehe bereits durchgesehener Restumfang in
       `abort-right-key-quits-app-fix.md`/`exit-button-left-key-unhandled-fix.md`).
 
+## Ideen-Recherche (Fortsetzung 14)
+- [x] `reports/` durchgesehen: letzte beiden Sitzungen schlossen den NFC-Werkzeug-Cluster
+      (Firmware-Feature-Mining) sowie beide `RollJam`-Funde (App-Verbesserung) ab — gezielt auf
+      Ideen-Recherche gelegt, da diese Kategorie zuletzt am 2026-10-02 bedient wurde.
+      `ideas/pentest-app-katalog.md` durchgesehen: RogueMaster-Bündel (~700 Apps) bislang nur
+      gezielt nach bereits bekannten Cluster-/Autoren-Rückstellpunkten durchsucht, nie nach noch
+      komplett fehlenden Kategorien — Sparse-Checkout von `applications/external/` (Branch
+      `420`, 801 Ordner) gegen den eigenen Katalogtext abgeglichen: GPIO/Serial-Bus-Kategorie
+      deckt bislang ausschließlich Bus-*Analyse* ab (UART Sniff, GPIO Logic Analyzer, i2c Tools,
+      RS485 Modbus), kein Dump-Pfad von einem fremden Chip auf die SD-Karte.
+- [x] **SPI Flash Dump** (`PentestSuite & barkandbite/flipper_suite`, über das
+      RogueMaster-Bündel) gefunden und vollständig gelesen (1933 Zeilen, 4 C-Dateien) — liest
+      SPI-NOR-Flash-Chips (29 JEDEC-IDs: Winbond/Macronix/GigaDevice/Adesto/ISSI/SST/Spansion)
+      über bitgebangtes SPI auf dem Erweiterungsport aus, reiner Lesezugriff. API-87-Status
+      verifiziert (alle vier verwendeten `gpio_ext_pa4/pa6/pa7/pb3`-Pins sowie
+      `crc32_calc_file()` identisch gegen den eigenen `mntm-012`-Tag-Stand).
+- [x] Fund: das eigene README verspricht im Hex-Viewer "Navigate with Up/Down (one line) or
+      Left/Right (one page)" sowie "Hold OK to jump to a specific offset" — `hex_viewer.c`s
+      `hex_viewer_input_cb()` verdrahtet aber ausschließlich `InputKeyUp`/`InputKeyDown`; für
+      `InputKeyLeft`/`InputKeyRight`/`InputKeyOk` liefert die Funktion unbedingt `false`. Bei
+      einem vollen 4096-Byte-Preview (1024 Zeilen, 6 sichtbar) bräuchte es ohne Seitensprung
+      1018 einzelne Tastendrücke bis zum Dateiende.
+- [x] Fix: zwei neue `if`-Zweige nach dem bereits vorhandenen Up/Down-Klemm-Muster — Right
+      springt eine Seite (`ROWS_ON_SCREEN` = 6 Zeilen) vor, geklemmt auf `max_offset`; Left
+      springt eine Seite zurück, geklemmt auf 0. Patch (`git apply --check` gegen eine frische,
+      unabhängige Kopie von `RogueMaster/flipperzero-firmware-wPlugins` Branch `420` Commit
+      `16cb41b9` verifiziert, real angewendet, byte-für-byte abgeglichen) in
+      `firmware-mining/spi-flash-dump-app-port/hex_viewer_c.patch`. Host-Repro (Scroll-
+      Arithmetik 1:1 transkribiert; sieben Szenarien: Regression Up/Down, Fund-Nachweis ALT
+      reagiert nicht auf Left/Right, Fix-Nachweis Right/Left je mit Klemm-Grenze, Randfall
+      Dump passt auf einen Bildschirm, Randfall 1000 Rechts-Drücke in Folge ohne Überlauf,
+      Äquivalenz Ok/Back) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert: 3150
+      Prüfungen, ALLE CHECKS BESTANDEN, keine ASan-/UBSan-Meldungen, keine
+      Compiler-Warnungen — in
+      `firmware-mining/repro-spi-flash-dump-hex-viewer-page-scroll/repro.c`. Dabei einen
+      eigenen Fehler im Repro selbst gemacht und per ASan/UBSan sofort gefunden (redundantes
+      `assert(cond); if(!(cond))`-Muster wertet eine seiteneffektbehaftete Bedingung doppelt
+      aus) — behoben, bevor das Repro als Nachweis gezählt wurde.
+- [x] Details, Nutzen, betroffene Datei, Testhinweis, Risiko in
+      `firmware-mining/spi-flash-dump-app-port.md`. `ideas/pentest-app-katalog.md` um eine
+      Tabellenzeile (Kategorie "GPIO / Serial Bus") sowie einen Log-Eintrag unter "Nächste
+      Recherche-Aufträge" ergänzt. Bewusst zurückgestellt: der ebenfalls im README versprochene
+      Hold-OK-Adresssprung (bräuchte eine eigene Hex-Eingabe-Ansicht, kein kleiner Fix mehr).
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

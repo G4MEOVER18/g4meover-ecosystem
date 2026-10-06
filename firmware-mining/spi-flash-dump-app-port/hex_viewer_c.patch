@@ -1,0 +1,48 @@
+diff --git a/applications/external/spi_flash_dump/hex_viewer.c b/applications/external/spi_flash_dump/hex_viewer.c
+index 52faedd1..e627cefd 100644
+--- a/applications/external/spi_flash_dump/hex_viewer.c
++++ b/applications/external/spi_flash_dump/hex_viewer.c
+@@ -129,6 +129,43 @@ static bool hex_viewer_input_cb(InputEvent* event, void* ctx) {
+         return true;
+     }
+ 
++    /* README advertises "Left/Right (one page)" navigation, but until this
++       fix neither key was wired up at all -- a page is ROWS_ON_SCREEN rows,
++       the same unit the scrollbar in the draw callback already uses. */
++    if(event->key == InputKeyLeft) {
++        with_view_model(
++            view,
++            HexViewerModel * m,
++            {
++                if(m->scroll_offset > ROWS_ON_SCREEN) {
++                    m->scroll_offset -= ROWS_ON_SCREEN;
++                } else {
++                    m->scroll_offset = 0;
++                }
++            },
++            true);
++        return true;
++    }
++
++    if(event->key == InputKeyRight) {
++        with_view_model(
++            view,
++            HexViewerModel * m,
++            {
++                uint32_t total_rows = (m->data_len + BYTES_PER_ROW - 1) / BYTES_PER_ROW;
++                if(total_rows > ROWS_ON_SCREEN) {
++                    uint32_t max_offset = total_rows - ROWS_ON_SCREEN;
++                    if(m->scroll_offset + ROWS_ON_SCREEN < max_offset) {
++                        m->scroll_offset += ROWS_ON_SCREEN;
++                    } else {
++                        m->scroll_offset = max_offset;
++                    }
++                }
++            },
++            true);
++        return true;
++    }
++
+     return false;
+ }
+ 
