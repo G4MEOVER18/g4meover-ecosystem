@@ -4074,6 +4074,59 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
     offen bleiben die fünf Lese-Szenen, Haupt-/Sonstiges-Menü, Tastatur-View sowie die
     MD5-/QR-Code-Hilfsmodule — noch nicht einzeln geprüft).
 
+## Firmware-Feature-Mining (Fortsetzung 25)
+- [x] Den laut `ideas/pentest-app-katalog.md` zuletzt offenen Rest des NFC-Tools-Clusters
+      (`wakdev`, über RogueMaster) aufgegriffen: die fünf Lese-Szenen (`scenes/read/*.c`),
+      Haupt-/Sonstiges-Menü (`nfc_tools_scene_main_menu.c`/`_other_menu.c`/`_about.c`), die
+      Tastatur-View (`views/keyboard/nfc_tools_keyboard.c`) sowie die MD5-/QR-Code-
+      Hilfsmodule (`helpers/md5/`, `helpers/qrcode/`) vollständig gelesen. Haupt-/Sonstiges-
+      Menü reines Boilerplate ohne Fund. Tastatur-View (589 Zeilen: Layout-Tabellen, Case-
+      Handling, Scroll-/Cursor-Zeichnung, `kb_insert()`/`kb_backspace()`-Grenzen) und das
+      MD5-Modul (Standard-RFC-1321, Padding-/Bit-Längen-Berechnung in Little-Endian 64-Bit)
+      gegen ihre Aufrufer geprüft — beide korrekt, kein Fund. Die fünf Lese-Szenen (reine
+      Anzeige-/Navigations-Wrapper um bereits vorhandene Felder) ebenfalls ohne Fund.
+- [x] Fund im QR-Code-Hilfsmodul (`helpers/qrcode/nfc_tools_qrcodegen.c`, ein eigenständiger
+      minimaler QR-Encoder für Byte-Modus/ECC-Level-L): `nfc_tools_qr_encode()` behandelt
+      jede Version 1–7 als einen einzigen Reed-Solomon-Block. Das ist für Version 1–5
+      korrekt, aber der echte QR-Standard (ISO/IEC 18004:2015 Tabelle 9) teilt die Daten ab
+      Version 6 tatsächlich in zwei verschachtelte RS-Blöcke (v6 = 2×(86,68), v7 = 2×(98,78)
+      Codewörter — unabhängig gegen die Python-Referenzbibliothek `segno`
+      (`segno.consts.ECC[6][1]`/`[7][1]`) gegengeprüft, nicht nur gegen eigene Berechnung).
+      Für Version 6/7 berechnet die Funktion sowohl die ECC-Codewörter falsch als auch die
+      Platzierungsreihenfolge — das Ergebnis sieht wie eine fertige QR-Grafik aus
+      (`encode()` gibt weiterhin `true` zurück), ist aber strukturell ungültig.
+  - Empirisch bestätigt statt nur aus dem Standardtext hergeleitet: die unveränderte Datei
+    in ein Host-Programm kompiliert, das für jede Textlänge 1–174 Zeichen eine QR-Grafik
+    rendert und mit `zbarimg` (ZBar, unabhängiger Open-Source-Scanner) zurückliest — jede
+    Länge bis 106 Zeichen (Version 1–5) liest korrekt zurück, jede Länge ab 107 Zeichen
+    (Version 6/7) scheitert reproduzierbar ("scanned 0 barcode symbols"). Der
+    NDEF-Record-Wert, aus dem der QR-Inhalt stammt, kann bis zu 127 Zeichen lang sein — die
+    106-Zeichen-Grenze wird damit bei alltäglichen Werten (längere URLs, Freitext)
+    regelmäßig überschritten.
+  - Fix: Versionsschleife in `nfc_tools_qr_encode()` von `<= 7` auf `<= 5` begrenzt (plus
+    korrigierter Kopfkommentar). Für Version 1–5 byte-identisches Verhalten; für Werte, die
+    vorher Version 6/7 ergeben hätten, zeigt die App jetzt ehrlich "QR unavailable" (bereits
+    vorhandener, genutzter Code-Pfad in `nfc_tools_scene_ndef_qr_code.c`) statt einer
+    kaputten Grafik. Eine vollständige Mehrblock-RS-Implementierung (würde Version 6/7
+    wieder nutzbar machen, bis ~166 Zeichen) ist ein eigenständiger, größerer Port-Schritt
+    und bewusst nicht Teil dieses Beitrags.
+  - Patch (`git apply --check` vorab gegen eine frische, unabhängige Kopie von
+    `RogueMaster/flipperzero-firmware-wPlugins` Branch `420` verifiziert, real angewendet
+    und byte-für-byte abgeglichen) in
+    `firmware-mining/nfctools-qrcode-multiblock-overflow-fix/nfc_tools_qrcodegen_c.patch`.
+  - Host-Repro in `firmware-mining/repro-nfctools-qrcode-multiblock-overflow/repro.c`: bindet
+    die unveränderte und die gefixte Datei als zwei vollständige, umbenannte
+    Übersetzungseinheiten in einen Prozess ein (keine Transkription) und ruft für den
+    eigentlichen Scan-Nachweis zusätzlich `zbarimg` per `popen()` auf echten PGM-Renderings
+    auf. Vier Szenarien (Regression Version 1–5 byte-identisch, Fund Version 6/7 bei fünf
+    Stichproben per `zbarimg` bestätigt unscannbar, Grenzfall 106/107, Randfall leerer Text)
+    unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined` verifiziert:
+    7/7 Szenarien bestanden, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen. Details
+    inkl. Testhinweis in `firmware-mining/nfctools-qrcode-multiblock-overflow-fix.md`,
+    `ideas/pentest-app-katalog.md` aktualisiert. Damit ist der NFC-Tools-Cluster (`wakdev`,
+    RogueMaster-Bündel) jetzt vollständig quelltextlich durchgesehen — kein weiterer
+    Teilumfang in diesem Cluster offen.
+
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).

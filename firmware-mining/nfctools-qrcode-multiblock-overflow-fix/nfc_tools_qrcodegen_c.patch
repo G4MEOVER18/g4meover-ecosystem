@@ -1,0 +1,24 @@
+--- a/applications/external/nfctools/helpers/qrcode/nfc_tools_qrcodegen.c	2026-10-06 00:30:36.392740974 +0000
++++ b/applications/external/nfctools/helpers/qrcode/nfc_tools_qrcodegen.c	2026-10-06 00:30:36.394522885 +0000
+@@ -1,6 +1,10 @@
+-// Minimal QR code generator – byte mode, ECC-L, versions 1-7.
++// Minimal QR code generator - byte mode, ECC-L, versions 1-5.
+ // Based on the QR code specification (ISO/IEC 18004:2015).
+-// Only single-block versions (1-7 ECC-L) are supported.
++// Only single-block versions (1-5 ECC-L) are supported: starting at version 6,
++// ECC-L switches to two interleaved Reed-Solomon blocks (segno/ISO Annex
++// confirmed: v6 = 2x(86,68), v7 = 2x(98,78)) -- this encoder computes a single
++// RS codeword over the full codeword capacity instead, which silently produces
++// a structurally invalid (unscannable) QR code for any version >= 6.
+ 
+ #include "nfc_tools_qrcodegen.h"
+ #include <string.h>
+@@ -369,7 +373,7 @@
+     // Select minimum version (ECC-L, byte mode)
+     // Byte mode: 4 (mode) + 8 (count) + textLen*8 (data) bits → needs ceil((12+textLen*8)/8) = textLen+2 bytes min
+     int version = 0;
+-    for(int v = 1; v <= 7; v++) {
++    for(int v = 1; v <= 5; v++) {
+         if((size_t)qr_data_cw[v] >= textLen + 2) {
+             version = v;
+             break;
