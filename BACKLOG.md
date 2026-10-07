@@ -4253,3 +4253,57 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 ## Kompatibilität (Kontext, lokal umgesetzt)
 - CLI-Kompat-Shim (`cli_session_open/close`, `cli_vcp`) für Alt-Apps + cli_bridge — Firmware-seitig, lokal.
 - 49 Alt-Apps laufen bereits unter `api_mismatch_autoload` (bewiesen per Symbol-Analyse).
+
+## Firmware-Feature-Mining (Fortsetzung 26)
+- [x] Offenen `unlshd-090`-Punkt aus dem Backlog aufgegriffen ("neue SubGHz-Protokolle listen
+      → Port-Vorschläge"). Gegen den tatsächlich neuesten Unleashed-Tag geprüft (`unlshd-093`,
+      aktueller als `unlshd-090`): `lib/subghz/protocols/` dort vollständig gegen meine
+      `mntm-012`-Basis verglichen, sieben fehlende Protokolle gefunden
+      (`allstar_firefly`, `beninca_arc`, `ditec_gol4`, `jarolift`, `keyfinder`, `nord_ice`,
+      `treadmill37` — `prastel`/`telcoma_edge` ebenfalls fehlend, aber bereits eigene
+      Port-Vorschläge aus früheren Sitzungen, kein neuer Fund).
+- [x] **Beninca ARC** ausgewählt (einziges der sieben mit AES-128 statt KeeLoq-Krypto — neue
+      Primitive für meinen SubGHz-Stack). Vollständig gelesen (`beninca_arc.c`/`.h` + die zwei
+      bei Unleashed neuen Hilfsmodule `aes_common.c`/`.h` und `common.c`/`.h`). Jedes verwendete
+      HAL-/Lib-Symbol einzeln gegen `mntm-012` geprüft: `blocks/{decoder,encoder,const,math,
+      custom_btn_i}.h` sowie `subghz_keystore.h`/`_i.h` byteidentisch; `blocks/generic.h` im
+      gemeinsamen Teil identisch, Unleashed aber mit zusätzlicher
+      `subghz_block_generic_global`-Override-Infrastruktur (Counter-/Button-Editor-UI), die bei
+      mir komplett fehlt; `common.h` (Unleasheds PR-#1116-Flash-Spar-Refactor, von 60 Dateien
+      dort genutzt) existiert bei mir ebenfalls nicht.
+- [x] AES-128-Implementierung aus `aes_common.c` Zeile für Zeile gegen FIPS-197 nachgerechnet
+      (SBox/ShiftRows/MixColumns/KeySchedule) und auf dem Host gegen den offiziellen
+      FIPS-197-Testvektor verifiziert (unabhängige Quelle) — keine Abweichung. Protokollspezifische
+      Schlüsselableitung + Encrypt/Decrypt über 50 000 zufällige Rundläufe verifiziert.
+- [x] Fund (geringe praktische Relevanz, kein Speicherfehler): Die Erfassung der ersten
+      64-Bit-Rahmenhälfte in der Decoder-Zustandsmaschine hängt zusätzlich zum Bitzähler an
+      einem `decode_data != 0`-Gate — bei einer (bei echtem AES-Chiffretext praktisch nie
+      auftretenden, ca. 1-zu-2⁶⁴) exakt-Null ersten Hälfte bliebe `generic.data` auf dem
+      Altwert eines früheren Pakets stehen, während `generic.data_2` trotzdem überschrieben und
+      der volle Callback ausgelöst wird. Über 200 000 echte Verschlüsselungen empirisch
+      bestätigt: `data == 0` trat kein einziges Mal auf. Fix: explizites `half_captured`-Flag
+      statt Dateninhalt-Abhängigkeit, per Host-Repro als verhaltensgleich zum Original
+      nachgewiesen (Regressionstest über 20 000 zufällige Rahmen).
+- [x] Port: `aes_common.c`/`.h` unverändert übernommen; `beninca_arc.c`/`.h` an meinen
+      Protokoll-Stil angepasst (keine `common.h`-Abhängigkeit, eigene `_alloc/_free/_reset/
+      _stop/_yield`, direktes `furi_hal_subghz_get_rolling_counter_mult()`-Muster statt
+      `_global`-Override, kein Editor-UI-Push in `get_string()`, `half_captured`-Fix); je ein
+      zusätzlicher Include/Registry-Eintrag in `protocol_items.c`/`.h`. Sechs Patches
+      (`git apply --check` gegen eine frische, unabhängige Zweitkopie von `mntm-012` verifiziert,
+      real angewendet, byte-für-byte mit der separat editierten Fassung abgeglichen — identisch)
+      in `firmware-mining/beninca-arc-aes-subghz-port/*.patch`. Host-Repro (AES-FIPS-197-Vektor,
+      AES-Rundlauf, Protokoll-Encrypt/Decrypt-Rundlauf, Zero-Chiffretext-Häufigkeit, Fund- und
+      Regressionsnachweis der Decoder-Zustandsmaschine) unter `gcc -std=c11 -O0`/`-O1 -Wall
+      -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert:
+      20013/20013 Checks bestanden, identisches Ergebnis bei beiden Optimierungsstufen, keine
+      ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-beninca-arc-aes-subghz-port/repro.c`.
+- [x] Details, Kompatibilitätsprüfung, Risiko, Port-Skizze, Testhinweis in
+      `firmware-mining/beninca-arc-aes-subghz-port.md`. Bewusst nicht portiert: Unleasheds
+      `common.c`/`.h`-Refactor selbst, `subghz_protocol_beninca_arc_create_data()` (optionale
+      "Add Manually"-Hilfsfunktion, bei Unleashed selbst nicht an die Vtable angebunden), die
+      tatsächliche Keystore-Ressourcendatei (Herstellerschlüssel ist Dateninhalt, nicht Code —
+      wie schon beim Superrollo-Normal-Learning-Schlüssel). Als weitere, noch nicht geprüfte
+      Kandidaten aus demselben `unlshd-093`-Vergleich offen: `allstar_firefly`, `ditec_gol4`,
+      `jarolift`, `keyfinder`, `nord_ice`, `treadmill37` (alle ebenfalls mit der
+      `common.h`-Abhängigkeit, `jarolift` zusätzlich mit KeeLoq- statt AES-Krypto).
