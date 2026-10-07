@@ -1,0 +1,17 @@
+diff --git a/lib/subghz/protocols/keeloq_common.h b/lib/subghz/protocols/keeloq_common.h
+index c4af17f..0f2ca6a 100644
+--- a/lib/subghz/protocols/keeloq_common.h
++++ b/lib/subghz/protocols/keeloq_common.h
+@@ -25,6 +25,12 @@
+ #define KEELOQ_LEARNING_MAGIC_SERIAL_TYPE_1 6u
+ #define KEELOQ_LEARNING_MAGIC_SERIAL_TYPE_2 7u
+ #define KEELOQ_LEARNING_MAGIC_SERIAL_TYPE_3 8u
++// 9u is reserved by the not-yet-applied Beninca ARC port proposal
++// (firmware-mining/beninca-arc-aes-subghz-port/beninca_arc_c.patch,
++// BENINCA_ARC_KEY_TYPE) -- that protocol shares this same manufacture_code
++// type numbering despite using AES, not KeeLoq, so its value is skipped here
++// to avoid a silent type collision if both patches get applied locally.
++#define KEELOQ_LEARNING_NORMAL_JAROLIFT 10u
+ 
+ /**
+  * Simple Learning Encrypt

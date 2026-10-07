@@ -4367,3 +4367,61 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       gewünscht wird. Restlicher, bereits aus Fortsetzung 5 bekannter offener Punkt
       (Ethernet CH9120/W5500, unverdrahteter Stub ohne angeschlossene Hardware) bleibt
       unverändert außerhalb reiner Quelltextprüfung offen.
+
+## Firmware-Feature-Mining (Fortsetzung 27)
+- [x] Aus der seit der Beninca-ARC-Sitzung offenen `unlshd-093`-Restliste (`allstar_firefly`,
+      `ditec_gol4`, `jarolift`, `keyfinder`, `nord_ice`, `treadmill37`) **`jarolift.c`**
+      aufgegriffen — letzte Sitzung war App-Verbesserung (usb-army-penetrator), Firmware-Mining
+      seit Beninca ARC nicht mehr an der Reihe.
+- [x] Kompatibilitätsprüfung gegen `mntm-012`: KeeLoq-Kern
+      (`subghz_protocol_keeloq_common_encrypt/_decrypt/_normal_learning`) sowie
+      `custom_btn_i.h`/`custom_btn.c` (Tasten-Remap) sind bei mir byteidentisch vorhanden —
+      keine neue Krypto-Primitive nötig. Es fehlen: die `KEELOQ_LEARNING_NORMAL_JAROLIFT`-
+      Konstante selbst (bei mir nur Lerntypen 0–8 definiert), die komplette
+      `subghz_block_generic_global`-Override-Infrastruktur (wie bereits bei Beninca ARC
+      dokumentiert) und `common.c`/`.h` (Unleasheds Flash-Spar-Refactor, komplett nicht Teil
+      meiner Basis). Port im etablierten eigenen Stil (eigene `_alloc/_free/_reset/_stop/
+      _yield`, eigene `serialize()` statt `common.c`-Helfer, direktes
+      `furi_hal_subghz_get_rolling_counter_mult()`-Muster statt `_global`-Override, kein
+      Editor-UI-Push in `get_string()`) — exakt dasselbe Anpassungsmuster wie beim
+      Beninca-ARC-Port.
+- [x] **Fund (in Unleashed selbst, nicht durch die Portierung eingeführt)**: beim
+      Host-Repro-Rundlauf (Encode→Decode über 50 000 zufällige Serial/Btn/Cnt/Seed-
+      Kombinationen) fiel auf, dass Unleasheds eigene
+      `subghz_protocol_jarolift_remote_controller()` das untere Byte des Grouping-/Seed-Felds
+      systematisch verliert: `instance->seed = ((decrypt >> 24) << 8) | (group >> 8);` — `group`
+      ist nach der doppelten 8-Bit-Spiegelung bereits der reine untere Byte-Wert (Bit 0–7), die
+      zusätzliche `>> 8` liefert für einen solchen Wert immer 0. Richtig: `| group` ohne
+      Rechtsschiebung. Praktische Relevanz: kein reiner Anzeigefehler — `seed` ist auch die
+      einzige Quelle für `data_2` beim erneuten Senden (mit und ohne Tasten-Remap), ein mit dem
+      Original geladenes und erneut gesendetes Signal würde also mit einem auf das untere Byte
+      Null gesetzten Kanal-/Grouping-Byte gesendet, sobald der echte Wert nicht zufällig schon
+      auf `0x00` endet. Mit zufälligen Seeds bestätigt: Unleashed-Formel trifft nur 84/20000
+      (≈1-zu-238, nahe am erwarteten 1-zu-256 für ein zufälliges Byte), meine korrigierte
+      Fassung 20000/20000. In meinen Port übernommen und mit Kommentar an der Stelle
+      dokumentiert.
+- [x] Host-Repro (KeeLoq-Kern-Rundlauf, `normal_learning`-Rundlauf, Encode→Decode-Rundlauf mit
+      synthetischem Testschlüssel, Seed-Bug-Demonstration Original-vs-Fix, "Data"-Hex-Feld-
+      Byte-Packing-Rundlauf, Falschschlüssel-Falsch-Akzeptanz-Rate) unter
+      `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` verifiziert: 130004 Prüfungen, ALLE CHECKS BESTANDEN,
+      identischer Output beider Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine
+      Compiler-Warnungen — in
+      `firmware-mining/repro-jarolift-keeloq-subghz-port/repro.c`.
+- [x] Fünf Patches (`jarolift_c`/`_h`, `keeloq_common_h`, `protocol_items_c`/`_h`) — selbst
+      erneut unabhängig gegen zwei frische Zweitkopien von `Next-Flip/Momentum-Firmware` Tag
+      `mntm-012` mit `git apply --check` geprüft, real angewendet, byte-für-byte mit der
+      Arbeitskopie abgeglichen — identisch. `KEELOQ_LEARNING_NORMAL_JAROLIFT` bewusst als `10u`
+      statt `9u` definiert (mit Kollisionshinweis-Kommentar), da `9u` bereits vom noch nicht
+      angewendeten `BENINCA_ARC_KEY_TYPE`-Vorschlag belegt ist — beide Patches vorab in beiden
+      Reihenfolgen gegeneinander geprüft, kein Konflikt.
+- [x] Details, Kompatibilitätsprüfung, kryptografische Prüfung, Fund, Risiko, Port-Skizze,
+      Testhinweis in `firmware-mining/jarolift-keeloq-subghz-port.md`.
+- [ ] Aus demselben `unlshd-093`-Vergleich bleiben fünf weitere, noch nicht geprüfte Kandidaten
+      offen: `allstar_firefly`, `ditec_gol4`, `keyfinder`, `nord_ice`, `treadmill37`.
+- [ ] Lokal zu tun: die fünf Patches gegen die eigene `mntm-012`-Basis anwenden, eigenen
+      Jarolift-Herstellerschlüssel in der eigenen `subghz_keystore`-Ressource ergänzen, mit
+      `ufbt`/`fbt firmware_all` bauen, am Gerät SubGHz → 433,92 MHz AM650 gegen einen echten
+      Jarolift-Sender empfangen und Felder Sn/Btn/Cnt gegenprüfen; gezielt den Seed-Fix
+      verifizieren, indem ein aufgezeichnetes Signal unverändert erneut gesendet wird und der
+      Antrieb wie beim Original-Sender reagiert.
