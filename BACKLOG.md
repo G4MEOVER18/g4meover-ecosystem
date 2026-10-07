@@ -4425,3 +4425,64 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Jarolift-Sender empfangen und Felder Sn/Btn/Cnt gegenprüfen; gezielt den Seed-Fix
       verifizieren, indem ein aufgezeichnetes Signal unverändert erneut gesendet wird und der
       Antrieb wie beim Original-Sender reagiert.
+
+## Ideen-Recherche (Fortsetzung 15)
+- [x] `reports/` durchgesehen: letzte Sitzung (Firmware-Feature-Mining, Jarolift) sowie die
+      beiden Sitzungen davor (App-Verbesserung usb-army-penetrator, Masterplan-Sachstand-Check)
+      bedienten nicht die Kategorie Ideen-Recherche — zuletzt am 2026-10-02 (SPI Flash Dump,
+      siehe "Ideen-Recherche (Fortsetzung 14)") bedient. `ideas/pentest-app-katalog.md`
+      durchgesehen: gezielt nach einer weiteren, bislang komplett fehlenden Kategorie gesucht,
+      über die bestehende Bus-Analyse (UART Sniff/GPIO Logic Analyzer/i2c Tools/RS485 Modbus)
+      und den reinen Chip-Dump (SPI Flash Dump) hinaus — Hardware-Debug-Schnittstellen
+      (JTAG/SWD) als bislang unbesetzte Angriffs-/Auditfläche identifiziert.
+- [x] **SWD Probe** (`g3gg0/flipper-swd_probe`, derselbe Autor wie der bereits katalogisierte
+      GPIO Logic Analyzer) gefunden und vollständig gelesen (vier Quelldateien, ca. 4400
+      Zeilen) — probiert ARM-SWD-Signale über acht Erweiterungsport-Pin-Paare per Bisektion
+      durch, zeigt erkannten JEP106-Hersteller/Pinout, danach volle ARM-Debug-Interface-
+      Implementierung (Register-/Speicherzugriff über Memory-AP, CoreSight-ROM-Table-Walk,
+      Cortex-M-Haltepunkte) plus eigene Skriptsprache für wiederkehrende Abläufe. API-87-Status
+      gegen den eigenen `mntm-012`-Tag-Stand verifiziert (frischer, blobloser Checkout): alle
+      acht referenzierten Erweiterungsport-Pins sowie die USB-CDC-Zweitkanal-Technik
+      (`furi_hal_usb_set_config()`/`usb_cdc_single`/`_dual`, `furi_hal_cdc_set_callbacks()`,
+      `furi_hal_usb_unlock()`) identisch zu GPIO Logic Analyzer/UART Sniff bereits verifizierter
+      Basis vorhanden.
+- [x] Dabei eine bislang bei GPIO Logic Analyzer/UART Sniff nicht explizit dokumentierte
+      Besonderheit präzisiert: `usb_uart.c` öffnet die CLI-Sitzung über die *alte*
+      `cli_session_open()`/`cli_session_close()`-API (globaler `cli_vcp`-Zeiger) statt der im
+      eigenen `mntm-012`-Stand tatsächlich vorhandenen, record-basierten
+      `cli_vcp_enable()`/`cli_vcp_disable()`-API (`applications/services/cli/cli_vcp.h`) — per
+      Gegenprobe an einer frischen Zweitkopie von `g3gg0/flipper-logic_analyzer` bestätigt, dass
+      dieselbe ältere API dort Zeile für Zeile identisch verwendet wird, SWD Probe also kein
+      Einzelfall ist. Läuft bei mir firmwareseitig bereits über den in `BACKLOG.md` unter
+      "Kompatibilität" dokumentierten CLI-Kompat-Shim für Alt-Apps (`cli_session_open/close`,
+      `cli_vcp`) — kein eigener Patch nötig, beim eigenen Bau aber nicht versehentlich auf die
+      aktuelle API "reparieren" (würde den bereits funktionierenden Shim-Pfad umgehen).
+- [x] Fund: zwei vom Dateibrowser gelieferte Pfade (`FuriString`, keine Längenbegrenzung — ein
+      Flipper-SD-Pfad kann durch verschachtelte Ordner deutlich länger als 127 Zeichen werden)
+      landen ungeprüft per `strcpy()` in feste `char[128]`-Felder (`MAX_FILE_LENGTH`) zweier
+      `malloc()`-allozierter Structs (`ScriptContext.filename` in `swd_execute_script()`,
+      `AppFSM.script_detected` im Dateibrowser-"Down"-Handler in `ModePageScan`/`ModePageFound`)
+      — ein echter Heap-Buffer-Overflow ab 128 Zeichen Gesamtpfadlänge, kein reiner
+      `furi_check()`-Abbruch. Die beiden anderen `strcpy()`/`strcat()`-Stellen im selben File
+      sind bereits sauber längengeprüft (`swd_scriptfunc_call()`/`swd_scriptfunc_mem_dump()`).
+- [x] Fix: additive Längenprüfung vor beiden bisher ungeschützten Stellen, analog zum bereits
+      vorhandenen Muster im selben File (Fehlermeldung über `state_string` statt stillem
+      Überlauf). Patch (`git apply --check` vorab gegen eine frische, unabhängige Zweitkopie von
+      `g3gg0/flipper-swd_probe` verifiziert, real angewendet, byte-für-byte mit der Arbeitskopie
+      abgeglichen) in `firmware-mining/swd-probe-app-port/swd_probe_app_c.patch`. Host-Repro
+      (beide `strcpy()`-Stellen 1:1 nachgebildet, vier Szenarien: Regression kurzer Pfad,
+      Grenzfall exakt 127 Zeichen, Fund bei 496-Byte-Pfad, Fix-Nachweis für beide Stellen) unter
+      `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` verifiziert: ALT bricht reproduzierbar mit
+      AddressSanitizer `heap-buffer-overflow` ab, NEU übersteht denselben Fall sauber mit
+      `"Path too long"`-Meldung, Regressions-/Grenzfall identisch — keine Compiler-Warnungen,
+      keine ASan-/UBSan-Meldung bei NEU — in
+      `firmware-mining/repro-swd-probe-script-path-oob-write/repro.c`.
+- [x] Details, Kompatibilitätsprüfung, Fund, Risiko, Port-Skizze, Testhinweis in
+      `firmware-mining/swd-probe-app-port.md`. Kuratiert in `ideas/swd-probe-api-status.md`.
+      `ideas/pentest-app-katalog.md` um neue Kategorie "Hardware Debug Interface (JTAG/SWD)"
+      sowie einen Log-Eintrag unter "Nächste Recherche-Aufträge" ergänzt.
+- [ ] Lokale Bauprobe gegen die eigene `mntm-012`-Basis, danach Funktionstest an einem eigenen
+      Cortex-M-Board mit bekanntem, offenem SWD-Port (Pin-Erkennung, `IDCODE`/JEP106-Anzeige,
+      Speicherlesen über die ADI-Implementierung); gezielt den Pfadlängen-Fix nachvollziehen
+      (`.swd`-Skript in einem ≥128 Zeichen tiefen SD-Ordner über den Dateibrowser auswählen).

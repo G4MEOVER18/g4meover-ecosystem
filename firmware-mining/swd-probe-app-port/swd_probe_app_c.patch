@@ -1,0 +1,32 @@
+diff --git a/swd_probe_app.c b/swd_probe_app.c
+index e368d13..678595d 100644
+--- a/swd_probe_app.c
++++ b/swd_probe_app.c
+@@ -2097,6 +2097,12 @@ static bool swd_execute_script_line(ScriptContext* const ctx) {
+ static bool swd_execute_script(AppFSM* const ctx, const char* filename) {
+     bool success = true;
+ 
++    if(strlen(filename) >= MAX_FILE_LENGTH) {
++        DBG("Path too long '%s'", filename);
++        snprintf(ctx->state_string, sizeof(ctx->state_string), "Path too long");
++        return false;
++    }
++
+     /* fetch current script and set as parent */
+     ScriptContext* parent = ctx->script;
+ 
+@@ -2936,7 +2942,13 @@ static bool swd_message_process(AppFSM* ctx) {
+ 
+                     if(dialog_file_browser_show(ctx->dialogs, result_path, preselected, &options)) {
+                         const char* path = furi_string_get_cstr(result_path);
+-                        strcpy(ctx->script_detected, path);
++                        if(strlen(path) < sizeof(ctx->script_detected)) {
++                            strcpy(ctx->script_detected, path);
++                        } else {
++                            DBG("Path too long '%s'", path);
++                            snprintf(
++                                ctx->state_string, sizeof(ctx->state_string), "Path too long");
++                        }
+                     }
+ 
+                     furi_string_free(result_path);
