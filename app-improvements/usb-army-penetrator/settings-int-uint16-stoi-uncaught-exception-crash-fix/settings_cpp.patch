@@ -1,0 +1,46 @@
+diff --git a/src/Utilities/Settings.cpp b/src/Utilities/Settings.cpp
+index f8d1e0e..3aeb43c 100644
+--- a/src/Utilities/Settings.cpp
++++ b/src/Utilities/Settings.cpp
+@@ -5,6 +5,7 @@
+ #include <unordered_map>
+ #include <vector>
+ #include <algorithm>
++#include <stdexcept>
+ #include <ArduinoJson.h>
+ 
+ #define LOG_SETTINGS "Settings"
+@@ -76,7 +77,15 @@ bool setSettingValue(Preferences &prefs, const std::string &name, const std::str
+                     }          
+                     break;
+                 case USBArmyKnifeCapability::SettingType::Int16:
+-                    tempInt = std::stoi(value);
++                    try
++                    {
++                        tempInt = std::stoi(value);
++                    }
++                    catch (const std::exception &)
++                    {
++                        Debug::Log.info(LOG_SETTINGS, "Invalid setting value, not a valid integer");
++                        break;
++                    }
+                     if (tempInt <= static_cast<int>(INT16_MAX) && tempInt >= static_cast<int>(INT16_MIN))
+                     {
+                         int16_t int16Value = 0;
+@@ -92,7 +101,15 @@ bool setSettingValue(Preferences &prefs, const std::string &name, const std::str
+                 case USBArmyKnifeCapability::SettingType::UInt16:
+                     if (value.rfind("0x", 0) == 0)
+                     {
+-                        tempInt = std::stoi(value, nullptr, 16);
++                        try
++                        {
++                            tempInt = std::stoi(value, nullptr, 16);
++                        }
++                        catch (const std::exception &)
++                        {
++                            Debug::Log.info(LOG_SETTINGS, "Invalid setting value, not a valid hex integer");
++                            break;
++                        }
+                         if (tempInt <= static_cast<int>(INT16_MAX) && tempInt >= 0)
+                         {
+                             uint16_t uint16Value = 0;

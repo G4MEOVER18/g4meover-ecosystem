@@ -4307,3 +4307,63 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Kandidaten aus demselben `unlshd-093`-Vergleich offen: `allstar_firefly`, `ditec_gol4`,
       `jarolift`, `keyfinder`, `nord_ice`, `treadmill37` (alle ebenfalls mit der
       `common.h`-Abhängigkeit, `jarolift` zusätzlich mit KeeLoq- statt AES-Krypto).
+
+## App-Verbesserung (usb-army-penetrator — Fortsetzung)
+- [x] `reports/` durchgesehen: letzte Sitzung schloss Firmware-Feature-Mining ab (Beninca ARC
+      AES-SubGHz-Port), davor Ideen-Recherche (SPI Flash Dump) — App-Verbesserung seit den beiden
+      `RollJam`-Sitzungen nicht mehr an der Reihe, für diese Sitzung gewählt. Vorherige
+      `usb-army-penetrator`-Sitzung (Fortsetzung 5) hatte den TFT-Hex-Farbparser als "letzten
+      offenen Rückstellpunkt" markiert und nur noch Ethernet-CH9120/W5500 (unverdrahteter Stub)
+      als bewusst außerhalb reiner Quelltextprüfung liegend offengelassen — gezielt über diese
+      bereits bekannte Liste hinaus nach einem bislang nie geprüften Modul gesucht statt denselben
+      Rest erneut zu betrachten.
+- [x] Frische, unabhängige Kopie von `G4MEOVER18/usb-army-penetrator` (main, Commit `411b153`)
+      geklont, vollständige Dateiliste unter `src/` gegen alle bisherigen
+      `app-improvements/usb-army-penetrator/*.md`-Funde abgeglichen: `src/Utilities/Settings.cpp`
+      (zentrale Setting-Schreib-/Lesefunktion, von Web-UI und DuckyScript aus erreichbar) war in
+      keinem bisherigen Fund erwähnt — ausgewählt.
+- [x] **Fund**: `setSettingValue()` übergibt für die Typen `Int16`/`UInt16` den client-/
+      skript-kontrollierten `value`-String ungeprüft an `std::stoi()` — wirft laut C++-Standard
+      `std::invalid_argument`/`std::out_of_range` bei leerem, nicht-numerischem oder zu großem
+      Wert. Gesamten `src/`-Baum nach `try`/`catch` durchsucht (`grep -rn "catch\s*(\|try\s*{"
+      src/`) — null Treffer irgendwo im Projekt; `platformio.ini` setzt für keine der
+      ESP32-/RP2040-Build-Umgebungen `-fno-exceptions`. Eine nicht gefangene Ausnahme läuft damit
+      bis `std::terminate()` durch und reißt das gesamte Firmware-Image ab. Aufrufketten
+      verifiziert: `src/Comms/Web/WebServer.cpp` (`/set*`-Endpunkt, kein Login/Token) und
+      `src/Attacks/Ducky/Extensions.h` (`SETTING`-Befehl) reichen den Wert ungeprüft durch;
+      tatsächlich betroffene registrierte Settings (`grep -rn "SettingType::Int16\|
+      SettingType::UInt16" src/`): `USB_AGENT_POLLING_TIME_IN_SEC` (`Agent.cpp`) sowie
+      `usbDeviceType`/`usbClassType`/`usbDeviceVID`/`usbDevicePID`/`usbVersion`/
+      `usbDeviceVersion` (alle sechs in `USBCore.cpp`). Ein einzelner HTTP-Request wie
+      `GET /set?name=usbDeviceVID&value=zzz` reicht aus, um das Gerät mitten in einem laufenden
+      Pentest abstürzen zu lassen — unauthentifiziert, ohne jede Interaktion am Zielsystem.
+- [x] Beim Analysieren selbst eine erste Vermutung widerlegt, bevor sie als Fund behauptet wurde:
+      `"0xZZZZ"`/`"0x"` allein werfen entgegen der ersten Annahme NICHT — `std::stoi(value,
+      nullptr, 16)` folgt der `strtol`-Präfixregel (`"0x"` nur als Präfix erkannt, wenn direkt
+      eine gültige Hex-Ziffer folgt, sonst wird nur die führende `"0"` geparst) und liefert `0`
+      zurück statt zu werfen. Per Host-Probe verifiziert, bevor der eigentliche Repro-Satz
+      geschrieben wurde — tatsächlicher Wurfpfad im UInt16-Zweig ist ein zu langer/großer
+      Hex-Wert (`"0x100000000"`, `"0x80000000"`, > `INT_MAX`), nicht ein ungültiges Zeichen nach
+      `"0x"`. Der Misparse selbst (ungültiger Hex-Rest wird stillschweigend als `0` statt als
+      Fehler behandelt) ist ein eigener, deutlich harmloserer, bewusst nicht mitbehobener
+      Nebenfund (kein Absturz).
+- [x] Fix: `try`/`catch` um beide `std::stoi()`-Aufrufstellen (`Int16`- und `UInt16`-Zweig),
+      loggt denselben "Invalid setting value"-Hinweis wie die bereits vorhandenen
+      Validierungszweige, `ret` bleibt `false` — kein Verhaltensunterschied für jeden bereits
+      gültigen Wert. Patch (`git apply --check` gegen eine frische, unabhängige Zweitkopie von
+      `main` Commit `411b153` verifiziert, real angewendet, byte-für-byte mit der separat
+      editierten Fassung abgeglichen — identisch) in
+      `app-improvements/usb-army-penetrator/settings-int-uint16-stoi-uncaught-exception-crash-fix/settings_cpp.patch`.
+- [x] Host-Repro (ALT/NEU 1:1 aus `setSettingValue()`s Int16-/UInt16-Logik, kein
+      Arduino/ESP32-Header nötig) unter `g++ -std=c++17 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined` verifiziert: 30 Prüfungen, ALLE CHECKS BESTANDEN, identischer
+      Output beider Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen —
+      in
+      `app-improvements/usb-army-penetrator/repro-settings-int-uint16-stoi-uncaught-exception/repro.cpp`.
+- [x] Details, Nutzen, betroffene Datei, Testhinweis, Risiko in
+      `app-improvements/usb-army-penetrator/settings-int-uint16-stoi-uncaught-exception-crash-fix.md`.
+      Bewusst nicht mitbehoben: der oben beschriebene Hex-Misparse-Nebenfund (harmlos, kein
+      Absturz) — für eine künftige Sitzung vorgemerkt, falls eine strengere Hex-Validierung
+      gewünscht wird. Restlicher, bereits aus Fortsetzung 5 bekannter offener Punkt
+      (Ethernet CH9120/W5500, unverdrahteter Stub ohne angeschlossene Hardware) bleibt
+      unverändert außerhalb reiner Quelltextprüfung offen.
