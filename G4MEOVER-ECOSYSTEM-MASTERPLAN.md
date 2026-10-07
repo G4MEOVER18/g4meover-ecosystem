@@ -1410,6 +1410,30 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
   Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-10-07 (Cloud-Heartbeat): wie am 2026-10-03/-04/-05 vermerkt, wäre eine neunte Verfeinerungsrunde
+  an denselben drei vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f) reine Wiederholung — bewusst erneut
+  keine weitere Textmenge ergänzt, stattdessen nur Sachstand geprüft. Zwei wiederkehrende
+  Repo-Hygiene-Funde erneut vorgefunden und behoben: lokaler `main`-Branch-Zeiger stand (dieselbe
+  Drift-Richtung wie 2026-09-15ff./2026-10-05) hinter `origin/main`/`HEAD` zurück — per
+  `git checkout -B main HEAD` nachgezogen, `origin/main` unverändert, kein Datenverlust (`HEAD` lag
+  exakt auf `origin/main`, per `git fetch` bestätigt). Git-Identität dieses Checkouts stand erneut auf
+  dem Cloud-Default `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor diesem
+  Commit auf `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert (jetzt neunter Fund dieser Art
+  seit 2026-09-26, tritt bei praktisch jedem frischen Checkout auf — reine Beobachtung, keine neue
+  Gegenmaßnahme nötig, da jede Sitzung ohnehin vor dem Commit prüft). Wiederkehrende Prüfungen, alle
+  unverändert: Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut gegen
+  `git log --all --diff-filter=A` geprüft: weiterhin kein Treffer. P4.2a-Fund (Fleet-Broadcast/
+  RespAck-Stand) gezielt gegen die seit 2026-10-02 gelandeten Commits erneut geprüft (u. a. den
+  thematisch ähnlich klingenden, aber unabhängigen Fund „heltec-v4-hub TX-Broadcast-Counter"
+  vom 2026-10-01 — reiner Namensgleichklang, keine Überschneidung mit dem hier gesuchten
+  Ecosystem-GUI-Fleet-Broadcast/RespAck-Stand aus dem 2026-08-26-Log): weiterhin kein Treffer.
+  `ecosystem/devices.json`/`ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide
+  gültig. Repo-Sichtbarkeit per GitHub-API geprüft (`visibility`-Feld direkt): weiterhin `private`.
+  Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin unverändert offen (seit 2026-08-27, jetzt
+  41 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
+  reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1450,7 +1474,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
    im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
    vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 39 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 41 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1592,7 +1616,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 39 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 41 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
