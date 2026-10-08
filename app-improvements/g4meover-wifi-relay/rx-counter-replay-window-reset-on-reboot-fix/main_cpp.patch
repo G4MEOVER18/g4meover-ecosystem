@@ -1,0 +1,64 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 68bb401..9aeaf83 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -28,6 +28,26 @@ extern "C" {
+ static Preferences g_prefs;
+ #define TXCTR_MARGIN 100u
+ 
++// ---- Anti-Replay-Fenster von s_rxCounter ueberlebt einen Neustart (NVS) ----
++// s_txCounter (oben) wird bereits per NVS-Margin ueber Reboots hinweg monoton gehalten;
++// s_rxCounter (Anti-Replay-Fenster der Flipper->Relay-Richtung, uebergeben an
++// ukfe_rf_parse_frame()s last_counter) ist bislang ein reines RAM-Feld und faellt bei jedem
++// Neustart auf 0 zurueck -- jedes zuvor per UART/ESP-NOW mitgeschnittene, aber gueltig
++// signierte Flipper-Frame wird dann erneut angenommen UND an alle Satelliten rebroadcastet.
++// Reserve-mit-Sicherheitsspanne-Logik identisch zum bereits verifizierten Muster aus
++// usb-army-penetrator/heltec-v4-hub/lilygo-ukfe-rx.
++#define RXCTR_MARGIN 10u
++
++static uint32_t ukfe_rf_counter_initial_reserve(uint32_t loaded, uint32_t margin) {
++    return loaded + margin;
++}
++static bool ukfe_rf_counter_needs_bump(uint32_t counter, uint32_t reserved_up_to,
++                                       uint32_t margin, uint32_t* new_reserved_up_to) {
++    if(counter + margin / 2 < reserved_up_to) return false;
++    *new_reserved_up_to = counter + margin;
++    return true;
++}
++
+ // ---- Shared Secret: IDENTISCH mit RF_SECRET (Flipper) und UKFE_SECRET (Heltec) ----
+ // Out-of-band pairen; Pairing-Bytes vor Produktivnutzung ersetzen.
+ #include "secret.h"
+@@ -37,6 +57,7 @@ static const uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+ 
+ // ---- Zustand ----
+ static uint32_t s_rxCounter = 0;     // Anti-Replay-Fenster (Flipper -> Relay)
++static uint32_t s_rxCtrFloor = 0;    // persistierte Reserve-Grenze fuer s_rxCounter (NVS)
+ static uint32_t s_txCounter = 0;     // eigener Counter fuer CLI-generierte Frames
+ static uint32_t s_rxFromFlipper = 0; // Statistik
+ static uint32_t s_relayed = 0;
+@@ -111,6 +132,13 @@ static void scan_and_relay() {
+         UkfeRfMessage msg;
+         if (ukfe_rf_parse_frame(RELAY_SECRET, s_buf, real_len, &msg, &s_rxCounter)) {
+             s_rxFromFlipper++;
++            uint32_t newFloor;
++            if (ukfe_rf_counter_needs_bump(s_rxCounter, s_rxCtrFloor, RXCTR_MARGIN, &newFloor)) {
++                s_rxCtrFloor = newFloor;
++                g_prefs.begin("g4meover", false);
++                g_prefs.putUInt("rxctr", s_rxCtrFloor);
++                g_prefs.end();
++            }
+             relay_frame(s_buf, real_len, &msg, "Flipper");
+         } else {
+             s_rejected++;
+@@ -204,6 +232,10 @@ void setup() {
+     g_prefs.begin("g4meover", false);
+     s_txCounter = g_prefs.getUInt("txctr", 0) + TXCTR_MARGIN;
+     g_prefs.putUInt("txctr", s_txCounter);
++    // RX-Anti-Replay-Floor ebenso aus NVS laden statt bei 0 zu starten (0 bei Erst-Inbetriebnahme).
++    s_rxCounter = g_prefs.getUInt("rxctr", 0);
++    s_rxCtrFloor = ukfe_rf_counter_initial_reserve(s_rxCounter, RXCTR_MARGIN);
++    g_prefs.putUInt("rxctr", s_rxCtrFloor);  // sofort vorreservieren
+     g_prefs.end();
+ 
+     WiFi.mode(WIFI_STA);

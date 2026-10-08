@@ -4653,3 +4653,60 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       externes MCP2515-Transceiver-Modul am Erweiterungsport.
 - [ ] Der `sanitize_filename()`-Zeichenbereichs-Nebenfund (siehe oben) bleibt als eigenständiger,
       kleinerer Folgepunkt offen.
+
+## App-Verbesserung (g4meover-wifi-relay — neu erfasst)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (CAN Tools), davor
+      Firmware-Feature-Mining (Nord ICE) und App-Verbesserung (lilygo-ukfe-rx) —
+      App-Verbesserung für diese Sitzung entsprechend wieder an der Reihe. Repo-Zustand zu
+      Sitzungsbeginn geprüft: HEAD stand detached auf demselben Commit wie `origin/main` (nach
+      `git fetch`), lokaler `main`-Zeiger stand 12 Commits zurück — per `git checkout main` +
+      `git merge --ff-only origin/main` behoben (reines Zeiger-Problem, kein Datenverlust).
+      Git-Identität vor dem ersten Commit gesetzt.
+- [x] Aus dem seit der `lilygo-ukfe-rx`-Sitzung offenen Punkt "`g4meover-wifi-relay` noch nie
+      auf den `ukfe_rf`-Anti-Replay-Fund geprüft" aufgegriffen — einziges noch offenes Gerät des
+      Ökosystems für diesen bereits dreimal (`usb-army-penetrator`, `heltec-v4-hub`,
+      `lilygo-ukfe-rx`) bestätigten Fundmuster. Frische, unabhängige Kopie von
+      `G4MEOVER18/g4meover-wifi-relay` (main, Commit `9b4a9e1`) geklont, vollständige
+      Dateiliste gelesen (`main.cpp`, `ukfe_rf.c`/`.h` — 456 Zeilen gesamt). UART-Framing-
+      Akkumulator (`scan_and_relay()`), ESP-NOW-Empfang (`on_espnow_recv()`), CLI-Hex-Injektion
+      (`cli_inject_hex()`) geprüft — jeweils bereits korrekt längengeprüft, keine
+      Speicherfehler gefunden.
+- [x] **Fund**: `s_rxCounter` (Anti-Replay-Rolling-Counter der Flipper→Relay-Richtung, an alle
+      Satelliten per ESP-NOW-Broadcast weitergereicht) ist ein reines RAM-Feld, startet bei
+      jedem Neustart wieder bei `0` — exakt derselbe Fund wie bereits in
+      `usb-army-penetrator`/`heltec-v4-hub`/`lilygo-ukfe-rx` dokumentiert, hier im fünften
+      geprüften Gerät. Besonders relevant, weil der Relay die zentrale Weiterleitungsstelle für
+      alle vom Flipper ausgelösten Befehle an *alle* Satelliten gleichzeitig ist
+      (`WifiDeauth`/`BeaconSpam`/`EvilPortal`/`Trigger`/`PayloadRun`) — ein Neustart allein
+      reicht aus, damit ein zuvor mitgeschnittener Befehl erneut an alle Satelliten
+      rebroadcastet wird. Nebenbeobachtung: derselbe Code persistiert `s_txCounter` (CLI-Ping)
+      bereits korrekt per NVS-Margin — nur der sicherheitsrelevante `s_rxCounter` war
+      übersehen.
+- [x] Fix: dieselbe bereits dreimal verifizierte Reserve-mit-Sicherheitsspanne-Logik
+      (`ukfe_rf_counter_initial_reserve()`/`ukfe_rf_counter_needs_bump()`) ein fünftes Mal
+      angewendet, diesmal im bereits vorhandenen `Preferences`-Objekt (`g_prefs`, Namespace
+      `"g4meover"`) mit neuem Key `"rxctr"` statt eines neuen Namespaces. Patch
+      (`git apply --check` gegen eine frische, unabhängige Zweitkopie verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch) in
+      `app-improvements/g4meover-wifi-relay/rx-counter-replay-window-reset-on-reboot-fix/main_cpp.patch`.
+- [x] Host-Repro (echte `ukfe_rf_build_frame()`/`ukfe_rf_parse_frame()`, 50 signierte
+      `UkfeRfCmdWifiDeauth`-Frames, Mitschnitt- und Neustart-Simulation, Ist-Zustand vs. Fix,
+      Crash-Sicherheit des persistierten Floors) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert: alle
+      Szenarien bestätigt, identischer Output beider Optimierungsstufen, keine ASan-/UBSan-
+      Meldungen, keine Compiler-Warnungen — in
+      `app-improvements/g4meover-wifi-relay/repro-rx-counter-replay-window-reset/repro.c`.
+- [x] Details, Nutzen, betroffene Datei, Risiko, Testhinweis in
+      `app-improvements/g4meover-wifi-relay/rx-counter-replay-window-reset-on-reboot-fix.md`.
+- [ ] Lokal zu tun: Patch einbauen, PlatformIO-Build, auf den WROOM flashen. Funktionstest:
+      `WifiDeauth`-Befehl vom Flipper senden, den Relay per Reset-Taste oder Stromtrennen neu
+      starten, zuvor mitgeschnittenes Frame erneut einspielen — erwartet: `s_rejected` steigt,
+      kein erneuter Rebroadcast an die Satelliten. Erst-Inbetriebnahme (NVS-Namespace
+      `g4meover` einmal löschen) sowie harter Reset mitten in einer laufenden Sitzung
+      gegenprüfen.
+- [ ] Damit ist der `ukfe_rf`-Anti-Replay-Fund jetzt in allen fünf bekannten Ökosystem-Geräten
+      (`usb-army-penetrator`, `heltec-v4-hub`, `lilygo-ukfe-rx`, `g4meover-wifi-relay`) als
+      Port-Vorschlag dokumentiert. Weiterhin offen: der in `lilygo-ukfe-rx` als reiner
+      Verfügbarkeits-Nebenfund zurückgestellte Rückweg (`respCounter`, LilyGo→WROOM), sowie das
+      in dieser Sitzung notierte Restrisiko, dass die jeweiligen Satelliten-Fixes lokal noch
+      nicht zwingend eingebaut/geflasht sind.
