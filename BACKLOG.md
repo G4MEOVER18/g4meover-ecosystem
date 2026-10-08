@@ -4588,3 +4588,68 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       SubGHz → 433,92 MHz AM650 gegen einen echten Nord-ICE-Sender empfangen und Serial/Btn
       gegenprüfen; gezielt das Repeat/GAP-Verhalten nachvollziehen (Signal mit `Repeat` > 1
       senden, gegenprüfen dass nur jede zweite Wiederholung einen Empfänger-Treffer auslöst).
+
+## Ideen-Recherche (Fortsetzung 16)
+- [x] `reports/` durchgesehen: letzte Sitzung (`2026-10-08-0635.md`) war Firmware-Feature-Mining
+      (Nord ICE), davor App-Verbesserung (lilygo-ukfe-rx) und Ideen-Recherche (SWD Probe) —
+      Ideen-Recherche für diese Sitzung entsprechend wieder an der Reihe (längste Zeit seit
+      letztem Durchgang dieser Kategorie unter den drei rotierenden Bereichen). Repo-Zustand
+      geprüft (HEAD stand sauber auf `origin/main`, kein Korrekturbedarf). Git-Identität vor dem
+      ersten Commit gesetzt.
+- [x] Gezielt nach einer bislang komplett fehlenden Kategorie gesucht: Fahrzeug-CAN-Bus, über
+      die bestehende Bus-Analyse (UART Sniff/GPIO Logic Analyzer/i2c Tools/RS485 Modbus) und den
+      Hardware-Debug-Port (SWD Probe) hinaus. Fünf CAN-Apps im RogueMaster-Bündel
+      (`applications/external/`, Branch `420`) gefunden: `can_bus_attack`, `can_commander`,
+      `can_tools`, `can_transceiver`, `canbus` — vier davon mit MCP2515-Transceiver-Abhängigkeit.
+      Als ersten, kleinsten und einzigen hardwarefreien Kandidaten **CAN Tools**
+      (`MatthewKuKanich/FlipperCANTools`) gewählt: reine DBC-Dateierstellung und
+      Signaldekodierung, komplett offline nutzbar.
+- [x] Vollständig gelesen (eine Quelldatei, `cantools_app.c`, 2419 Zeilen). API-87-Kompatibilität
+      gegen eine frische, unabhängige Zweitkopie von `Next-Flip/Momentum-Firmware` (Tag
+      `mntm-012`) geprüft: alle verwendeten GUI-/Storage-/Stream-/Dialogs-Symbole (u. a.
+      `byte_input_set_result_callback()`s sechs Parameter) byteidentisch vorhanden, keine
+      Erweiterungsport-Pins oder sonstige Hardware-HAL-Aufrufe (passend zum reinen
+      Offline-Charakter) — kein Port-Hindernis.
+- [x] Fund: `dbc_parse_sg_line()` liest beim Laden einer `.dbc`-Datei nach dem Startbit-/
+      Bitlängen-Feld zwei weitere Zeichen (Endianness/Signedness) bedingungslos, ohne vorherige
+      Prüfung, ob nach dem abschließenden `@` überhaupt noch Zeichen folgen — anders als jedes
+      andere Feld im selben Parser, das jeweils über `if(end == p || *end != '…') return false;`
+      abgesichert ist. Für eine kurze, unvollständige Zeile liest das mindestens 1 Byte
+      uninitialisierten Stack-Speicher (noch innerhalb des 256-Byte-Zeilenpuffers aus
+      `dbc_load_file()`); für eine exakt 255 Byte lange, mit `@` endende Zeile (z. B. durch
+      einen entsprechend langen Signalnamen, den der Parser beim Scannen nicht begrenzt) liegt
+      der zweite Zeichenzugriff exakt 1 Byte hinter dem deklarierten Array — ein echter
+      Lesezugriff außerhalb des Puffers.
+- [x] Host-Repro (Regressionsfall mit vollständiger, gültiger Zeile; zwei Fundszenarien; plus
+      direkter Nicht-Fork-Nachweis des vollen AddressSanitizer-Berichts) unter
+      `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` verifiziert: alle Szenarien bestätigt (`stack-buffer-
+      overflow READ of size 1`, exakt 1 Byte hinter dem Array, direkt per ASan-Bericht
+      nachgewiesen), identischer Output beider Optimierungsstufen, keine Compiler-Warnungen —
+      in `firmware-mining/repro-can-tools-sg-line-parser-oob-read/repro.c`.
+- [x] Patch (additive Prüfung `if(!p[0] || !p[1]) return false;` vor den beiden Zeichenzugriffen,
+      analog zum bereits vorhandenen Validierungsmuster im selben Parser) — per
+      `git apply --check` gegen eine frische, unabhängige Zweitkopie des RogueMaster-Bündels
+      (Branch `420`, nur `applications/external/can_tools/`) verifiziert, real angewendet,
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch. In
+      `firmware-mining/can-tools-app-port/cantools_app_c.patch`.
+- [x] Details, Nutzen, API-87-Kompatibilität, Fund, Risiko, Port-Skizze, Testhinweis in
+      `firmware-mining/can-tools-app-port.md`. Kuratiert in `ideas/can-tools-api-status.md`.
+      `ideas/pentest-app-katalog.md` um neue Kategorie "CAN-Bus" (mit den vier übrigen,
+      hardwareabhängigen Apps als offene Kandidaten) sowie einen Log-Eintrag unter "Nächste
+      Recherche-Aufträge" ergänzt.
+- [x] Nebenfund notiert, bewusst nicht in diesem Patch behoben: `sanitize_filename()` (selbe
+      Datei) filtert Zeichen mit `(c >= 'A' && c <= 'z')` statt `(c >= 'A' && c <= 'Z')` — lässt
+      dadurch fünf zusätzliche ASCII-Zeichen (`[`, `\`, `]`, `^`, `` ` ``) unersetzt durch den
+      Dateinamen-Filter; ohne erkennbare Sicherheitswirkung, da `.` (für `..`-Traversal) bereits
+      nicht im erlaubten Zeichensatz enthalten ist und Flipper-Pfade `/` statt `\` als Trenner
+      verwenden — eigenständiger, kleinerer Folgefund für eine künftige Sitzung.
+- [ ] Lokal zu tun: `can_tools` (mit Patch) gegen die eigene `mntm-012`-Basis bauen, am Gerät
+      DBC Maker/View DBC/Decode Data gegenprüfen (Regressionstest), danach den Fundnachvollzug
+      aus `firmware-mining/can-tools-app-port.md` (präparierte `.dbc`-Datei mit einer exakt mit
+      `@` endenden `SG_`-Zeile) durchführen.
+- [ ] Aus demselben CAN-Bus-Fund bleiben vier weitere, noch nicht geprüfte Kandidaten offen:
+      `can_bus_attack`, `can_commander`, `can_transceiver`, `canbus` — alle vier benötigen ein
+      externes MCP2515-Transceiver-Modul am Erweiterungsport.
+- [ ] Der `sanitize_filename()`-Zeichenbereichs-Nebenfund (siehe oben) bleibt als eigenständiger,
+      kleinerer Folgepunkt offen.
