@@ -1434,6 +1434,31 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   41 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert;
   reine Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-10-08 (Cloud-Heartbeat): wie am 2026-10-03/-04/-05/-07 vermerkt, wären weitere
+  Verfeinerungsrunden an denselben drei vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f) reine
+  Wiederholung — bewusst erneut keine weitere Textmenge ergänzt, stattdessen nur Sachstand
+  geprüft. Repo-Zustand geprüft: `HEAD` stand losgelöst exakt auf `origin/main` (`e8b7b13`, nach
+  `git fetch` bestätigt), der lokale `main`-Branch-Zeiger lag 9 Commits dahinter (`1580a93`) —
+  dieselbe Drift-Richtung wie an mehreren Vortagen (main hinter origin) — per
+  `git checkout -B main HEAD` nachgezogen, kein Datenverlust (reiner Fast-Forward, `origin/main`
+  unverändert). Git-Identität dieses Checkouts stand erneut auf dem Cloud-Default
+  `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor diesem Commit auf
+  `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert (jetzt zehnter Fund dieser Art seit
+  2026-09-26, tritt weiterhin bei praktisch jedem frischen Checkout auf). Die neun seit dem
+  letzten Masterplan-Log-Eintrag (`9451d4c`, 2026-10-07) gelandeten Commits gezielt gegen diese
+  Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft
+  (`git log 9451d4c..HEAD -- ...`): keine Überschneidung, ausschließlich dieselbe separate,
+  häufiger laufende Firmware-Mining-/App-Verbesserungs-Routine. Wiederkehrende Prüfungen, alle
+  unverändert: Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) sowie der
+  P4.2a-Fund (Fleet-Broadcast/RespAck-Stand) erneut gegen `git log --all --diff-filter=A` bzw.
+  `--grep` geprüft: weiterhin kein Treffer. `ecosystem/devices.json`/`ecosystem/topology.json`
+  Syntax erneut per `json.load` geprüft: beide gültig. Repo-Sichtbarkeit per GitHub-API geprüft
+  (`visibility`-Feld direkt): weiterhin `private`. Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin)
+  weiterhin unverändert offen (seit 2026-08-27, jetzt 42 Tage) — keine erneute Push-Notification
+  ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine Tageszählung ist kein neuer
+  Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code
+  geschrieben.
 
 ## PREP für nächste lokale Session
 
