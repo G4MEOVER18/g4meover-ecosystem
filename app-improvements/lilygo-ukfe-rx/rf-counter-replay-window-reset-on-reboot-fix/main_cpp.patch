@@ -1,0 +1,68 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 0cd1ab7..818911d 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -13,6 +13,7 @@
+ #include "USB.h"
+ #include "USBHIDKeyboard.h"
+ #include <TFT_eSPI.h>      // ST7735 80x160 des T-Dongle S3 (Config in platformio.ini)
++#include <Preferences.h>
+ 
+ extern "C" {
+ #include "ukfe_rf.h"
+@@ -50,6 +51,29 @@ static uint32_t rxCount = 0, okCount = 0;
+ static uint8_t  enowSenderMac[6] = {0};   // MAC des WROOM (fuer ACK-Rueckweg)
+ static uint32_t respCounter = 0;
+ 
++// ---- Anti-Replay-Fenster von enowCounter ueberlebt einen Neustart (NVS) ----
++// Ohne das setzt jeder Reset/Crash/Akku-leer/OTA-Update enowCounter auf 0 zurueck und
++// oeffnet damit das Replay-Fenster der ukfe_rf-Konsole fuer jedes zuvor per ESP-NOW
++// mitgeschnittene, aber gueltig signierte WROOM-Frame erneut -- hier besonders relevant,
++// weil dieses Geraet HID-BadUSB-Payloads (HidDucky/HidStream/PayloadRun) direkt am
++// Zielrechner ausfuehrt. Reserve-mit-Sicherheitsspanne-Logik identisch zum bereits
++// verifizierten Muster aus usb-army-penetrator/UkfeRfControl und heltec-v4-hub/main.cpp.
++#define UKFE_RF_COUNTER_MARGIN     10u
++#define UKFE_RF_COUNTER_PREF_NS    "g4meoverLily"
++#define UKFE_RF_COUNTER_PREF_KEY   "rfCtr"
++static Preferences s_rfCtrPrefs;
++static uint32_t    s_rfCtrPersistedFloor = 0;
++
++static uint32_t ukfe_rf_counter_initial_reserve(uint32_t loaded, uint32_t margin) {
++    return loaded + margin;
++}
++static bool ukfe_rf_counter_needs_bump(uint32_t counter, uint32_t reserved_up_to,
++                                       uint32_t margin, uint32_t* new_reserved_up_to) {
++    if(counter + margin / 2 < reserved_up_to) return false;
++    *new_reserved_up_to = counter + margin;
++    return true;
++}
++
+ void onEspNowRecv(const uint8_t* mac, const uint8_t* data, int len) {
+     if(enowFlag) return;
+     if(len <= 0 || len > (int)UKFE_RF_MAX_FRAME) return;
+@@ -221,6 +245,12 @@ void setup() {
+     Keyboard.begin();
+     USB.begin();
+ 
++    // Anti-Replay-Floor aus NVS laden statt bei 0 zu starten (0 bei Erst-Inbetriebnahme).
++    s_rfCtrPrefs.begin(UKFE_RF_COUNTER_PREF_NS, false);
++    enowCounter = s_rfCtrPrefs.getUInt(UKFE_RF_COUNTER_PREF_KEY, 0);
++    s_rfCtrPersistedFloor = ukfe_rf_counter_initial_reserve(enowCounter, UKFE_RF_COUNTER_MARGIN);
++    s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY, s_rfCtrPersistedFloor);  // sofort vorreservieren
++
+     // TFT zuerst — sichtbarer Lebensbeweis, auch wenn USB-CDC still bleibt.
+     tft.init();
+     tft.setRotation(1);           // Querformat 160x80
+@@ -268,6 +298,12 @@ void loop() {
+     UkfeRfMessage msg;
+     if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, &enowCounter)) {
+         okCount++;
++        uint32_t newFloor;
++        if(ukfe_rf_counter_needs_bump(enowCounter, s_rfCtrPersistedFloor,
++                                      UKFE_RF_COUNTER_MARGIN, &newFloor)) {
++            s_rfCtrPersistedFloor = newFloor;
++            s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY, s_rfCtrPersistedFloor);
++        }
+         Serial.printf("ESPNOW OK cmd=0x%02X counter=%lu (rx:%lu ok:%lu)\n",
+                       msg.cmd, (unsigned long)msg.counter,
+                       (unsigned long)rxCount, (unsigned long)okCount);

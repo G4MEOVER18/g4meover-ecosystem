@@ -4486,3 +4486,53 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Cortex-M-Board mit bekanntem, offenem SWD-Port (Pin-Erkennung, `IDCODE`/JEP106-Anzeige,
       Speicherlesen über die ADI-Implementierung); gezielt den Pfadlängen-Fix nachvollziehen
       (`.swd`-Skript in einem ≥128 Zeichen tiefen SD-Ordner über den Dateibrowser auswählen).
+
+## App-Verbesserung (lilygo-ukfe-rx — neu erfasst)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (SWD Probe), davor
+      Firmware-Feature-Mining (Jarolift) und App-Verbesserung (usb-army-penetrator) —
+      App-Verbesserung für diese Sitzung gewählt. `lilygo-ukfe-rx` (LilyGo-T-Dongle-S3-
+      ESP-NOW-Satellit, natives USB-HID) war bisher in keinem `app-improvements/`-Durchgang
+      erfasst (`RollJam`, `RollLab`, `RollForge`, `ProtoPirate`, `FlipperJammer`,
+      `g4meover-magspoof`, `usb-army-penetrator`, `lora-ukfe`, `heltec-v4-hub`,
+      `heltec-ukfe-rx`, `ukfe-esp-now-mesh` bereits mindestens einmal geprüft) — gezielt
+      aufgegriffen statt eines bereits mehrfach durchgesehenen Repos.
+- [x] Frische, unabhängige Kopie von `G4MEOVER18/lilygo-ukfe-rx` (main, Commit `aa8a285`)
+      geklont, vollständige Dateiliste gelesen (`main.cpp`, `ukfe_rf.c`/`.h`, `wifi_attack.cpp`/
+      `.h`, `ble_spam.cpp`/`.h`, `ducky.h` — 974 Zeilen gesamt). `send_beacon()`-Puffergrenzen,
+      `ducky_run()`-Zeilenpuffer, `HidStream`-Chunk-Zusammenbau sowie die ESP-NOW-Mailbox
+      (`enowFlag`/`enowBuf`/`enowLen`) geprüft — jeweils bereits korrekt längengeprüft, keine
+      Speicherfehler gefunden.
+- [x] **Fund**: `enowCounter` (Anti-Replay-Rolling-Counter der WROOM→LilyGo-ESP-NOW-Richtung)
+      ist ein reines RAM-Feld, startet bei jedem Neustart wieder bei `0` — exakt derselbe Fund
+      wie bereits in `usb-army-penetrator` und `heltec-v4-hub` dokumentiert, hier im vierten
+      geprüften Gerät. Besonders relevant, weil der LilyGo Befehle (`HidDucky`/`HidStream`/
+      `PayloadRun`/`WifiDeauth`/`BeaconSpam`/`BleSpam`) direkt am angeschlossenen Zielrechner
+      bzw. per Funk ausführt — ein mitgeschnittenes, gültig signiertes Frame kann nach jedem
+      Neustart erneut eingespielt werden und löst die Aktion (z. B. eine BadUSB-HID-Payload)
+      ein zweites Mal aus, ohne dass der Operator erneut gesendet hat.
+- [x] Fix: dieselbe bereits zweimal verifizierte Reserve-mit-Sicherheitsspanne-Logik
+      (`ukfe_rf_counter_initial_reserve()`/`ukfe_rf_counter_needs_bump()`, NVS über
+      `Preferences`, Namespace `g4meoverLily`) ein viertes Mal angewendet. Patch
+      (`git apply --check` gegen eine frische, unabhängige Zweitkopie verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch) in
+      `app-improvements/lilygo-ukfe-rx/rf-counter-replay-window-reset-on-reboot-fix/main_cpp.patch`.
+- [x] Host-Repro (echte `ukfe_rf_build_frame()`/`ukfe_rf_parse_frame()`, 50 signierte
+      `HidDucky`-Frames, Mitschnitt- und Neustart-Simulation, Ist-Zustand vs. Fix, Crash-
+      Sicherheit des persistierten Floors) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert: alle
+      Szenarien bestätigt, identischer Output beider Optimierungsstufen, keine ASan-/UBSan-
+      Meldungen, keine Compiler-Warnungen — in
+      `app-improvements/lilygo-ukfe-rx/repro-rf-counter-replay-window-reset/repro.c`.
+- [x] Details, Nutzen, betroffene Datei, Risiko, Testhinweis in
+      `app-improvements/lilygo-ukfe-rx/rf-counter-replay-window-reset-on-reboot-fix.md`.
+      Bewusst nicht angefasst: `send_espnow_ack()`/`respCounter` (Rückweg LilyGo→WROOM, reiner
+      Verfügbarkeits-Bug bei RAM-Reset, keine Sicherheitslücke).
+- [ ] Lokal zu tun: Patch einbauen, PlatformIO-Build, auf den LilyGo flashen. Funktionstest:
+      `HidDucky`-Befehl vom WROOM-Hub senden, LilyGo per Reset-Taste neu starten, zuvor
+      mitgeschnittenes Frame erneut per ESP-NOW einspielen — erwartet: keine erneute HID-
+      Eingabe. Erst-Inbetriebnahme (NVS-Namespace `g4meoverLily` einmal löschen) sowie harter
+      Reset mitten in einer laufenden Sitzung gegenprüfen.
+- [ ] Aus demselben Ökosystem-Katalog bleiben weitere, noch nicht auf diesen Fund geprüfte
+      Geräte offen: `lilygo-ukfe-rx`s LilyGo→WROOM-Rückweg (`respCounter`, s. o., nur
+      Verfügbarkeit), sowie `g4meover-wifi-relay` (noch nie auf den `ukfe_rf`-Anti-Replay-
+      Fund geprüft).
