@@ -4536,3 +4536,55 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Geräte offen: `lilygo-ukfe-rx`s LilyGo→WROOM-Rückweg (`respCounter`, s. o., nur
       Verfügbarkeit), sowie `g4meover-wifi-relay` (noch nie auf den `ukfe_rf`-Anti-Replay-
       Fund geprüft).
+
+## Firmware-Feature-Mining (Fortsetzung 28)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (lilygo-ukfe-rx), davor
+      Ideen-Recherche (SWD Probe) und Firmware-Feature-Mining (Jarolift) — Firmware-Feature-
+      Mining für diese Sitzung entsprechend wieder an der Reihe. Repo-Zustand geprüft: HEAD war
+      detached auf demselben Commit wie `origin/main`, lokaler `main`-Zeiger stand 10 Commits
+      zurück — per `git fetch`/`git checkout main`/`git merge --ff-only origin/main` behoben
+      (reines Zeiger-Problem, kein Datenverlust). Git-Identität vor dem ersten Commit gesetzt.
+- [x] Aus der seit der Beninca-ARC-Sitzung offenen `unlshd-093`-Restliste (`allstar_firefly`,
+      `ditec_gol4`, `keyfinder`, `nord_ice`, `treadmill37` — `jarolift` bereits in Fortsetzung 27
+      aufgegriffen) **`nord_ice.c`** gewählt: einziges der fünf verbleibenden Kandidaten ohne
+      jede Kryptografie (statisches 33-Bit-Protokoll) — bewusst der kleinste, risikoärmste der
+      fünf offenen Kandidaten, nachdem die letzten beiden Firmware-Mining-Sitzungen bereits
+      KeeLoq/AES-Protokolle mit Keystore-Abhängigkeit brachten.
+- [x] Kompatibilitätsprüfung gegen `mntm-012`: jedes von `nord_ice.c` verwendete Kern-Symbol
+      (`SubGhzBlockConst`/`Decoder`/`Generic`, `subghz_protocol_blocks_add_bit/
+      _get_hash_data/_reverse_key`, `subghz_block_generic_serialize/
+      _deserialize_check_count_bit`, `DURATION_DIFF`, `SubGhzProtocolTypeStatic`) ist
+      byteidentisch vorhanden. Einzig fehlender Teil: `common.c`/`.h` (Unleasheds
+      Flash-Spar-Refactor, wie bei Beninca ARC/Jarolift bereits dokumentiert nicht Teil meiner
+      Basis) — hier aber folgenlos, da Nord ICE weder Keystore noch Zähler-/Tasten-Override
+      benutzt, also reines Boilerplate ohne funktionale Anpassung.
+- [x] Beim Durchgehen von `check_remote_controller()`/`get_upload()`/`feed()` **kein** Fehler
+      gefunden (anders als bei Beninca ARC und Jarolift) — einzig eine Kommentarungenauigkeit
+      im Original (`// 26 bits for serial`, tatsächlich 27 belegte Bit, davon 26 echte Entropie)
+      sowie eine dokumentierte, aber folgenlose Eigenschaft des unveränderten GAP-Timings bei
+      mehreren Wiederholungen (nur jede zweite Wiederholung liefert einen eigenständigen
+      Dekodier-Treffer, ein einzelner Treffer reicht für den praktischen Empfang).
+- [x] Host-Repro (vier reale Tastendruck-Beispiele aus dem Original-Kommentar gegen
+      `check_remote_controller()`, Encode→Decode-Rundlauf über 20 000 zufällige 33-Bit-Werte mit
+      1–5 Wiederholungen inkl. der GAP-Wiederholungs-Eigenschaft, zwei Negativfälle für zu kurzes
+      GAP bzw. verstümmeltes Bit-Timing) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert: alle vier
+      Szenarien bestanden, identischer Output beider Optimierungsstufen, keine ASan-/UBSan-
+      Meldungen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-nord-ice-subghz-port/repro.c`.
+- [x] Vier Patches (`nord_ice_c`/`_h`, `protocol_items_c`/`_h`) — gegen eine frische,
+      unabhängige `mntm-012`-Zweitkopie mit `git apply --check` geprüft, real angewendet,
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch. Zusätzlich gegen eine dritte
+      Zweitkopie mit bereits angewendetem Beninca-ARC- und Jarolift-`protocol_items`-Patch
+      geprüft: Beninca-ARC-Reihenfolge konfliktfrei, Jarolift-Reihenfolge erzeugt einen
+      Kontext-Versatz am Dateiende (beide hängen ihren Eintrag an dieselbe Anker-Zeile an) —
+      dokumentiert, mit einzeiliger manueller Alternative.
+- [x] Details, Kompatibilitätsprüfung, Fund (keiner), Risiko, Port-Skizze, Testhinweis in
+      `firmware-mining/nord-ice-subghz-port.md`.
+- [ ] Aus demselben `unlshd-093`-Vergleich bleiben vier weitere, noch nicht geprüfte Kandidaten
+      offen: `allstar_firefly`, `ditec_gol4`, `keyfinder`, `treadmill37`.
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden (Reihenfolge
+      gegenüber Jarolift beachten, siehe oben), mit `ufbt`/`fbt firmware_all` bauen, am Gerät
+      SubGHz → 433,92 MHz AM650 gegen einen echten Nord-ICE-Sender empfangen und Serial/Btn
+      gegenprüfen; gezielt das Repeat/GAP-Verhalten nachvollziehen (Signal mit `Repeat` > 1
+      senden, gegenprüfen dass nur jede zweite Wiederholung einen Empfänger-Treffer auslöst).
