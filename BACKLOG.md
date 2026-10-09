@@ -4710,3 +4710,62 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Verfügbarkeits-Nebenfund zurückgestellte Rückweg (`respCounter`, LilyGo→WROOM), sowie das
       in dieser Sitzung notierte Restrisiko, dass die jeweiligen Satelliten-Fixes lokal noch
       nicht zwingend eingebaut/geflasht sind.
+
+## Firmware-Feature-Mining (Fortsetzung 29)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (g4meover-wifi-relay), davor
+      Ideen-Recherche (CAN Tools) und Firmware-Feature-Mining (Nord ICE) — Firmware-Feature-
+      Mining für diese Sitzung entsprechend wieder an der Reihe. Repo-Zustand geprüft (`git
+      status` sauber, lokaler `main`-Zeiger deckungsgleich mit `origin/main`). Git-Identität vor
+      dem ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der Beninca-ARC-Sitzung offenen `unlshd-093`-Restliste (`allstar_firefly`,
+      `ditec_gol4`, `keyfinder`, `treadmill37` — `jarolift`/`nord_ice` inzwischen aufgegriffen)
+      **`keyfinder.c`** gewählt: mit 287 Zeilen die kürzeste der vier verbleibenden, unkrypto-
+      grafischen Kandidaten (statisches 24-Bit-Protokoll, 20 Bit Serial + 4 Bit ID).
+- [x] Kompatibilitätsprüfung gegen `mntm-012`: jedes von `keyfinder.c` verwendete Kern-Symbol
+      (`SubGhzBlockConst`/`Decoder`/`Generic`, `subghz_protocol_blocks_add_bit/_get_hash_data/
+      _reverse_key`, `subghz_block_generic_serialize/_deserialize_check_count_bit`,
+      `DURATION_DIFF`) byteidentisch vorhanden. Einzig fehlender Teil wie bei Beninca ARC/
+      Jarolift/Nord ICE: `common.c`/`.h` (Unleasheds Flash-Spar-Refactor) — folgenlos, da
+      KeyFinder weder Keystore noch Zähler-/Tasten-Override benutzt.
+- [x] **Fund**: `feed()`s separater `KeyFinderDecoderStepFinish`-Zustand liest seine eigenen
+      `level`/`duration`-Parameter nicht — der Rahmenende-LOW-Impuls (`te_short*10`), der genau
+      in diesem Aufruf ankommt, wird dadurch verworfen, statt von `Reset` als Scharfschalt-
+      Signal für den nächsten Rahmen erkannt zu werden. Bei unmittelbar aufeinanderfolgenden
+      Wiederholungen (exakt wie `encoder.yield()` sie tatsächlich sendet — kein zusätzlicher
+      Leerlauf zwischen den Wiederholungen) wird dadurch nur jede zweite Wiederholung
+      (`gefunden == ceil(repeat/2)`) tatsächlich dekodiert; die vier echten Tastendruck-Beispiele
+      aus dem Original-Kommentar selbst dekodieren unverändert korrekt (Bit-Extraktion ist nicht
+      betroffen). Praktisch folgenlos (ein Treffer pro Tastendruck reicht), aber eine reine
+      Zustandsmaschinen-Falle statt eines dem Format inhärenten Timing-Merkmals wie bei Nord
+      ICE — daher per kleiner, risikoarmer Korrektur (Fund-Callback/Reset eine Stufe früher,
+      direkt beim Erkennen von `end_count == 4`, statt im separaten Folgezustand) behoben;
+      `KeyFinderDecoderStepFinish` dadurch im Port überflüssig und entfernt.
+- [x] Host-Repro (vier reale Tastendruck-Beispiele aus dem Original-Kommentar gegen
+      `check_remote_controller()`; Einzelrahmen-Encode→Decode-Rundlauf über 20 000 zufällige
+      24-Bit-Werte; Fund-Nachvollzug mit unverändertem Original über 5000 zufällige Werte mit
+      1–5 Wiederholungen, `gefunden == ceil(repeat/2)` bestätigt; Korrektur-Verifikation mit
+      derselben Eingabe, `gefunden == repeat` bestätigt; zwei Negativfälle für verstümmelten
+      Rahmenende- bzw. inneren Bit-Timing-Impuls) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert: alle sechs
+      Szenarien bestanden, identischer Output beider Optimierungsstufen, keine ASan-/UBSan-
+      Meldungen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-keyfinder-subghz-port/repro.c`.
+- [x] Vier Patches (`keyfinder_c`/`_h`, `protocol_items_c`/`_h`) — gegen eine frische,
+      unabhängige `mntm-012`-Zweitkopie mit `git apply --check` geprüft, real angewendet,
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch. Zusätzlich gegen separate
+      Zweitkopien mit je einzeln bereits angewendetem Beninca-ARC-, Jarolift- bzw. Nord-ICE-
+      `protocol_items`-Patch geprüft: Beninca-ARC-Reihenfolge konfliktfrei, Jarolift- und
+      Nord-ICE-Reihenfolge erzeugen je einen Kontext-Versatz am Dateiende (alle drei hängen
+      ihren Eintrag an dieselbe Anker-Zeile an) — dokumentiert, mit einzeiliger manueller
+      Alternative.
+- [x] Details, Kompatibilitätsprüfung, Fund, Host-Repro, Risiko, Port-Skizze, Testhinweis in
+      `firmware-mining/keyfinder-subghz-port.md`.
+- [ ] Aus demselben `unlshd-093`-Vergleich bleiben zwei weitere, noch nicht geprüfte Kandidaten
+      offen: `allstar_firefly`, `ditec_gol4` (beide ohne Kryptografie; `ditec_gol4.c` mit
+      675 Zeilen deutlich umfangreicher), sowie `treadmill37` (280 Zeilen, noch nicht geprüft).
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden (Reihenfolge
+      gegenüber Jarolift/Nord ICE beachten, siehe oben), mit `ufbt`/`fbt firmware_all` bauen,
+      am Gerät SubGHz → 433,92 MHz AM650 gegen einen echten KeyFinder-Sender empfangen und
+      Serial/ID gegenprüfen; gezielt das Repeat-Verhalten nachvollziehen (Signal mit `Repeat` > 1
+      senden, gegenprüfen dass mit der Korrektur jede Wiederholung einen eigenen Treffer
+      auslöst).
