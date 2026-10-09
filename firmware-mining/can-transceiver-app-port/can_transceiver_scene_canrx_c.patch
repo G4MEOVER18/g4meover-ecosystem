@@ -1,0 +1,16 @@
+diff --git a/scenes/can_transceiver_scene_canrx.c b/scenes/can_transceiver_scene_canrx.c
+index 6f8ecd7..1d72303 100644
+--- a/scenes/can_transceiver_scene_canrx.c
++++ b/scenes/can_transceiver_scene_canrx.c
+@@ -218,6 +218,11 @@ void CANTransceiver_SceneCANRx_MessageRxCallback(void* pContext)
+ 	// Add the message if this is not an error frame.
+ 	if (!pInstance->pMCP2515Worker->bErrorOccurred && pInstance->u16HistoryNumElements < u16RXHISTORY_MAX_NUM_MSG)
+ 	{
++		// NEU: bExtendedIDFrame/bRemoteTransferFrame below are only ever set to true, never
++		// explicitly cleared to false -- without this memset, both bits (and reserved) keep
++		// whatever indeterminate value already occupied this otherwise-uninitialized local's
++		// storage for a plain standard, non-remote frame.
++		memset(&pNewEntry, 0, sizeof(pNewEntry));
+ 		pNewEntry.u32FrameID = pInstance->pMCP2515Worker->u32FrameID_Rx & 0x1FFFFFFF;
+ 		if (pInstance->pMCP2515Worker->u32FrameID_Rx & 0x80000000)
+ 			pNewEntry.bExtendedIDFrame = true;
