@@ -4769,3 +4769,63 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Serial/ID gegenprüfen; gezielt das Repeat-Verhalten nachvollziehen (Signal mit `Repeat` > 1
       senden, gegenprüfen dass mit der Korrektur jede Wiederholung einen eigenen Treffer
       auslöst).
+
+## App-Verbesserung (g4meover-wifi-relay — Antwort-Pfad, respCounter-Punkt richtiggestellt)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (KeyFinder), davor
+      App-Verbesserung (g4meover-wifi-relay) und Ideen-Recherche (CAN Tools) — App-Verbesserung
+      für diese Sitzung entsprechend wieder an der Reihe. Repo-Zustand zu Sitzungsbeginn
+      geprüft: `HEAD` stand detached (Cloud-Heartbeat-Commit vom letzten Sachstand-Check war
+      nicht auf `main` gemerged), per `git checkout main` + `git merge --ff-only` behoben, kein
+      Datenverlust. Git-Identität vor dem ersten Commit gesetzt
+      (`Yanis / G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Den zuletzt in `app-improvements/lilygo-ukfe-rx/rf-counter-replay-window-reset-on-reboot-fix.md`
+      als "bewusst nicht angefasst, reiner Verfügbarkeits-Nebenfund" zurückgestellten
+      `respCounter`-Punkt (LilyGo→WROOM-Rückweg) aufgegriffen. Vor dem vorgemerkten Fix geprüft,
+      *wer* `respCounter` auf Empfängerseite auswertet (frische, unabhängige Kopie von
+      `G4MEOVER18/g4meover-wifi-relay`, Commit `9b4a9e1`, `src/main.cpp` vollständig gelesen).
+      Dabei festgestellt: die ursprüngliche Einordnung trifft nicht zu — `on_espnow_recv()`
+      ruft `ukfe_rf_parse_frame(..., NULL)`, die Anti-Replay-Prüfung ist für **alle**
+      Satelliten-Antworten vollständig deaktiviert (laut `ukfe_rf.h`-Kommentar bewusste
+      Design-Entscheidung, nicht versehentlich). `respCounter` wird dadurch nie ausgewertet —
+      weder vor noch nach einem Neustart; der vermutete Selbstaussperrungs-Effekt existiert
+      nicht. Der eigentliche, größere Fund: ein mitgeschnittenes, gültig signiertes
+      Antwort-Frame eines Satelliten kann **jederzeit, beliebig oft, ohne jeden Neustart**
+      erneut eingespielt werden und wird unverändert an den Flipper-UART durchgereicht
+      (veraltete/gefälscht "frische" Status-/Scan-/Ack-Anzeige am Flipper).
+- [x] Fix: eigenes Anti-Replay-Fenster je Absender-MAC (`sat_counter_slot()`, feste Tabelle
+      `SAT_COUNTER_TABLE_SIZE = 8`) statt `NULL` — löst damit auch korrekt das
+      Kollisionsproblem, das `NULL` ursprünglich motiviert hat (ein gemeinsames Fenster über
+      alle Satelliten hätte wie beim bereits behobenen Hub-Broadcast/Relay-Fund unabhängige
+      Zählerräume gegenseitig blockiert). Kein NVS/`Preferences`-Bezug nötig, da ein
+      Relay-Neustart die Tabelle leert und der erste Kontakt jedes Satelliten dann wie ein
+      neuer Absender behandelt wird (Startwert `0`, sofort vom tatsächlichen Counter
+      überholt) — anders als bei den bisherigen TX-/RX-Neustart-Funden entsteht hier kein
+      Lockout-Risiko. Patch (`git apply --check` gegen eine frische, unabhängige Zweitkopie
+      verifiziert, real angewendet, byte-für-byte abgeglichen — identisch) in
+      `app-improvements/g4meover-wifi-relay/sat-resp-ack-replay-missing-counter-check-fix/main_cpp.patch`.
+- [x] Host-Repro (echte `ukfe_rf_build_frame()`/`ukfe_rf_parse_frame()`, Satellit mit fünf
+      regulären ACKs, mitgeschnittenes Frame zehnmal erneut eingespielt; Ist-Zustand vs. Fix;
+      zweiter, unabhängig zählender Satellit zur Kollisionsprobe; Tabelle-voll-Fallback) unter
+      `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` verifiziert: alle Szenarien bestätigt, identischer
+      Output beider Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen —
+      in `app-improvements/g4meover-wifi-relay/repro-sat-resp-ack-replay-missing-counter-check/repro.c`.
+- [x] Details, Nutzen, betroffene Datei, Risiko, Testhinweis in
+      `app-improvements/g4meover-wifi-relay/sat-resp-ack-replay-missing-counter-check-fix.md`.
+- [x] `respCounter`-Backlog-Punkt (`lilygo-ukfe-rx`) damit als gegenstandslos geschlossen: der
+      vermutete Neustart-Lockout hat nie bestanden, der tatsächliche Fund (fehlende
+      Replay-Prüfung jederzeit, nicht nur nach Neustart) ist jetzt am einzigen Empfangspunkt
+      (Relay) für alle Satelliten einheitlich behoben, ohne Satelliten-Firmware-Änderung.
+- [ ] Lokal zu tun: Patch einbauen, PlatformIO-Build, auf den WROOM flashen. Funktionstest:
+      Befehl vom Flipper auslösen, ACK-Anzeige prüfen; mit einem zweiten ESP32 im
+      Promiscuous-Modus ein zuvor mitgeschnittenes Satelliten-Antwort-Frame per ESP-NOW erneut
+      an den Relay einspielen — erwartet: `resp rejected` (CLI `status`) steigt, keine erneute
+      Anzeige am Flipper. Zusätzlich: zwei Satelliten gleichzeitig betreiben und gegenprüfen,
+      dass sich beide weiterhin unabhängig voneinander durchreichen lassen; Relay-Neustart
+      mitten in einer laufenden Sitzung (erster Kontakt jedes Satelliten danach sofort
+      angenommen, kein Lockout).
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt, MIFARE-
+      Plus-/Ultralight-AES-Rest, PSA-Bruteforce-Krypto-Konstanten, vier offene CAN-Bus-
+      Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund) bleiben unverändert offen.
+      Aus demselben `unlshd-093`-Vergleich (siehe oben) bleiben `allstar_firefly`,
+      `ditec_gol4`, `treadmill37` offen.

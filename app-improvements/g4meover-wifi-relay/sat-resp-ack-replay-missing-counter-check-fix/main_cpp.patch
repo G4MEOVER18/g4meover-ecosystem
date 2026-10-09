@@ -1,0 +1,76 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 68bb401..5c25911 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -42,6 +42,7 @@ static uint32_t s_rxFromFlipper = 0; // Statistik
+ static uint32_t s_relayed = 0;
+ static uint32_t s_rejected = 0;
+ static uint32_t s_fromSatellite = 0;
++static uint32_t s_satRejected = 0;   // Antworten mit ungueltigem/wiederholtem Counter
+ 
+ // UART-Framing-Akkumulator (Flipper-Link)
+ static uint8_t  s_buf[128];
+@@ -49,6 +50,34 @@ static size_t   s_len = 0;
+ 
+ #define LED_PIN 2  // WROOM Onboard-LED
+ 
++// Pro-Satellit-Anti-Replay-Fenster fuer Antworten: ein gemeinsames Fenster ueber alle
++// Absender wuerde (wie beim bereits behobenen Hub-Broadcast/Relay-Fund) unabhaengige
++// Zaehlerraeume verschiedener Satelliten gegenseitig blockieren, daher ein eigener
++// Zaehler je Absender-MAC.
++#define SAT_COUNTER_TABLE_SIZE 8u
++typedef struct { uint8_t mac[6]; uint32_t counter; bool used; } SatCounterEntry;
++static SatCounterEntry s_satCounters[SAT_COUNTER_TABLE_SIZE];
++
++// Liefert das Anti-Replay-Fenster des angegebenen Absenders (legt bei erstem Kontakt
++// einen neuen Eintrag mit Startwert 0 an). NULL nur, wenn bereits SAT_COUNTER_TABLE_SIZE
++// unterschiedliche Absender-MACs aufgetreten sind -- faellt dann auf den bisherigen,
++// ungeprueften Pfad zurueck statt einen weiteren legitimen Satelliten grundlos abzuweisen.
++static uint32_t* sat_counter_slot(const uint8_t mac[6]) {
++    for (size_t i = 0; i < SAT_COUNTER_TABLE_SIZE; i++) {
++        if (s_satCounters[i].used && memcmp(s_satCounters[i].mac, mac, 6) == 0)
++            return &s_satCounters[i].counter;
++    }
++    for (size_t i = 0; i < SAT_COUNTER_TABLE_SIZE; i++) {
++        if (!s_satCounters[i].used) {
++            memcpy(s_satCounters[i].mac, mac, 6);
++            s_satCounters[i].counter = 0;
++            s_satCounters[i].used = true;
++            return &s_satCounters[i].counter;
++        }
++    }
++    return NULL;
++}
++
+ // ---------------------------------------------------------------------------
+ // ESP-NOW: Frame an alle Satelliten senden
+ static bool espnow_broadcast(const uint8_t* frame, size_t len) {
+@@ -60,12 +89,18 @@ static bool espnow_broadcast(const uint8_t* frame, size_t len) {
+ static void on_espnow_recv(const uint8_t* mac, const uint8_t* data, int len) {
+     if (len <= 0 || len > (int)UKFE_RF_MAX_FRAME) return;
+     UkfeRfMessage msg;
+-    // Antworten ohne Replay-Check parsen (NULL) — nur Integritaet zaehlt.
+-    if (ukfe_rf_parse_frame(RELAY_SECRET, data, (size_t)data[0] + 1, &msg, NULL)) {
++    // Je Absender-MAC eigenes Anti-Replay-Fenster statt bisher NULL/ungeprueft --
++    // verhindert, dass ein mitgeschnittenes, gueltig signiertes Antwort-Frame beliebig
++    // oft erneut eingespielt und unverifiziert an den Flipper-UART durchgereicht wird.
++    if (ukfe_rf_parse_frame(RELAY_SECRET, data, (size_t)data[0] + 1, &msg, sat_counter_slot(mac))) {
+         s_fromSatellite++;
+         Serial2.write(data, len);   // zum Flipper zurueck
+         Serial.printf("[<-SAT] %02X:%02X:%02X:%02X:%02X:%02X resp=0x%02X -> Flipper\n",
+                       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], msg.cmd);
++    } else {
++        s_satRejected++;
++        Serial.printf("[<-SAT] %02X:%02X:%02X:%02X:%02X:%02X PARSE FAIL (MAC/CRC/Counter) — verworfen\n",
++                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+     }
+ }
+ 
+@@ -162,6 +197,7 @@ static void cli_status() {
+     Serial.printf("relayed      : %lu\n", (unsigned long)s_relayed);
+     Serial.printf("rejected     : %lu\n", (unsigned long)s_rejected);
+     Serial.printf("resp<-Sat    : %lu\n", (unsigned long)s_fromSatellite);
++    Serial.printf("resp rejected: %lu\n", (unsigned long)s_satRejected);
+ }
+ 
+ // Liest UART0 (Serial): dient GLEICHZEITIG als CLI (am USB) UND als zweiter
