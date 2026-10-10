@@ -4829,3 +4829,63 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund) bleiben unverändert offen.
       Aus demselben `unlshd-093`-Vergleich (siehe oben) bleiben `allstar_firefly`,
       `ditec_gol4`, `treadmill37` offen.
+
+## Firmware-Feature-Mining (Fortsetzung 30)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (CAN Transceiver), davor
+      App-Verbesserung (g4meover-wifi-relay, Antwort-Pfad) und Firmware-Feature-Mining
+      (KeyFinder) — Firmware-Feature-Mining für diese Sitzung entsprechend wieder an der Reihe.
+      Repo-Zustand zu Sitzungsbeginn geprüft: `HEAD` stand detached (ein vorheriger
+      Cloud-Lauf hatte 17 Commits auf `HEAD`, der lokale `main`-Zeiger war nicht
+      mitgezogen — `origin/main` war über den Fast-Forward hinweg bereits aktuell, reines
+      Checkout-Artefakt ohne Datenverlust), per `git checkout main` + `git merge --ff-only`
+      behoben. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der Beninca-ARC-Sitzung offenen `unlshd-093`-Restliste (`allstar_firefly`,
+      `ditec_gol4`, `treadmill37` — `jarolift`/`keyfinder`/`nord_ice` inzwischen aufgegriffen)
+      **`treadmill37.c`** gewählt: mit 281 Zeilen die kürzere der beiden verbleibenden
+      Kandidaten, architektonisch nahezu baugleich zur bereits portierten Nord ICE (gleiche
+      drei Decoder-Zustände, gleiches Kurz/Lang-GAP-Timing-Schema, andere Konstanten/
+      Bit-Layout).
+- [x] Kompatibilitätsprüfung gegen `mntm-012`: jedes von `treadmill37.c` verwendete Kern-Symbol
+      byteidentisch vorhanden (inkl. `SubGhzBlockGeneric.cnt`, von Nord ICE/KeyFinder nicht
+      benötigt, hier aber verwendet). Einzig fehlender Teil wie bei den vier vorherigen Ports:
+      `common.c`/`.h` — folgenlos, da Treadmill37 weder Keystore noch Zähler-/Tasten-Override
+      benutzt.
+- [x] **Fund 1** (Kommentarungenauigkeit, keine Funktionsänderung): Der Original-Kommentar
+      stellt die sechs Beispielwerte als 40-Bit-Strings mit 23-Bit-"serial"-Block dar, obwohl
+      `min_count_bit_for_found = 37` und `check_remote_controller()`s `data >> 17` bei einem
+      37-Bit-Wert nur 20 Bit Serial liefert — die drei führenden Nullen im Kommentar sind reines
+      40-Bit-Padding, kein echtes Datenfeld. Im Port durch eine auf 37 Bit korrigierte Tabelle
+      ersetzt.
+- [x] **Fund 2** (keine eigenständige Fehlfunktion, wie bei Nord ICE bereits dokumentiert und
+      hier gegengeprüft statt übersehen): dasselbe geteilte GAP-Timing dient als Rahmenende und
+      Scharfschalt-Signal für den nächsten Rahmen — bei direkt aneinandergereihten
+      Wiederholungen wird dadurch genau jede zweite tatsächlich dekodiert
+      (`found_count == ceil(repeat/2)`, per Host-Repro bestätigt). Unverändertes
+      Original-Verhalten, konsistent mit der bereits bei Nord ICE getroffenen Einordnung.
+- [x] Host-Repro (sechs reale Beispielwerte gegen `check_remote_controller()`, inkl. Stop-Bit-
+      Gegenprobe; Einzelrahmen- und Wiederholungs-Encode→Decode-Rundlauf über 20 000 zufällige
+      37-Bit-Werte mit 1–5 Wiederholungen, `found_count == ceil(repeat/2)` bestätigt; zwei
+      Negativfälle für zu kurzen End-GAP bzw. verstümmeltes Bit-Timing) unter `gcc -std=c11
+      -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      verifiziert: alle vier Szenarien bestanden, identischer Output beider
+      Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-treadmill37-subghz-port/repro.c`.
+- [x] Vier Patches (`treadmill37_c`/`_h`, `protocol_items_c`/`_h`) — gegen eine frische,
+      unabhängige `mntm-012`-Zweitkopie mit `git apply --check` geprüft, real angewendet,
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch. Zusätzlich gegen vier weitere
+      Zweitkopien mit je einzeln bereits angewendetem Beninca-ARC-, Jarolift-, KeyFinder- bzw.
+      Nord-ICE-`protocol_items`-Patch geprüft: Beninca-ARC-Reihenfolge konfliktfrei, die
+      anderen drei erzeugen denselben bereits bei Jarolift/Nord-ICE/KeyFinder dokumentierten
+      Kontext-Versatz am Dateiende (alle vier hängen ihren Eintrag an dieselbe Anker-Zeile an).
+- [x] Details, Kompatibilitätsprüfung, beide Funde, Host-Repro, Risiko, Port-Skizze,
+      Testhinweis in `firmware-mining/treadmill37-subghz-port.md`.
+- [ ] Aus demselben `unlshd-093`-Vergleich bleiben zwei weitere, noch nicht geprüfte Kandidaten
+      offen: `allstar_firefly`, `ditec_gol4` (beide ohne Kryptografie; `ditec_gol4.c` mit
+      675 Zeilen deutlich umfangreicher).
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden (Reihenfolge
+      gegenüber Jarolift/KeyFinder/Nord-ICE beachten, siehe oben), mit `ufbt`/`fbt
+      firmware_all` bauen, am Gerät SubGHz → 433,92 MHz AM650 gegen einen echten
+      Treadmill37-/QH-433-Sender empfangen und Serial/Btn gegenprüfen; gezielt das
+      Repeat-Verhalten nachvollziehen (Signal mit `Repeat` > 1 senden, gegenprüfen dass nur
+      jede zweite Wiederholung einen eigenen Treffer auslöst).
