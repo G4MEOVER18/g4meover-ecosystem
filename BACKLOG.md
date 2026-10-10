@@ -4951,3 +4951,62 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       CAN-Bus-Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund, zwei offene
       `unlshd-093`-SubGHz-Kandidaten `allstar_firefly`/`ditec_gol4`) bleiben unverändert
       offen.
+
+## Firmware-Feature-Mining (Fortsetzung 31)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (heltec-ukfe-rx), davor
+      Firmware-Feature-Mining (Treadmill37) und Ideen-Recherche (CAN Transceiver) —
+      Firmware-Feature-Mining für diese Sitzung entsprechend wieder an der Reihe. Repo-Zustand
+      zu Sitzungsbeginn geprüft: `HEAD` stand erneut detached (derselbe wiederkehrende
+      Checkout-Artefakt-Befund wie in mehreren Vorsitzungen, kein Datenverlust), lokaler
+      `main`-Zeiger lag 20 Commits hinter `origin/main` zurück — über `git checkout main` +
+      `git merge --ff-only origin/main` behoben (reiner Fast-Forward, Arbeitsverzeichnis war
+      sauber, kein Stash nötig). Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der Beninca-ARC-Sitzung offenen `unlshd-093`-Restliste (`allstar_firefly`,
+      `ditec_gol4` — `jarolift`/`keyfinder`/`nord_ice`/`treadmill37` inzwischen aufgegriffen)
+      **`allstar_firefly.c`** gewählt: letzter verbleibender Kandidat ohne Kryptografie
+      (`ditec_gol4` bleibt mit 675 Zeilen als einziger offen). Anders als die vier vorherigen
+      Ports kein Serial+Zähler/Taste-Layout, sondern ein 9-stelliger trinärer DIP-Schaltercode
+      (`+`/`0`/`-`, je zwei Bit) für eine Supertex-ED-9-Torantrieb-Fernbedienung.
+- [x] Kompatibilitätsprüfung gegen `mntm-012`: jedes von `allstar_firefly.c` verwendete
+      Kern-Symbol byteidentisch vorhanden. Einzig fehlender Teil wie bei den vier vorherigen
+      Ports: `common.c`/`.h` (inkl. der darin definierten `SUBGHZ_ASSERT_*`-Sanity-Makros, beide
+      ersatzlos entfallen) — folgenlos, da Allstar Firefly weder Keystore noch Zähler-/
+      Tasten-Override benutzt. Zusätzlich gegengeprüft: die bei mir entfernten
+      `SubGhzProtocolFlag_ReversRB2/_Alarms/_Sensors/_Princeton/_NiceFlorS`-Werte (jetzt eigenes
+      `SubGhzProtocolFilter`-Enum) werden von `allstar_firefly.c` keiner benutzt.
+- [x] **Fund** (keine eigenständige Fehlfunktion, wie bei Nord ICE/Treadmill37 bereits
+      dokumentiert und hier für diese Implementierung — eigene Konstanten `te_short=600`,
+      `te_long=4000`, GAP `te_short*50=30000 µs` — gegengeprüft statt übersehen): dasselbe
+      geteilte GAP-Timing dient als Rahmenende und Scharfschalt-Signal für den nächsten Rahmen —
+      bei direkt aneinandergereihten Wiederholungen (Encoder-Default `repeat=5`) wird dadurch
+      genau jede zweite tatsächlich dekodiert (`found_count == ceil(repeat/2)`, per Host-Repro
+      über 20 000 Zufallswerte bestätigt). Unverändertes Original-Verhalten, konsistent mit der
+      bereits bei Nord ICE/Treadmill37 getroffenen Einordnung.
+- [x] Host-Repro (Hand-Dekodierung des Unleashed-Header-eigenen DIP-Beispiels `+--000++-` auf
+      0x30ABC zurückgeführt und gegen dieselbe 2-Bit-Gruppen-Zuordnung bestätigt, die
+      `get_string()` benutzt; Einzelrahmen- und Wiederholungs-Encode→Decode-Rundlauf über
+      20 000 zufällige 18-Bit-Werte mit 1–5 Wiederholungen, `found_count == ceil(repeat/2)`
+      bestätigt; zwei Negativfälle für zu kurzen End-GAP bzw. verstümmeltes Bit-Timing) unter
+      `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` verifiziert: alle vier Szenarien bestanden, identischer
+      Output beider Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen —
+      in `firmware-mining/repro-allstar-firefly-subghz-port/repro.c`.
+- [x] Vier Patches (`allstar_firefly_c`/`_h`, `protocol_items_c`/`_h`) — gegen eine frische,
+      unabhängige `mntm-012`-Zweitkopie mit `git apply --check` geprüft, real angewendet,
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch. Zusätzlich gegen fünf weitere
+      Zweitkopien mit je einzeln bereits angewendetem Beninca-ARC-, Jarolift-, KeyFinder-,
+      Nord-ICE- bzw. Treadmill37-`protocol_items`-Patch geprüft: Beninca-ARC-Reihenfolge
+      konfliktfrei, die anderen vier erzeugen denselben bereits dokumentierten Kontext-Versatz
+      am Dateiende (alle fünf hängen ihren Eintrag an dieselbe Anker-Zeile an).
+- [x] Details, Kompatibilitätsprüfung, Fund, Host-Repro, Risiko, Port-Skizze, Testhinweis in
+      `firmware-mining/allstar-firefly-subghz-port.md`.
+- [ ] Aus demselben `unlshd-093`-Vergleich bleibt ein letzter, noch nicht geprüfter Kandidat
+      offen: `ditec_gol4` (ohne Kryptografie, 675 Zeilen).
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden (Reihenfolge
+      gegenüber Jarolift/KeyFinder/Nord-ICE/Treadmill37 beachten, siehe oben), mit `ufbt`/`fbt
+      firmware_all` bauen, am Gerät SubGHz → 318 MHz AM650 gegen einen echten
+      Allstar-Firefly-318ALD31K-Sender empfangen und die drei DIP-Zeilen gegen die physische
+      Schalterstellung prüfen; gezielt das Repeat-Verhalten nachvollziehen (Signal mit
+      `Repeat` > 1 senden, gegenprüfen dass nur jede zweite Wiederholung einen eigenen Treffer
+      auslöst).
