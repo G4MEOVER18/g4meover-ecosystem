@@ -1,0 +1,86 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 977c506..1907d56 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -8,6 +8,7 @@
+ #include <WiFi.h>
+ #include <esp_now.h>
+ #include <esp_wifi.h>
++#include <Preferences.h>
+ #include "USB.h"
+ #include "USBHIDKeyboard.h"
+ 
+@@ -66,6 +67,31 @@ static uint32_t enowRx = 0, enowOk = 0;
+ static uint8_t  enowSenderMac[6] = {0};   // MAC des WROOM-Relays (fuer ACK-Rueckweg)
+ static uint32_t respCounter = 0;          // eigener Counter fuer Antwort-Frames
+ 
++// ---- Anti-Replay-Fenster von lastCounter/enowCounter ueberleben einen Neustart (NVS) ----
++// Ohne das setzt jeder Reset/Crash/Akku-leer/OTA-Update beide Fenster auf 0 zurueck und
++// oeffnet damit fuer jedes zuvor mitgeschnittene, aber gueltig signierte Frame (868 VOM
++// Flipper ODER ESP-NOW vom WROOM-Relay) das Replay-Fenster erneut. Zwei unabhaengige
++// Floors, da beide Zaehler laut obigem Kommentar bereits als getrennte Fenster gefuehrt
++// werden. Reserve-mit-Sicherheitsspanne-Logik identisch zum bereits in
++// usb-army-penetrator/heltec-v4-hub/lilygo-ukfe-rx/g4meover-wifi-relay verifizierten Muster.
++#define UKFE_RF_COUNTER_MARGIN       10u
++#define UKFE_RF_COUNTER_PREF_NS      "g4meoverHtk"
++#define UKFE_RF_COUNTER_PREF_KEY_868 "rf868Ctr"
++#define UKFE_RF_COUNTER_PREF_KEY_ENW "rfEnowCtr"
++static Preferences s_rfCtrPrefs;
++static uint32_t    s_rf868PersistedFloor = 0;
++static uint32_t    s_rfEnowPersistedFloor = 0;
++
++static uint32_t ukfe_rf_counter_initial_reserve(uint32_t loaded, uint32_t margin) {
++    return loaded + margin;
++}
++static bool ukfe_rf_counter_needs_bump(uint32_t counter, uint32_t reserved_up_to,
++                                       uint32_t margin, uint32_t* new_reserved_up_to) {
++    if(counter + margin / 2 < reserved_up_to) return false;
++    *new_reserved_up_to = counter + margin;
++    return true;
++}
++
+ ICACHE_RAM_ATTR void onDio1() {
+     rxFlag = true;
+ }
+@@ -361,6 +387,15 @@ void setup() {
+     oled.begin();
+     oledMsg("Init...");
+ 
++    // Anti-Replay-Floors aus NVS laden statt beide Fenster bei 0 zu beginnen.
++    s_rfCtrPrefs.begin(UKFE_RF_COUNTER_PREF_NS, false);
++    lastCounter = s_rfCtrPrefs.getUInt(UKFE_RF_COUNTER_PREF_KEY_868, 0);
++    s_rf868PersistedFloor = ukfe_rf_counter_initial_reserve(lastCounter, UKFE_RF_COUNTER_MARGIN);
++    s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY_868, s_rf868PersistedFloor);
++    enowCounter = s_rfCtrPrefs.getUInt(UKFE_RF_COUNTER_PREF_KEY_ENW, 0);
++    s_rfEnowPersistedFloor = ukfe_rf_counter_initial_reserve(enowCounter, UKFE_RF_COUNTER_MARGIN);
++    s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY_ENW, s_rfEnowPersistedFloor);
++
+     loraSpi.begin(PIN_LORA_SCK, PIN_LORA_MISO, PIN_LORA_MOSI, PIN_LORA_NSS);
+ 
+     // FSK exakt auf die ukfe_rf-Konstanten: 868.35 MHz, 9.6 kbps, 25 kHz Dev.
+@@ -432,6 +467,12 @@ void loop() {
+         UkfeRfMessage msg;
+         if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, &enowCounter)) {
+             enowOk++;
++            uint32_t newEnowFloor;
++            if(ukfe_rf_counter_needs_bump(enowCounter, s_rfEnowPersistedFloor,
++                                          UKFE_RF_COUNTER_MARGIN, &newEnowFloor)) {
++                s_rfEnowPersistedFloor = newEnowFloor;
++                s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY_ENW, s_rfEnowPersistedFloor);
++            }
+             Serial.printf("ESPNOW OK cmd=0x%02X counter=%lu\n",
+                           msg.cmd, (unsigned long)msg.counter);
+             act(&msg);
+@@ -460,6 +501,12 @@ void loop() {
+         if(real_len > UKFE_RF_MAX_FRAME) real_len = UKFE_RF_MAX_FRAME;
+         if(ukfe_rf_parse_frame(UKFE_SECRET, frame, real_len, &msg, &lastCounter)) {
+             okCount++;
++            uint32_t newFloor868;
++            if(ukfe_rf_counter_needs_bump(lastCounter, s_rf868PersistedFloor,
++                                          UKFE_RF_COUNTER_MARGIN, &newFloor868)) {
++                s_rf868PersistedFloor = newFloor868;
++                s_rfCtrPrefs.putUInt(UKFE_RF_COUNTER_PREF_KEY_868, s_rf868PersistedFloor);
++            }
+             Serial.printf("PARSE OK cmd=0x%02X counter=%lu\n", msg.cmd, (unsigned long)msg.counter);
+             act(&msg);
+             // HUB: den vom Flipper per 868 empfangenen Frame per ESP-NOW an ALLE

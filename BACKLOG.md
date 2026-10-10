@@ -4889,3 +4889,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Treadmill37-/QH-433-Sender empfangen und Serial/Btn gegenprüfen; gezielt das
       Repeat-Verhalten nachvollziehen (Signal mit `Repeat` > 1 senden, gegenprüfen dass nur
       jede zweite Wiederholung einen eigenen Treffer auslöst).
+
+## App-Verbesserung (heltec-ukfe-rx — 868-FSK- UND ESP-NOW-Anti-Replay-Fenster, Neustart-Fix)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (Treadmill37),
+      davor Ideen-Recherche (CAN Transceiver) und App-Verbesserung (g4meover-wifi-relay,
+      Antwort-Pfad) — App-Verbesserung für diese Sitzung entsprechend wieder an der Reihe.
+      Git-Identität vor dem ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Unter den eigenen, per GitHub öffentlich erreichbaren App-Repos `heltec-ukfe-rx`
+      gezielt gewählt: einziges Gerät im Katalog mit bislang nur einem einzigen erfassten
+      Fund (`wifi-recon-probe-ssid-tag-oob-read-fix`), zusätzlich aus der Sitzung vom
+      2026-10-01 ausdrücklich als „Kandidat für eine künftige App-Verbesserungs-Sitzung"
+      vermerkt (868-Radio-Empfangspfad `lastCounter`, von jenem Fund damals nicht
+      betroffen). `g4meover-magspoof` und `ukfe-esp-now-mesh` sind private Repos, mit der
+      aktuellen GitHub-Zugriffsbreite dieser Sitzung nicht klonbar — für diese Sitzung
+      übersprungen statt angenommen.
+- [x] Frischen, unabhängigen Klon von `G4MEOVER18/heltec-ukfe-rx` (`main`, Commit `23e1f40`)
+      angelegt, alle Quelldateien vollständig gelesen (`main.cpp`, `ukfe_rf.c`/`.h`,
+      `wifi_attack.cpp`/`.h`, `wifi_recon.cpp`/`.h`, `evil_portal.cpp`/`.h`,
+      `ble_spam.cpp`/`.h`, `ducky.h`, `lorawan_link.cpp`/`.h`).
+- [x] Fund bestätigt: `heltec-ukfe-rx` führt laut eigenem Code-Kommentar bewusst zwei
+      getrennte Anti-Replay-Fenster (`lastCounter` für 868-FSK vom Flipper, `enowCounter`
+      für ESP-NOW vom WROOM-Relay) — beide reine RAM-Felder, Startwert `0`, kein
+      `Preferences`/NVS-Zugriff im gesamten Baum. Derselbe Fund wie bereits in
+      `usb-army-penetrator`/`heltec-v4-hub`/`lilygo-ukfe-rx`/`g4meover-wifi-relay`
+      dokumentiert, hier aber zweifach im selben Gerät: der 868-Pfad betrifft den Hub-
+      Broadcast an die gesamte Satelliten-Flotte, der ESP-NOW-Pfad die direkte
+      Befehlsausführung (`act()`) am Gerät selbst.
+- [x] Dieselbe bereits viermal verifizierte Reserve-mit-Sicherheitsspanne-Logik
+      (`ukfe_rf_counter_initial_reserve()`/`ukfe_rf_counter_needs_bump()`) ein fünftes Mal
+      angewendet, hier zweifach instanziiert (ein `Preferences`-Namensraum `g4meoverHtk`,
+      zwei unabhängige Keys `rf868Ctr`/`rfEnowCtr`).
+- [x] Host-Repro (je 50 gültig signierte `WifiDeauth`-Frames pro Fenster, Mitschnitt +
+      Neustart-Replay vor/nach Fix; zusätzliches Szenario C: identischer Counter-Wert in
+      beiden Fenstern gleichzeitig akzeptiert, kein Cross-Window-Lockout) unter `gcc
+      -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` verifiziert: alle Szenarien bestanden, identischer
+      Output beider Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine
+      Compiler-Warnungen — in
+      `app-improvements/heltec-ukfe-rx/repro-rf-counter-replay-window-reset/repro.c`.
+- [x] Patch (`main_cpp.patch`) gegen eine frische, unabhängige `heltec-ukfe-rx`-Zweitkopie
+      mit `git apply --check` geprüft, real angewendet, byte-für-byte mit der
+      Arbeitskopie abgeglichen — identisch. In
+      `app-improvements/heltec-ukfe-rx/rf-counter-replay-window-reset-on-reboot-fix/`.
+- [x] Details, Fund, Nutzen, Risiko, Testhinweis in
+      `app-improvements/heltec-ukfe-rx/rf-counter-replay-window-reset-on-reboot-fix.md`.
+- [ ] Lokal zu tun: Patch anwenden, PlatformIO-Build für `heltec-ukfe-rx`, auf die
+      Hardware flashen. Funktionstest wie im Testhinweis der `.md`-Datei beschrieben: je
+      einen Befehl über 868 (Flipper) und über ESP-NOW (WROOM-Relay) senden, Gerät per
+      Reset-Taste neu starten, beide zuvor mitgeschnittenen Frames erneut aussenden — vor
+      dem Fix löst das Gerät beide erneut aus, nach dem Fix bleibt die Reaktion in beiden
+      Fällen aus.
+- [ ] Der restliche, in dieser Sitzung mitgelesene Code (`wifi_attack.cpp/.h`,
+      `evil_portal.cpp/.h`, `ble_spam.cpp/.h`, `ducky.h`, `lorawan_link.cpp/.h`) ohne
+      eigenständigen neuen Fund — Kandidat für eine künftige Sitzung.
+- [ ] `g4meover-magspoof` und `ukfe-esp-now-mesh` bleiben mit der aktuellen
+      GitHub-Zugriffsbreite dieser Sitzung nicht erreichbar — für eine künftige Sitzung mit
+      breiterem Zugriff zurückgestellt, kein Datenverlust (beide bereits mehrfach in
+      früheren Sitzungen mit damaligem Zugriff geprüft/gepatcht).
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES-Rest, PSA-Bruteforce-Krypto-Konstanten, vier offene
+      CAN-Bus-Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund, zwei offene
+      `unlshd-093`-SubGHz-Kandidaten `allstar_firefly`/`ditec_gol4`) bleiben unverändert
+      offen.
