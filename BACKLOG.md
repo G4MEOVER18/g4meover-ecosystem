@@ -5010,3 +5010,77 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Schalterstellung prüfen; gezielt das Repeat-Verhalten nachvollziehen (Signal mit
       `Repeat` > 1 senden, gegenprüfen dass nur jede zweite Wiederholung einen eigenen Treffer
       auslöst).
+
+## Ideen-Recherche (Fortsetzung 17)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (Allstar Firefly),
+      davor App-Verbesserung (heltec-ukfe-rx) und Firmware-Feature-Mining (Treadmill37) —
+      Ideen-Recherche war zuletzt vor drei Sitzungen (CAN Transceiver) an der Reihe,
+      entsprechend für diese Sitzung gewählt. Repo-Zustand zu Sitzungsbeginn geprüft: `HEAD`
+      stand detached auf einem älteren Commit, lokaler `main`-Zeiger lag 21 Commits hinter
+      `origin/main` zurück — nach `git fetch` stellte sich heraus, dass `origin/main` den
+      detached `HEAD`-Commit bereits enthielt (keine Divergenz, reiner veralteter lokaler Ref).
+      Über `git checkout main` + `git merge --ff-only origin/main` behoben (reiner
+      Fast-Forward, Arbeitsverzeichnis war sauber, kein Stash nötig). Git-Identität vor dem
+      ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `ideas/can-transceiver-api-status.md` und den CAN-Bus-Abschnitt in
+      `ideas/pentest-app-katalog.md` durchgesehen: aus der dort seit der CAN-Tools-Sitzung
+      offenen Restliste (`can_bus_attack`, `can_commander`, `canbus` — `can_transceiver`
+      inzwischen aufgegriffen) **CAN Bus Attack** (`jorgepnaranjo25/CAN-Bus-Attack`) als
+      kleinste der drei noch offenen Apps gewählt (4349 Zeilen gegenüber 9042/`canbus` und
+      15165/`can_commander`).
+- [x] Frischen, unabhängigen Sparse-Checkout von `RogueMaster/flipperzero-firmware-wPlugins`
+      (Branch `420`) angelegt (nur `applications/external/{can_bus_attack,can_commander,
+      canbus}/`, zum Größenvergleich aller drei verbleibenden Kandidaten), `can_bus_attack`
+      vollständig gelesen: `app_user.c`/`.h`, alle neun `scenes/`-Dateien,
+      `draw_functions/drawWidgets.c`, `libraries/{Spi_lib,mcp_can_2515,pid_library,
+      uds_library}.c`/`.h`.
+- [x] API-87-Kompatibilität gegen eine frische, unabhängige Zweitkopie von
+      `Next-Flip/Momentum-Firmware` (Tag `mntm-012`) geprüft: eigener SPI-Bus-Handle auf
+      `furi_hal_spi_bus_r` (statt des höherwertigen `furi_hal_spi_bus_handle_external`-Wrappers
+      wie bei `can_tools`/`can_transceiver`) samt `GpioAltFn5SPI1`, `gpio_ext_pa4/_pa6/_pa7/
+      _pb3`, `LL_SPI_Init/_Enable/_Disable/_SetRxFIFOThreshold`,
+      `FuriHalSpiBusHandleEvent{Init,Deinit,Activate,Deactivate}` — byteidentisch vorhanden.
+      `furi_hal_light_set/_blink_start/_blink_stop`, `furi_hal_gpio_read()`, Standard-GUI-/
+      Storage-APIs ebenfalls byteidentisch. Kein Port-Hindernis.
+- [x] **Fund**: `read_frame()` (`libraries/mcp_can_2515.c`) maskiert das empfangene
+      DLC-Steuerbyte nur mit `MCP_DLC_MASK` (`0x0F`, liefert 0–15), ohne das Ergebnis danach auf
+      die deklarierte Puffergröße `MAX_LEN` (`8`) zu begrenzen — anders als die etablierte
+      Referenzbibliothek, von der dieser Treiber abstammt (`coryjfowler`/Seeed `MCP_CAN`, dort
+      `if (dlc > 8) dlc = 8;`). Für ein manipuliertes/fehlerhaftes DLC-Feld 9–15 (das
+      CAN-Protokoll begrenzt das 4-Bit-Feld hardwareseitig nicht auf 8) schreibt die
+      anschließende Leseschleife über das nur 8 Byte große `CANFRAME.buffer` hinaus — und zwar
+      in ein lokales Stack-Objekt, da `read_frame()` an allen drei Aufrufstellen
+      (`SnifferOption.c:194`, `pid_library.c:86/109`, `uds_library.c:55`) mit einem lokalen
+      `CANFRAME` aufgerufen wird. Dieselbe Datei liegt laut `diff` byteidentisch auch im noch
+      offenen `canbus`-Kandidaten desselben Clusters vor.
+- [x] Host-Repro (Regressionsfall DLC=8; Fundfall 1 DLC=9 — bereits außerhalb des Array-Vertrags,
+      auf dem Host-ABI aber noch in der eigenen Tail-Padding des 16-Byte-`CANFRAME`-Objekts,
+      daher explizit als Grenzfall dokumentiert statt übersehen; Fundfall 2 DLC=10 — kleinster
+      tatsächlich von ASan erkannter Fall; Fundfall 3 DLC=15 — maximaler Fall; vollständiger
+      Sweep über alle 16 DLC-Nibble-Werte) unter `gcc -std=c11 -O0`/`-O1 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` verifiziert: für DLC 0–8
+      verhalten sich ALT/NEU in allen 9 Fällen identisch und sicher, für DLC 9–15 liefert NEU in
+      allen 7 Fällen das erwartete, begrenzte Ergebnis, ALT löst in 6 von 7 Fällen (DLC 10–15)
+      einen von ASan erkannten `stack-buffer-overflow` aus (DLC=9 fällt wie beschrieben in die
+      Tail-Padding), identischer Output beider Optimierungsstufen, keine Compiler-Warnungen —
+      in `firmware-mining/repro-can-bus-attack-dlc-overflow/repro.c`.
+- [x] Patch (additive Begrenzungszeile `if(frame->data_lenght > MAX_LEN) frame->data_lenght =
+      MAX_LEN;` direkt nach der DLC-Maskierung, nach dem Muster der Referenzbibliothek) — per
+      `git apply --check` gegen eine frische, unabhängige Zweitkopie des RogueMaster-Bündels
+      (Branch `420`, nur `applications/external/can_bus_attack/`) verifiziert, real angewendet,
+      byte-für-byte mit der Arbeitskopie abgeglichen — identisch. In
+      `firmware-mining/can-bus-attack-app-port/mcp_can_2515_c.patch`.
+- [x] Details, Nutzen, API-87-Kompatibilität, Fund, Host-Repro, Risiko, Port-Skizze, Testhinweis
+      in `firmware-mining/can-bus-attack-app-port.md`. Kuratiert in
+      `ideas/can-bus-attack-api-status.md`. `ideas/pentest-app-katalog.md` (CAN-Bus-Tabelle und
+      Log-Eintrag unter "Nächste Recherche-Aufträge") aktualisiert.
+- [ ] Lokal zu tun: `can_bus_attack` (mit Patch) gegen die eigene `mntm-012`-Basis bauen, mit
+      MCP2515-Hardware am Erweiterungsport verkabeln (`CS=PA4`, `SCK=PB3`, `MOSI=PA7`,
+      `MISO=PA6`), Regressionstest mit gültigen Rahmen (DLC 0–8), danach den Fundnachvollzug aus
+      `firmware-mining/can-bus-attack-app-port.md` (Rahmen mit manipuliertem DLC-Feld 9–15 über
+      einen zweiten CAN-Knoten senden) durchführen.
+- [ ] Aus demselben CAN-Bus-Cluster bleiben `can_commander` und `canbus` noch nicht einzeln
+      geprüft — `canbus` dürfte beim künftigen Prüfen denselben `mcp_can_2515.c`-Fund
+      reproduzieren.
+- [ ] `uds_library.c`/`pid_library.c` (in `can_bus_attack`) sind aktuell ohne eigene Szene
+      angebunden — eigenständiger, kleinerer Rückstellpunkt für eine künftige Sitzung.
