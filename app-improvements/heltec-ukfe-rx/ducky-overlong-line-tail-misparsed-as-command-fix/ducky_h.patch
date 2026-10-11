@@ -1,0 +1,12 @@
+--- a/src/ducky.h
++++ b/src/ducky.h
+@@ -65,6 +65,9 @@
+     while(*p) {
+         int li = 0;
+         while(*p && *p != '\n' && li < (int)sizeof(line) - 1) { if(*p != '\r') line[li++] = *p; p++; }
++        if(li == (int)sizeof(line) - 1) {       // Zeile zu lang fuer den Puffer: den Rest der
++            while(*p && *p != '\n') p++;        // echten Zeile verwerfen statt ihn als neue,
++        }                                        // unabhaengige Zeile (= neuer Befehl) zu lesen.
+         if(*p == '\n') p++;
+         line[li] = 0;
+         char* s = line; while(*s == ' ' || *s == '\t') s++;

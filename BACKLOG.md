@@ -5084,3 +5084,69 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       reproduzieren.
 - [ ] `uds_library.c`/`pid_library.c` (in `can_bus_attack`) sind aktuell ohne eigene Szene
       angebunden — eigenständiger, kleinerer Rückstellpunkt für eine künftige Sitzung.
+
+## App-Verbesserung (heltec-ukfe-rx — Ducky-Interpreter, Rest einer ueberlangen Zeile)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (CAN Bus Attack), davor
+      Firmware-Feature-Mining (Allstar Firefly) und App-Verbesserung (heltec-ukfe-rx,
+      868-/ESP-NOW-Anti-Replay) — App-Verbesserung für diese Sitzung entsprechend wieder an
+      der Reihe. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der letzten `heltec-ukfe-rx`-Sitzung ausdrücklich zurückgestellten Restliste
+      (`wifi_attack.cpp/.h`, `evil_portal.cpp/.h`, `ble_spam.cpp/.h`, `ducky.h`,
+      `lorawan_link.cpp/.h` — ohne eigenständigen Fund gelesen, aber noch nicht gezielt
+      durchsucht) aufgegriffen. Frischen, unabhängigen Klon von `G4MEOVER18/heltec-ukfe-rx`
+      (`main`, Commit `23e1f40`, unverändert gegenüber der letzten Sitzung) angelegt, alle
+      fünf Dateien erneut vollständig gelesen.
+- [x] **Fund** in `src/ducky.h::ducky_run()`: die Zeilenlese-Schleife begrenzt den
+      `line[220]`-Puffer korrekt (kein Speicherfehler), bricht bei einer über 219 Zeichen
+      langen physischen Skriptzeile aber nur am Pufferlimit ab, ohne den Rest dieser Zeile
+      zu überspringen — die nächste Außenschleifen-Iteration liest diesen Rest als
+      eigenständige NEUE Kommandozeile. Trifft der Rest zufällig exakt einen von
+      `ducky_keyname()`/`ducky_modkey()` erkannten Namen (`ENTER`, ein Modifier-Kombo wie
+      `GUI-r`, ...), wird er tatsächlich als Tastendruck/-kombination ausgeführt statt als
+      reiner Text getippt zu werden — realistisch über den gestreamten Pfad `0x52 HidStream`
+      (`duckyStream[2048]`), der beliebig lange `STRING`/`STRINGLN`-Zeilen zulässt.
+      `ducky.h` byteidentisch auch in `lilygo-ukfe-rx` (`diff` gegen frischen, unabhängigen
+      Klon bestätigt), dort also derselbe Fund. `heltec-v4-hub` hat keinen HID-/Ducky-Pfad;
+      `usb-army-penetrator` hat eine andere, eigenständige Ducky-Implementierung
+      (`Attacks/Ducky/DuckyPayload.cpp/.h`) — ungeprüft, eigener Rückstellpunkt.
+- [x] Fix (additiv, drei Zeilen): wird der Puffer exakt voll, OHNE dass `'\n'` erreicht
+      wurde, den Rest der echten Zeile bis zum nächsten `'\n'` verwerfen statt ihn in der
+      nächsten Iteration als neue Zeile zu lesen. Patch gegen zwei frische, unabhängige
+      Zweitkopien (`heltec-ukfe-rx` UND `lilygo-ukfe-rx`) mit `git apply --check` verifiziert,
+      real angewendet, jeweils byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`Arduino.h`/`USBHIDKeyboard.h` als schlanke Host-Mocks — `String` auf
+      `std::string`, `press()`/`write()`/`print()`/`releaseAll()` als Log-Aufzeichnung statt
+      echtem USB-HID-Traffic; `ducky_orig.h`/`ducky_fixed.h` sind unverändert übernommene
+      Kopien aus `src/ducky.h`, je in eigenem Namensraum eingebunden): fünf Szenarien —
+      normales kurzes Skript (Regression), Zeile exakt an der Puffergrenze ohne Überlauf
+      (bestätigt 0 Iterationen der neuen Skip-Schleife im Grenzfall), Zeilenrest `ENTER`
+      (ALT injiziert einen zusätzlichen `WRITE`, NEU nicht), Zeilenrest `GUI-r` (ALT presst
+      zusätzlich GUI+`r`, NEU nicht), zwei direkt aufeinanderfolgende überlange Zeilen (ALT
+      zwei zusätzliche Tastendrücke, NEU synchronisiert sich pro Zeile korrekt neu) — unter
+      `g++ -std=c++17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: alle acht Prüfungen bestanden, identische Ausgabe beider
+      Optimierungsstufen, keine ASan-/UBSan-Meldungen, keine Compiler-Warnungen — in
+      `app-improvements/heltec-ukfe-rx/repro-ducky-overlong-line-tail-misparsed-as-command/repro.cpp`.
+- [x] Details, Fund, Nutzen, Risiko, Testhinweis in
+      `app-improvements/heltec-ukfe-rx/ducky-overlong-line-tail-misparsed-as-command-fix.md`.
+      Patch in
+      `app-improvements/heltec-ukfe-rx/ducky-overlong-line-tail-misparsed-as-command-fix/ducky_h.patch`.
+- [ ] Lokal zu tun: Patch in `heltec-ukfe-rx` UND `lilygo-ukfe-rx` anwenden, PlatformIO-Build,
+      auf Hardware flashen. Funktionstest wie im Testhinweis der `.md`-Datei beschrieben: über
+      `0x52 HidStream` ein Skript mit einer `STRING`-Zeile von mehr als 219 Zeichen senden,
+      deren abgeschnittener Rest absichtlich `ENTER` oder `GUI-r` lautet — vor dem Fix löst das
+      Gerät den zusätzlichen Tastendruck/die Kombination tatsächlich am Zielrechner aus, danach
+      nicht mehr.
+- [ ] `wifi_attack.cpp/.h`, `evil_portal.cpp/.h`, `ble_spam.cpp/.h`, `lorawan_link.cpp/.h`
+      (in dieser Sitzung erneut mitgelesen) weiterhin ohne eigenständigen neuen Fund.
+- [ ] `usb-army-penetrator`s eigenständige Ducky-Implementierung (`Attacks/Ducky/
+      DuckyPayload.cpp/.h`) auf denselben Fehlerklasse-Fall ungeprüft — eigener
+      Rückstellpunkt für eine künftige Sitzung.
+- [ ] `g4meover-magspoof` und `ukfe-esp-now-mesh` bleiben mit der aktuellen
+      GitHub-Zugriffsbreite dieser Sitzung nicht erreichbar.
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES-Rest, PSA-Bruteforce-Krypto-Konstanten, vier offene
+      CAN-Bus-Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund, zwei offene
+      `unlshd-093`-SubGHz-Kandidaten `allstar_firefly`/`ditec_gol4`) bleiben unverändert
+      offen.
