@@ -1,0 +1,37 @@
+--- a/src/Attacks/Ducky/Extensions.h
++++ b/src/Attacks/Ducky/Extensions.h
+@@ -94,16 +94,28 @@
+ static int handleDisplayText(const std::string &str, const std::unordered_map<std::string, std::string> &constants, const std::unordered_map<std::string, int> &variables)
+ {
+     std::string remainingArgs = str.substr(str.find(' ') + 1);
+
+-    auto xPosStr = remainingArgs.substr(0, remainingArgs.find(' '));
++    const auto xEnd = remainingArgs.find(' ');
++    if (xEnd == std::string::npos)
++    {
++        Debug::Log.error(LOG_DUCKY, "DISPLAY_TEXT needs x, y and text arguments");
++        return false;
++    }
++
++    auto xPosStr = remainingArgs.substr(0, xEnd);
+     int xPos = asciiOrVariableToInt(xPosStr, variables);
+
+-    auto yStartPos = xPosStr.length() + 1;
+-    auto yCount = remainingArgs.find(' ', xPosStr.length() + 1) - yStartPos;
++    const auto yStartPos = xEnd + 1;
++    const auto yEnd = remainingArgs.find(' ', yStartPos);
++    if (yEnd == std::string::npos)
++    {
++        Debug::Log.error(LOG_DUCKY, "DISPLAY_TEXT needs x, y and text arguments");
++        return false;
++    }
+
+-    auto yPosStr = remainingArgs.substr(yStartPos, yCount);
++    auto yPosStr = remainingArgs.substr(yStartPos, yEnd - yStartPos);
+     int yPos = asciiOrVariableToInt(yPosStr, variables);
+
+-    auto text = remainingArgs.substr(xPosStr.length() + yPosStr.length() + 2);
++    auto text = remainingArgs.substr(yEnd + 1);
+
+     for (const auto& pair : variables)
+     {

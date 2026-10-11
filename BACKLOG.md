@@ -5304,3 +5304,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `m_string_right()` speichersicher (schlimmstenfalls stillschweigend falsch/leer geparste
       Zeile, kein Absturz) — eigenständiger, kleinerer Rückstellpunkt für eine künftige, tiefere
       Prüfung.
+
+## App-Verbesserung (usb-army-penetrator — Fortsetzung 2)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (CANBUS), davor
+      Firmware-Feature-Mining (Ditec GOL4), davor App-Verbesserung (heltec-ukfe-rx, Ducky) — die
+      letzten zwei Sitzungen deckten Ideen/Firmware ab, App-Verbesserung fehlte entsprechend und
+      war für diese Sitzung an der Reihe. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der `heltec-ukfe-rx`-Ducky-Sitzung offenen Restliste den dort als eigenständig
+      vermerkten Rückstellpunkt aufgegriffen: `usb-army-penetrator`s **eigene**
+      Ducky-Implementierung (`src/Attacks/Ducky/DuckyPayload.cpp`/`.h`,
+      `src/Attacks/Ducky/Extensions.h`) war dort ausdrücklich als "ungeprüft" vermerkt, weil sie
+      nicht dasselbe wiederverwendbare `src/ducky.h` wie `heltec-ukfe-rx`/`lilygo-ukfe-rx`
+      nutzt, sondern einen vollständig anderen, auf der externen Bibliothek
+      `i-am-shodan/DuckScriptInterpreter` (Pin `23aa3ba87e95f402ccab53beb9ead54602643dd7`,
+      `platformio.ini` `lib_deps_core`) basierenden Interpreter.
+- [x] Frischen, unabhängigen Klon von `G4MEOVER18/usb-army-penetrator` (`main`, Commit
+      `411b153`) UND von `i-am-shodan/DuckScriptInterpreter` (gepinnter Commit) angelegt;
+      `DuckyPayload.cpp`/`.h` und `Extensions.h` vollständig gelesen (alle ~35 registrierten
+      Extension-Befehle/-Funktionen). Bereits dokumentierter Bug derselben Fehlerklasse
+      (ungefangene C++-Ausnahme, kein `try`/`catch` irgendwo im Projekt) in
+      `settings-int-uint16-stoi-uncaught-exception-crash-fix.md` als Vorlage für die
+      Erreichbarkeits-/Exception-Prüfung genutzt.
+- [x] **Fund**: `handleDisplayText()` (Implementierung des `DISPLAY_TEXT <x> <y> <text...>`-
+      Befehls) bestimmt die Grenze von `yPosStr` und den Start von `text` über
+      Längenarithmetik statt über geprüfte `find()`-Treffer — zwei `std::string::substr()`-
+      Aufrufe können dadurch mit einer `pos > size()` aufgerufen werden und werfen
+      `std::out_of_range`: einmal wenn `y` komplett fehlt (`DISPLAY_TEXT 10`), einmal wenn nur
+      `text` fehlt (`DISPLAY_TEXT 10 20`, kein abschließendes Leerzeichen). `grep -rn "try\|catch"
+      src/DuckyParse.cpp` in der externen Bibliothek bestätigt: `DuckyInterpreter::Execute()`
+      ruft die Extension-Funktion direkt auf, ohne jede Absicherung — die Ausnahme läuft bis
+      `std::terminate()` durch, keine der `platformio.ini`-Umgebungen setzt
+      `-fno-exceptions`. Alle übrigen Handler in `Extensions.h`, die ebenfalls
+      `str.substr(str.find(' ') + 1)` nutzen, geprüft und als sicher bestätigt (`npos + 1`
+      überläuft für `size_t` definiert zu `0`, kein Wurf) — nur `handleDisplayText()` kombiniert
+      zwei gefundene Positionen zu einer dritten, ungeprüften.
+- [x] Fix: beide `find()`-Treffer vor Verwendung auf `npos` geprüft, bei fehlendem Argument
+      derselbe "Bad argument"-Logstil wie `handleUSBMode`/`handleLED` plus `return false`
+      (vom Interpreter als `SCRIPT_ERROR` behandelt, bricht die Skriptausführung kontrolliert
+      ab statt das Gerät abzureißen). Für jeden wohlgeformten Aufruf rechnerisch identisches
+      Ergebnis zu vorher. Patch gegen eine frische, unabhängige Zweitkopie per
+      `git apply --check` verifiziert, real angewendet, Diff geprüft — in
+      `display-text-oob-substr-crash-fix/extensions_h.patch`.
+- [x] Host-Repro (`display-text-oob-substr-crash-fix/repro.cpp`, reine Argumentparsing-Logik,
+      kein Arduino/ESP32-Header nötig) unter ASan/UBSan bei `-O0`/`-O1`: beide unvollständigen
+      Befehle werfen im ALT-Zustand bestätigt, im NEU-Zustand kontrolliert abgelehnt;
+      Regressionsfälle (wohlgeformter Aufruf, expliziter Leer-Text, Variablen statt Literalen
+      für `x`/`y`) identisch vorher/nachher. 11 Prüfungen, alle bestanden, identischer Output
+      bei beiden Optimierungsstufen, keine Compiler-Warnungen.
+- [x] Details, Nutzen, Fund, Patch, Host-Repro, Risiko, Testhinweis in
+      `app-improvements/usb-army-penetrator/display-text-oob-substr-crash-fix.md`.
+- [ ] Restliche, in dieser Sitzung mitgelesene, aber nicht vertiefte Teile von
+      `DuckyPayload.cpp`/`Extensions.h` ohne eigenen Fund über diese eine Fehlerklasse hinaus:
+      `setPayloadCmdLine()`s Verwerfen leerer Zeilen beim Zerlegen einer Kommandozeile
+      (für DuckyScript folgenlos, da Leerzeilen dort ohnehin No-Ops sind), `handleRawHid()`,
+      `handleSetSetting()`, die `AGENT_RUN`/`ESP32M`/`RUN_PAYLOAD`-Dispatch-Handler — jeweils
+      eigenständiger, kleinerer Rückstellpunkt für eine künftige, tiefere Prüfung.
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES-Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, "Add Manually"-UI-Anbindung für
+      `ditec_gol4_create_data()`, `can_commander` mit eigenem GPIO-Board, `g4meover-magspoof`/
+      `ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht erreichbar) bleiben
+      unverändert offen.
