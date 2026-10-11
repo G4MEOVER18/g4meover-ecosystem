@@ -5150,3 +5150,74 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       CAN-Bus-Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund, zwei offene
       `unlshd-093`-SubGHz-Kandidaten `allstar_firefly`/`ditec_gol4`) bleiben unverändert
       offen.
+
+## Firmware-Feature-Mining (Fortsetzung 32)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (heltec-ukfe-rx), davor
+      Ideen-Recherche (CAN Bus Attack) und Firmware-Feature-Mining (Allstar Firefly) —
+      Firmware-Feature-Mining für diese Sitzung entsprechend wieder an der Reihe. Repo-Zustand
+      zu Sitzungsbeginn geprüft: `HEAD` stand detached exakt auf `origin/main`s Commit (reiner
+      veralteter lokaler `main`-Ref, 24 Commits zurück, kein Datenverlust) — über
+      `git checkout main` + `git merge --ff-only origin/main` behoben. Git-Identität vor dem
+      ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der Beninca-ARC-Sitzung offenen `unlshd-093`-Restliste (`allstar_firefly`,
+      `ditec_gol4` — `jarolift`/`keyfinder`/`nord_ice`/`treadmill37`/`allstar_firefly` inzwischen
+      aufgegriffen) **`ditec_gol4.c`** gewählt: letzter verbleibender Kandidat (675 Zeilen).
+      Anders als die fünf vorherigen Ports ein eigenes, proprietäres Rolling-Code-Schema
+      (Bit-Rotation/-Spiegelung, feste XOR-Maskierung, invertierbarer 8-Bit-LCG) statt KeeLoq
+      oder einer statischen Fernbedienung.
+- [x] Kompatibilitätsprüfung gegen `mntm-012`: jedes verwendete Kern-Symbol byteidentisch
+      vorhanden. `common.c`/`.h` wie bei den fünf vorherigen Ports nicht vorhanden, ersetzt durch
+      eigene `_alloc/_free/_reset/_stop/_yield`. Zusätzlich fehlt `subghz_block_generic_global`
+      (Zähler-/Tasten-Override-Infrastruktur für die Signal-Editor-UI) — anders als bei den
+      fünf vorherigen Ports hier tatsächlich aktiv aufgerufen (nicht nur auskommentiert), nach
+      demselben beim Jarolift-Port etablierten Muster ersetzt (immer der Standard-Zähler-Pfad,
+      Editor-UI-Push in `get_string()` ersatzlos entfernt).
+- [x] **Kryptografische Prüfung** (eigenständiges Schema, keine externe Primitive): LCG-Inverse
+      einzeln gegengerechnet; voller Rundlauf `gol4_rolling_encode()`→`_decode()` über 50 000
+      zufällige Rahmen bit-exakt (Host-Repro Szenario A); `raw[2]==0→0xF0`-Sonderfall
+      (Prog-Modus) einzeln verifiziert (Szenario A2); vier reale Beispiele aus dem
+      Decoder-eigenen Kommentar dekodieren zur selben Seriennummer mit korrektem Tastennibble
+      (Szenario B).
+- [x] **Fund 1**: Decoder-Zustandsmaschine braucht mindestens zwei Wiederholungen — eine
+      einzelne Übertragung (`repeat=1`) wird **nie** dekodiert (`found_count==floor(repeat/2)`,
+      schlechter als die bei Nord ICE/Treadmill37/Allstar Firefly dokumentierte
+      `ceil(repeat/2)`-Klasse, weil das Rahmenende erst verzögert über das erste Datenbit des
+      *nächsten* Rahmens erkannt wird, nicht direkt über dessen eigenes GAP). Empirisch für
+      `repeat`=1..6 nachgemessen (Host-Repro Szenario C). Unverändertes Original-Verhalten, nur
+      dokumentiert, nicht verändert.
+- [x] **Fund 2**: `serial_to_display()`s `(s[0]<<24)|...` überläuft für jedes `s[0]>=0x80` einen
+      signed `int` (Undefined Behavior) — nicht theoretisch, alle vier realen Beispiele im
+      Decoder-Kommentar haben `s[0]==0xCC`. Unter UBSan reproduziert (Host-Repro Szenario F,
+      isoliert per `fork()`). Fix: jedes Byte vor dem Schieben nach `uint32_t` gecastet,
+      mathematisch ergebnisgleich — in meinen Port übernommen.
+- [x] Host-Repro (sechs Szenarien A/A2/B/C/D/E plus F, siehe oben) unter
+      `gcc -std=c11 -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: alle bestanden, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-ditec-gol4-subghz-port/repro.c`.
+- [x] Vier Patches (`ditec_gol4_c`/`_h`, `protocol_items_c`/`_h`) gegen eine frische,
+      unabhängige `mntm-012`-Zweitkopie mit `git apply --check` geprüft, real angewendet,
+      byte-für-byte abgeglichen — identisch. Zusätzlich gegen fünf weitere Zweitkopien mit je
+      einzeln bereits angewendetem Beninca-ARC-, Jarolift-, KeyFinder-, Nord-ICE- bzw.
+      Treadmill37-`protocol_items`-Patch geprüft: Beninca-ARC-Reihenfolge konfliktfrei, die
+      anderen vier erzeugen den bereits dokumentierten Kontext-Versatz am Dateiende.
+- [x] Details, Kompatibilitätsprüfung, kryptografische Prüfung, beide Funde, Host-Repro, Risiko,
+      Port-Skizze, Testhinweis in `firmware-mining/ditec-gol4-subghz-port.md`.
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden (Reihenfolge
+      gegenüber Jarolift/KeyFinder/Nord-ICE/Treadmill37/Allstar-Firefly beachten, siehe `.md`),
+      mit `ufbt`/`fbt firmware_all` bauen, am Gerät SubGHz → 433 MHz AM650 gegen einen echten
+      Ditec-GOL4-Handsender empfangen; gezielt Fund 1 nachvollziehen (eigenes `.sub` mit
+      `Repeat=1` erneut senden, gegenprüfen dass kein Treffer erscheint) und Fund 2
+      (Seriennummer einer `0xCC...`-Fernbedienung korrekt angezeigt).
+- [ ] Die `unlshd-093`-Restliste (`allstar_firefly`/`ditec_gol4`/`jarolift`/`keyfinder`/
+      `nord_ice`/`treadmill37`) ist damit vollständig aufgegriffen — kein weiterer offener
+      Kandidat aus diesem Cluster.
+- [ ] "Add Manually"-UI-Anbindung für `ditec_gol4_create_data()` (Serial/Taste/Zähler ohne
+      eigenen Mitschnitt anlegen) bewusst nicht Teil dieses Ports — eigenständiger,
+      optionaler Rückstellpunkt für eine künftige Sitzung, falls gewünscht.
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES-Rest, PSA-Bruteforce-Krypto-Konstanten, vier offene
+      CAN-Bus-Kandidaten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s eigenständige Ducky-Implementierung auf dieselbe Fehlerklasse
+      ungeprüft, `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen
+      GitHub-Zugriffsbreite nicht erreichbar) bleiben unverändert offen.
