@@ -1,0 +1,12 @@
+diff --git a/applications/external/canbus/libraries/mcp_can_2515.c b/applications/external/canbus/libraries/mcp_can_2515.c
+index 349c9ca..f19002d 100644
+--- a/applications/external/canbus/libraries/mcp_can_2515.c
++++ b/applications/external/canbus/libraries/mcp_can_2515.c
+@@ -466,6 +466,7 @@ void read_frame(FuriHalSpiBusHandle* spi, CANFRAME* frame, uint8_t read_instruct
+     furi_hal_spi_bus_rx(spi, &data_ctrl, 1, TIMEOUT);
+ 
+     frame->data_lenght = data_ctrl & MCP_DLC_MASK;
++    if(frame->data_lenght > MAX_LEN) frame->data_lenght = MAX_LEN;
+     frame->req = (data_ctrl & MCP_RTR_MASK) ? 1 : 0;
+ 
+     for(uint8_t i = 0; i < frame->data_lenght; i++) {

@@ -5221,3 +5221,86 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `usb-army-penetrator`s eigenständige Ducky-Implementierung auf dieselbe Fehlerklasse
       ungeprüft, `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen
       GitHub-Zugriffsbreite nicht erreichbar) bleiben unverändert offen.
+
+## Ideen-Recherche (Fortsetzung 18)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (Ditec GOL4), davor
+      App-Verbesserung (heltec-ukfe-rx) und Ideen-Recherche (CAN Bus Attack) — Ideen-Recherche
+      für diese Sitzung entsprechend wieder an der Reihe (letzte zwei Sitzungen waren Firmware/
+      App, die dritte Kategorie fehlte). Repo-Zustand zu Sitzungsbeginn geprüft: `HEAD` stand
+      detached, lokaler `main`-Zeiger lag 25 Commits hinter `origin/main` zurück — nach
+      `git fetch origin main` stellte sich heraus, dass `origin/main` exakt dem detached
+      `HEAD`-Commit entspricht (keine Divergenz, reiner veralteter lokaler `main`-Ref). Über
+      `git checkout main` + `git reset --hard origin/main` behoben (reiner Fast-Forward,
+      Arbeitsverzeichnis war sauber, kein Stash nötig). Git-Identität vor dem ersten Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `ideas/pentest-app-katalog.md` (CAN-Bus-Abschnitt) durchgesehen: aus der seit der
+      CAN-Tools-Sitzung offenen Restliste (`can_bus_attack`, `can_commander`, `can_transceiver`,
+      `canbus` — die ersten drei inzwischen aufgegriffen) **CANBUS**
+      (`ElectronicCats/flipper-MCP2515-CANBUS`) als letzten Kandidaten ohne eigenes
+      GPIO-Zusatzboard gewählt (`can_commander` benötigt laut Quellcode-Kommentar ein eigenes
+      "CAN Commander GPIO Board", bleibt daher offen).
+- [x] Frischen, unabhängigen Klon von `ElectronicCats/flipper-MCP2515-CANBUS` angelegt,
+      vollständig gelesen: App-Kern (`app_user.c`/`.h`), alle 21 `scenes/`-Dateien (inkl.
+      `Obd2Options/`/`UDSOptions/`-Unterordner), fünf eigene `fap_private_libs`-Bibliotheken
+      (`lib/frame_can`, `lib/files_scaner`, `lib/SLCAN_serial`, `lib/log_exporter`,
+      `lib/hex_converter`), `draw_functions/drawWidgets.c`, `libraries/`
+      (`Spi_lib`/`mcp_can_2515`/`frame_queue`/`pid_library`/`uds_library`) — 8968 Zeilen,
+      größte der vier geprüften MCP2515-Apps dieses Clusters. Zusätzlich frischen,
+      unabhängigen Zweitklon von `jorgepnaranjo25/CAN-Bus-Attack` angelegt und per `diff`
+      gegen `canbus` verglichen.
+- [x] API-87-Kompatibilität gegen eine frische, unabhängige Zweitkopie von
+      `Next-Flip/Momentum-Firmware` (Tag `mntm-012`) geprüft: eigener SPI-Bus-Handle auf
+      `furi_hal_spi_bus_r` (dasselbe Eigenbau-Muster wie bei `can_bus_attack`, `libraries/
+      Spi_lib.c` zwischen beiden Apps byteidentisch) samt `GpioAltFn5SPI1`/`gpio_ext_*`/
+      `LL_SPI_*` byteidentisch gegen den eigenen `mntm-012`-Stand. Standard-GUI-/Storage-/
+      Stream-APIs sowie `furi_hal_serial_*` (SLCAN-UART-Pfad) ebenfalls byteidentisch. Kein
+      Port-Hindernis.
+- [x] `diff` zwischen den beiden frischen Klonen bestätigt: `libraries/mcp_can_2515.c`/`.h` und
+      `libraries/uds_library.c` sind byteidentisch zwischen `canbus` und dem bereits geprüften
+      `can_bus_attack`, `libraries/pid_library.c` unterscheidet sich nur durch eine triviale,
+      funktionsgleiche Variableninitialisierung (`char* first = NULL;` vs. `char* first;`).
+      Damit reproduziert sich der dort dokumentierte DLC-Überlauf-Fund (`read_frame()` maskiert
+      das empfangene DLC-Steuerbyte nur mit `MCP_DLC_MASK` (0x0F, liefert 0–15), ohne auf
+      `MAX_LEN` (8) zu begrenzen) unverändert.
+- [x] **Neuer Befund dieser Sitzung**: anders als bei `can_bus_attack`, wo `pid_library.c`/
+      `uds_library.c` laut eigenem Menü nie über eine Szene eingebunden waren (toter Code), sind
+      beide in `canbus` tatsächlich über eigene Hauptmenüpunkte erreichbar: "UDS Services" →
+      `scenes/UDSOptions/*.c` → `uds_library.c`-Hilfsfunktionen → `read_frames_uds()` →
+      `read_can_message()` → `read_frame()` (`CANFRAME` bleibt hier wie bei `can_bus_attack`
+      lokal auf dem Stack — gleiche Fehlerklasse, neuer erreichbarer Pfad); "Scanner OBD2" →
+      `scenes/Obd2Options/manualPIDSenderOption.c` → `pid_manual_request()` →
+      `read_can_message()`, geschrieben in `obdii->frame_to_received` — ein Inline-Feld der
+      `OBDII`-Struktur (`libraries/pid_library.h:86-87`), die selbst Teil der einmalig per
+      `malloc()` angelegten Haupt-`App`-Struktur ist. Ein manipuliertes/fehlerhaftes DLC-Feld
+      9–15 schreibt hier also über das Ende eines heap-residenten statt eines kurzlebigen
+      Stack-Puffers hinaus — ein Heap- statt Stack-Overflow bei diesem einen zusätzlichen Pfad.
+- [x] Host-Repro bewusst nicht dupliziert: da `mcp_can_2515.c` byteidentisch ist, deckt der
+      bereits bestehende `firmware-mining/repro-can-bus-attack-dlc-overflow/repro.c` (dessen
+      eigener Kommentarkopf schon auf `canbus` verweist) die betroffene Funktion verbatim ab.
+- [x] Patch 1:1 aus `can_bus_attack` übernommen (`if(frame->data_lenght > MAX_LEN)
+      frame->data_lenght = MAX_LEN;`), gegen eine frische, unabhängige `canbus`-Zweitkopie
+      (eigene `applications/external/canbus/`-Struktur nachgebaut) per `git apply --check`
+      verifiziert, real angewendet; Ergebnis per `diff` byte-für-byte mit der bereits
+      gepatchten `can_bus_attack`-Datei abgeglichen — identisch. In
+      `firmware-mining/canbus-app-port/mcp_can_2515_c.patch`.
+- [x] Details, Nutzen, API-87-Kompatibilität, Fund, Host-Repro-Verweis, Risiko, Port-Skizze,
+      Testhinweis in `firmware-mining/canbus-app-port.md`. Kuratiert in
+      `ideas/canbus-api-status.md`. `ideas/pentest-app-katalog.md` (CAN-Bus-Tabellenzeile und
+      Log-Eintrag unter "Nächste Recherche-Aufträge") aktualisiert.
+- [ ] Lokal zu tun: `canbus` (mit Patch) gegen die eigene `mntm-012`-Basis bauen, mit
+      MCP2515-Hardware am Erweiterungsport verkabeln (`CS=PA4`, `SCK=PB3`, `MOSI=PA7`,
+      `MISO=PA6`), Regressionstest mit gültigen Rahmen (DLC 0–8), danach Fundnachvollzug für
+      Sniffing/UDS (Stack-Fall) UND Scanner OBD2 (Heap-Fall) gemäß Testhinweis in
+      `firmware-mining/canbus-app-port.md`.
+- [ ] Aus demselben CAN-Bus-Cluster bleibt nur noch `can_commander` (15165 Zeilen, eigenes
+      GPIO-Board laut Quellcode-Kommentar vorausgesetzt) offen — das Cluster ist damit bis auf
+      diesen einen Fremdhardware-Sonderfall vollständig aufgegriffen.
+- [ ] `lib/SLCAN_serial`, `lib/files_scaner` (Player/Read-LOG-CSV-Parser), `lib/log_exporter`,
+      `lib/hex_converter`, `libraries/frame_queue.c`, `draw_functions/drawWidgets.c` und die
+      restlichen Szenen vollständig gelesen, ohne eigenen Fund über die dokumentierte Klasse
+      hinaus — insbesondere `frame_extractor.c`s `frame_splitter()` prüft bei einer
+      `.csv`-Log-Zeile nur auf "mindestens ein `:`-Trennzeichen vorhanden" statt auf die
+      erwartete Feldanzahl, ist aber dank `mlib`s eigenem Index-Clamping in `m_string_mid()`/
+      `m_string_right()` speichersicher (schlimmstenfalls stillschweigend falsch/leer geparste
+      Zeile, kein Absturz) — eigenständiger, kleinerer Rückstellpunkt für eine künftige, tiefere
+      Prüfung.
