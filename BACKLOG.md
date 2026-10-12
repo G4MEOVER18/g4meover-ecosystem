@@ -5552,3 +5552,67 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Ducky-Handler, `keyfinder2`/`texkom`/`hitags` aus dem Unleashed-dev-Diff,
       `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht
       erreichbar) bleiben unverändert offen.
+
+## Firmware-Feature-Mining (Fortsetzung 34)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (CAN Commander,
+      CAN-Bus-Cluster-Abschluss), davor App-Verbesserung (usb-army-penetrator, `USBMSC::end()`)
+      und ein Masterplan-Heartbeat — Firmware-Feature-Mining für diese Sitzung entsprechend
+      wieder an der Reihe. Git-Identität vor dem ersten Commit gesetzt (`G4MEOVER18
+      <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der Doorbell32-Sitzung offenen `unlshd-093`→`dev`-Restliste
+      (`keyfinder2`/`texkom`/`hitags`) den dort als zweiten neuen SubGHz-Kandidaten
+      zurückgestellten Punkt aufgegriffen: **`keyfinder2.c`/`.h`** (283+60 Zeilen). Gegen den
+      `dev`-Branch erneut geprüft — weiterhin Commit `af2e764` (2026-10-11), kein neuerer
+      Stand, keine Wiederholung.
+- [x] Den von der Doorbell32-Sitzung offen zurückgestellten Verdacht geklärt: keine
+      Namenskollision mit meinem bereits portierten `keyfinder.c` (eigenständiges, älteres
+      Protokoll) — alle Symbole sind durchgehend getrennt (`subghz_protocol_keyfinder` vs.
+      `subghz_protocol_keyfinder2`, `KeyFinderDecoderStep*` vs. `KeyFinder2DecoderStep*`,
+      Anzeigename `"KeyFinder"` vs. `"KeyFinder2"`), per Diff beider Patch-Sätze verifiziert.
+- [x] Kompatibilitätsprüfung gegen eine frische `G4MEOVER-FW`-Zweitkopie (Tag-Commit
+      `b359f6f`): alle verwendeten Hilfsstrukturen vorhanden. Wie bei jedem bisher
+      portierten SubGHz-Protokoll fehlt die gemeinsame `common.c`-Hilfsschicht — hier der
+      einfachere Fall als bei Doorbell32/Princeton, da das Original selbst weder ein `te`-
+      noch ein `last_data`-Feld führt (siehe Fund); eigene `_alloc`/`_free`/`_reset`/
+      `_get_hash_data`/`_serialize`-Funktionen ohne Zusatzzustand, 1:1 nach dem in `common.c`
+      selbst nachgelesenen Verhalten. `SubGhzProtocolFlag_Sensors` erneut nicht in meinem
+      Flag-Enum vorhanden, bewusst weggelassen.
+- [x] **Fund** (kein Speicherfehler, zwei dokumentierte Verhaltensunterschiede zu den
+      Geschwister-Ports, beides unverändertes Upstream-Verhalten): (1) KeyFinder2 prüft vor
+      dem Melden keinen zweiten, identischen Rahmen (anders als `princeton.c`/`doorbell32.c`
+      mit ihrem `last_data`-Vergleich) — ein einzelner, nicht wiederholter 11-Bit-Rahmen wird
+      bereits beim ersten Durchlauf gemeldet; (2) der `Reset`-Zustand braucht keine
+      vorherige Gap/Guard-Erkennung, sondern erkennt die erste Flanke eines Rahmens direkt —
+      bei lückenlos aneinandergereihten Wiederholungen wird dadurch **jede** gemeldet
+      (`found_count == repeat`), nicht `repeat-2` wie bei Doorbell32 oder
+      `ceil(repeat/2)` wie bei der GAP-Doppelnutzungs-Klasse. Beide Punkte sind zwei Seiten
+      derselben Designentscheidung (keine Gap-Synchronisation ⇒ kein natürlicher Anker für
+      eine Zwei-Rahmen-Bestätigung) und für den künftigen Hardware-Testhinweis relevant
+      (empfindlicher gegenüber Einzelstörimpulsen als die Geschwister-Protokolle).
+- [x] Host-Repro (fünf Testgruppen: Rundlauf+Bit-Exaktheit inkl. Einzelrahmen-Fall über 20000
+      Zufallsnutzlasten, Negativtest Bit-Korruption im breiten Header mit Sofort-Resync,
+      Negativtest Bit-Korruption im schmalen Trailer mit Sofort-Resync, Zustandswechsel-
+      Grenzfallprüfung breit→schmal exakt nach Bit 3, Encoder-Puffergrößenprüfung) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: 80016 Prüfungen, alle bestanden, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-keyfinder2-subghz-port/repro.c`.
+- [x] Vier Patches (`keyfinder2_c`/`_h`, `protocol_items_c`/`_h`) gegen eine frische,
+      unabhängige `G4MEOVER-FW`-Zweitkopie mit `git apply --check` verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch.
+- [x] Details, Kompatibilitätsprüfung, Fund, Host-Repro, Risiko, Testhinweis in
+      `firmware-mining/keyfinder2-subghz-port.md`.
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden, mit
+      `ufbt`/`fbt firmware_all` bauen, am Gerät gegen einen eigenen, autorisierten
+      KeyFinder2-Fob (oder ein synthetisches `.sub`-Testsignal) empfangen; gezielt den Fund
+      nachvollziehen (ein einzelner, nicht wiederholter Rahmen wird bereits gemeldet).
+- [ ] Aus derselben `dev`-Branch-Restliste weiterhin zurückgestellt: `texkom` (neue
+      NFC-Protokollfamilie, mehrteilig wie MIFARE-Plus-AES, eigener Rückstellpunkt),
+      `lib/lfrfid/tools/hitags.c`/`.h` (959+77 Zeilen, größter einzelner Kandidat, eigener
+      Rückstellpunkt), die kleineren Erweiterungen an bereits portierten `nord_ice.c`/
+      `faac_slh.c`/`prastel.c`/`keeloq.c`.
+- [ ] Die übrigen seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen
+      GitHub-Zugriffsbreite nicht erreichbar) bleiben unverändert offen.
