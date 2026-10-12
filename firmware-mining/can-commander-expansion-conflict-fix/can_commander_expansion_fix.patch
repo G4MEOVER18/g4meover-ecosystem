@@ -1,0 +1,51 @@
+diff --git a/CAN_Commander_FlipperZero/can_commander/can_commander.c b/CAN_Commander_FlipperZero/can_commander/can_commander.c
+index c023e9b..755e1e5 100644
+--- a/CAN_Commander_FlipperZero/can_commander/can_commander.c
++++ b/CAN_Commander_FlipperZero/can_commander/can_commander.c
+@@ -4817,6 +4817,14 @@ static App* app_alloc(void) {
+         goto fail;
+     }
+ 
++    /* The stock Expansion service watches the same USART pins for a module
++     * detect edge and, once triggered, holds furi_hal_serial_control_acquire()
++     * for itself while it probes for the official handshake. Disable it for
++     * the lifetime of this app so our own cc_client_open() can actually get
++     * the handle instead of silently failing with "Not connected". */
++    app->expansion = furi_record_open(RECORD_EXPANSION);
++    expansion_disable(app->expansion);
++
+     app->scene_manager = scene_manager_alloc(&cancommander_scene_handlers, app);
+     if(!app->scene_manager) {
+         goto fail;
+@@ -4971,6 +4979,11 @@ static void app_free(App* app) {
+         cc_client_free(app->client);
+     }
+ 
++    if(app->expansion) {
++        expansion_enable(app->expansion);
++        furi_record_close(RECORD_EXPANSION);
++    }
++
+     if(app->dbc_config_signals) {
+         free(app->dbc_config_signals);
+         app->dbc_config_signals = NULL;
+diff --git a/CAN_Commander_FlipperZero/can_commander/can_commander.h b/CAN_Commander_FlipperZero/can_commander/can_commander.h
+index 8fa1a85..c992d31 100644
+--- a/CAN_Commander_FlipperZero/can_commander/can_commander.h
++++ b/CAN_Commander_FlipperZero/can_commander/can_commander.h
+@@ -12,6 +12,7 @@
+ #include <gui/view.h>
+ #include <gui/scene_manager.h>
+ #include <gui/view_dispatcher.h>
++#include <expansion/expansion.h>
+ 
+ #include "libraries/can_commander_uart.h"
+ #include "scenes_config/scene_functions.h"
+@@ -136,6 +137,7 @@ struct App {
+     bool app_ready;
+ 
+     CcClient* client;
++    Expansion* expansion;
+     bool connected;
+     bool tool_active;
+     bool monitor_scene_active;

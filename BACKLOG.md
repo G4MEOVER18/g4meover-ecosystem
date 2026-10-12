@@ -5482,3 +5482,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `keyfinder2`/`texkom`/`hitags` aus dem Unleashed-dev-Diff,
       `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht
       erreichbar) bleiben unverändert offen.
+
+## Ideen-Recherche (CAN-Bus-Cluster — Abschluss)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (usb-army-penetrator,
+      USBMSC::end()), davor Firmware-Feature-Mining (Doorbell32) und App-Verbesserung
+      (DISPLAY_TEXT) — Ideen-Recherche war entsprechend seit drei Sitzungen nicht mehr an der
+      Reihe und für diese Sitzung fällig. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Letzten noch offenen Kandidaten aus dem RogueMaster-CAN-Bus-Cluster aufgegriffen:
+      **CAN Commander** (`MatthewKuKanich/CAN_Commander`), bislang als "eigenes GPIO-Board
+      vorausgesetzt" ohne eigene Quellcode-Prüfung vorgemerkt. Frische, unabhängige Zweitkopie
+      angelegt (Commit `6079fe0`, `v2.3.1`, 15615 Zeilen über 41 Dateien) — Präzisierung
+      gegenüber dem bisherigen Katalog-Eintrag: kein MCP2515-SPI-Board, sondern ein
+      eigenständiges ESP32-Companion-Board mit eigener CAN-Commander-Firmware, über ein
+      COBS/CRC16-UART-Protokoll (921600 Baud) angebunden.
+- [x] Nach dem bei **Chameleon Ultra Client**/**NFC Relay** etablierten Muster (Fremdhardware
+      ohne eigenen Sensorzugriff, aber eigener Protokoll-Parser lohnt trotzdem die Prüfung) die
+      komplette UART-Framing-Schicht (`libraries/can_commander_uart.c`: COBS-Encoder/-Decoder,
+      CRC16-CCITT, Paket-/Event-Parser) sowie die Haupt-App-Logik (Custom-Inject-Slots,
+      DBC-Profile, Argument-Parser, Datei-I/O) und alle Dashboard-Views (~13000 Zeilen gesamt)
+      gelesen. Kein Speicherfehler gefunden — jede `memcpy()`/jeder Array-Zugriff ist gegen eine
+      geprüfte Länge geklemmt, jeder extern kommende Enum-Rohwert (`CcToolId`/`CcBus`) wird nur
+      per `==`-Vergleich verwendet, nie als Array-Index.
+- [x] **Fund** (kein Speicherfehler, reproduzierbarer Dauerausfall): die App ruft nirgends
+      `expansion_disable()`/`expansion_enable()` auf (`applications/services/expansion/
+      expansion.h`) — anders als die fünf bereits dokumentierten Erweiterungsport-Geschwister
+      (UART Sniff, RS485 Modbus, GPIO Logic Analyzer, SWD Probe, Argus). Gegen eine frische,
+      unabhängige Zweitkopie von `G4MEOVER18/G4MEOVER-FW` (`mntm-012`) nachvollzogen: der
+      Flipper-eigene Expansion-Systemdienst ist standardmäßig aktiv (`expansion_on_system_start()`
+      ruft unbedingt `expansion_enable()` auf) und überwacht per Default-Einstellung
+      (`expansion_settings_load()` fällt beim Fehlen einer eigenen Einstellungsdatei auf
+      `uart_index = 0` = `FuriHalSerialIdUsart` zurück) exakt dasselbe UART, das
+      `can_commander_uart.c` selbst nutzt — per Flankenerkennung auf der RX-Leitung
+      (`furi_hal_serial_control_enable_expansion_irq()`, `GpioModeInterruptFall`), reagiert
+      also schon auf das erste Startbit. Die App selbst schaltet beim Start zuerst 5-V-OTG für
+      das ESP32-Board ein, wartet dann nur 400 ms, bevor sie `furi_hal_serial_control_acquire()`
+      aufruft — bootet das Board in dieser Zeit und wechselt Pegel auf der RX-Leitung, kann der
+      Expansion-Dienst das UART-Handle zuerst bekommen (`expansion_worker.c` ruft selbst
+      `furi_hal_serial_control_acquire()` auf und hält das Handle während seines eigenen
+      Handshake-Versuchs); `cc_client_open()` bekommt dann `NULL` zurück, drei Ping-Versuche
+      scheitern, die App zeigt nur die generische Meldung `"Not connected to \nCAN Commander"`.
+      Eigene Fehler-Glossar-Dokumentation (README) verweist für diese Meldung ausschließlich auf
+      "verify power/wiring/module state" — kein Hinweis auf die tatsächliche Ursache
+      (`Settings → System → Expansion`), da dem Autor das Zusammenspiel offenbar nicht bekannt
+      ist.
+- [x] Additiver Fix (zwei neue Aufrufe, ein neues `Expansion*`-Feld, nach demselben bei UART
+      Sniff/GPIO Logic Analyzer/SWD Probe etablierten Muster: `expansion_disable()` vor dem
+      ersten `furi_hal_serial_control_acquire()` in `app_alloc()`, `expansion_enable()` nach dem
+      letzten `furi_hal_serial_control_release()` in `app_free()` — Reihenfolge bewusst nach dem
+      Client-Teardown, um die bei RS485 Modbus dokumentierte vertauschte Reihenfolge nicht zu
+      wiederholen) gegen eine frische, unabhängige Zweitkopie von `MatthewKuKanich/CAN_Commander`
+      mit `git apply --check` verifiziert, real angewendet, Ergebnis per `diff -r` byte-für-byte
+      mit der Arbeitskopie abgeglichen — identisch.
+- [x] Details, API-87-Kompatibilitätsprüfung, Fund, Fix, Testhinweis, Risiko in
+      `firmware-mining/can-commander-expansion-conflict-fix.md` (Patch in
+      `firmware-mining/can-commander-expansion-conflict-fix/can_commander_expansion_fix.patch`).
+      Kuratiert in `ideas/can-commander-api-status.md`. `ideas/pentest-app-katalog.md`
+      (CAN-Commander-Tabellenzeile korrigiert/aktualisiert, Log-Eintrag unter "Nächste
+      Recherche-Aufträge") ergänzt. Damit ist das gesamte RogueMaster-CAN-Bus-Cluster
+      (`can_bus_attack`, `can_commander`, `can_tools`, `can_transceiver`, `canbus`) vollständig
+      quelltextlich durchgesehen.
+- [ ] Lokal zu tun: Anschaffung/Verkabelung des proprietären CAN-Commander-ESP32-Boards, danach
+      Patch gegen die eigene `can_commander`-Basis anwenden, mit `ufbt`/`fbt` bauen,
+      Fundnachvollzug gemäß Testhinweis in `firmware-mining/can-commander-expansion-conflict-fix.md`
+      (Verbindungsversuch bei aktivierter Expansion-Erkennung vor/nach Patch vergleichen).
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `keyfinder2`/`texkom`/`hitags` aus dem Unleashed-dev-Diff,
+      `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht
+      erreichbar) bleiben unverändert offen.
