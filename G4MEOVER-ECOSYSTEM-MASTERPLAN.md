@@ -36,6 +36,7 @@
 | *später* ESP32-CAM | ESP32 | — | — | Kamera/Streaming |
 | *später* RA08 (ASR6601) | ASR6601 | — | — | 433-MHz-LoRa |
 | *später* CubeCell HTCC-AB01 | ASR6501 | — | — | 433-MHz-LoRa (LowPower) |
+| *später* HackRF One | — | **Pi** (geplant) | — | 1 MHz–6 GHz SDR — bereits Teil von `g4meover-deck`s Vision/Code (`deck/hackrf_link.py`), hier noch nicht geführt |
 
 ## 2. Ziel-Architektur (Kontroll-Ebenen × Transport-Fabric × Geräte)
 ```mermaid
@@ -325,11 +326,14 @@ Graph-Kopie entsteht.
   (VID:PID-Auto-Erkennung, volle CLI SubGHz/NFC/RFID/IR/GPIO/Storage/Loader/Apps) — läuft Pi+Windows,
   am Pi deployt `/home/kali/g4meover-flipper-ctl/`. TODO: GUI-Tab + BLE-Transport (P2.4).
 - [ ] P2.1 Flipper-App: Reverse-Kanal „Kali-Tool ausführen" (Flipper→USB/GUI→Pi→Tool→Ergebnis zurück auf Flipper-Display).
-  - [ ] P2.1a **Lokal, zuerst:** prüfen ob `g4meover-companion` (laut README „flipperbridge &
-    Deck-Tools", eigenes Repo außerhalb des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung — nur
-    `g4meover-ecosystem`) bereits einen Reverse-Kanal-Mechanismus enthält, bevor hier neu entworfen
-    wird — dasselbe Blocker-Muster wie bei P1.3.0/P1.4.0 (referenzierte Tool-Dateien erst prüfen,
-    dann aufbauen).
+  - [x] P2.1a ✅ (2026-10-12, Cloud): `g4meover-companion` ist inzwischen ebenfalls im
+    Zugriffs-Scope dieser Cloud-Sitzung — tatsächlich geprüft statt nur vermutet.
+    `flipperbridge/flipperbridge.py` (Klasse `FlipperBridge`, reines `argparse`-CLI) und
+    `cockpit/cockpit.py` sind beide **PC/Pi-initiiert** (senden Kommandos an den Flipper, lesen
+    die Antwort) — keiner der beiden enthält einen Listener/Handler, der eine vom Flipper selbst
+    ausgehende Anfrage entgegennimmt. Ergebnis: **kein** vorhandener Reverse-Kanal-Mechanismus,
+    P2.1b/P2.1c müssen tatsächlich neu entworfen werden (siehe dort) — keine Doppelarbeit, aber
+    auch keine Abkürzung.
   - [ ] P2.1b **Lokal:** Transport-Entscheidung — zwei Optionen, keine davon hier vorentscheidbar ohne
     echten Blick in `G4MEOVER-FW` (ebenfalls außerhalb Scope): (a) die bereits von `flipper_ctl.py`
     genutzte CLI-/RPC-Verbindung um einen eigenen, App-seitig ausgelösten Request erweitern (kein
@@ -1524,10 +1528,67 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Sachstand). Die beiden Tageszähler im PREP-Abschnitt unten (Punkt 5 und
   Rotations-Runbook-Überschrift) auf 45 synchronisiert — keine inhaltliche Änderung. Kein
   Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-10-12 (Cloud-Heartbeat): statt einer zehnten Wiederholungsrunde an denselben drei
+  vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f — wie an den Vortagen vermerkt reine Wiederholung)
+  diesmal einen echten, bisher übersehenen Zusammenhang geprüft: ob die seit 2026-09-13
+  wiederholt als „im Repo nicht auffindbar" protokollierten Tool-Pfade vielleicht nie hierher
+  gehörten, sondern in einem der Sibling-Repos liegen, die der Masterplan selbst unter README
+  „Ökosystem-Karte" aufzählt. `g4meover-deck` und `g4meover-companion` ließen sich dieser
+  Cloud-Sitzung tatsächlich hinzufügen (lesend) — damit zum ersten Mal gegengeprüft statt nur
+  vermutet. Fund bestätigt den Verdacht und geht deutlich darüber hinaus: `g4meover-deck/deck/`
+  enthält bereits eine **byte-genau gegen die C-Implementierung verifizierte** Python-Portierung
+  des `ukfe_rf`-Frames (`ukfe_rf.py` — CRC16-CCITT `0x1021`/Init `0xFFFF`, 4-Byte keyed-MAC über
+  einen FNV-artigen `mix32`-Mischer mit vorne+hinten eingemischtem Secret), eine VID:PID-basierte
+  Geräte-Erkennung (`device_discovery.py`, exakt dieselben VID:PIDs wie hier in
+  `ecosystem/devices.json`), eine UART-Sende-Schicht mit persistentem Rolling-Counter
+  (`satellite_link.py`), eine Flipper-USB-RPC-Anbindung (`flipper_link.py`), eine einheitliche
+  CLI + HTTP-Daemon mit Dashboard (`deck_ctl.py`/`deck_daemon.py`/`dashboard.html`), einen
+  Szenario-Runner mit sechs JSON-Presets (`scenario_runner.py`, `scenarios/*.json`) sowie
+  bereits lauffähige, laut `g4meover-deck/ROADMAP.md` additiv/read-only gehaltene
+  Zigbee-/DogyTag-/LORIX-/HackRF-Anbindungen (`zigbee_link.py`, `dogytag_link.py`,
+  `lorix_link.py`, `hackrf_link.py`) — Letzteres ein Gerät, das im hiesigen Inventar (Abschnitt 1
+  / `devices.json`) bisher komplett fehlte, jetzt als `planned`-Platzhalter ergänzt (gleiches
+  Schema wie ESP32-CAM/RA08/CubeCell). Laut `ROADMAP.md` ist dieser Stand vom 2026-08-15 —
+  **vor** dem Start dieses Masterplans am 2026-08-26 — als „code-komplett, noch nicht auf echtem
+  Pi" dokumentiert; mein Masterplan hat seither mehrfach denselben Problemraum (P1.2b-Codec,
+  P0.2d-Port-Auflösung, P4.4/P5.1-LORIX/DogyTag, P7.1-2-Szenario, P10.1-2-Zigbee) unabhängig
+  neu geplant, ohne dass eine der bisherigen ~10 Heartbeat-Sitzungen diesen Zusammenhang geprüft
+  hätte. `g4meover-companion` liefert zusätzlich drei weitere, laut eigener README „live
+  getestete" Werkzeuge (`flipperbridge.py`, `cockpit.py`, `webdeck.py`) — damit auch P2.1a
+  (Reverse-Kanal-Prüfung, seit 2026-08-26 als TODO offen) jetzt tatsächlich beantwortet: keiner
+  der beiden PC-seitigen Companion-Tools enthält einen Flipper-initiierten Reverse-Kanal, P2.1b/c
+  bleiben echte Neuentwürfe. Als dritten Kandidaten `g4meover-pentest-cockpit` ebenfalls geprüft
+  (ebenfalls erreichbar) — stellte sich als komplett unabhängiges, allgemeines
+  Web-/Netzwerk-Pentest-Cockpit ohne jeden Flipper-/Heltec-/Deck-Bezug heraus, keine Übernahme
+  möglich, nicht weiter verfolgt. Entsprechend in Abschnitt 4 (P2.1a ✅, Blocker-Verweise bei
+  P1.2b/P0.2d-Umfeld) und in Risiken/Blocker ergänzt; PREP unten bekommt einen neuen Punkt 0, der
+  die lokale Session anweist, zuerst zu entscheiden (Wiederverwendung vs. bewusster Neubau), bevor
+  an den entsprechenden TODOs weitergebaut wird — sonst entsteht doppelte Arbeit an denselben
+  Problemen in zwei Repos. Nichts an den beiden Sibling-Repos verändert, nur gelesen (reine
+  Lesezugriffe, kein `add_repo` mit Push-Rechten). Übliche Repo-Hygiene vorab erledigt:
+  Git-Identität stand wieder auf dem Cloud-Default, vor dem ersten Commit korrigiert; lokaler
+  `main`-Zeiger lag hinter `HEAD`/`origin/main` zurück, per `git checkout -B main HEAD`
+  nachgezogen (kein Datenverlust, reiner Fast-Forward). `ecosystem/devices.json` nach dem neuen
+  HackRF-Eintrag erneut per `json.load` auf Syntax geprüft: gültig. Repo-Sichtbarkeit laut
+  `list_repos`: weiterhin `private`. Zugangsdaten-Rotation weiterhin unverändert offen (seit
+  2026-08-27, jetzt 46 Tage) — keine erneute Push-Notification ohne neuen Sachstand zu diesem
+  Punkt selbst (zuletzt am 2026-09-11 eskaliert). Die beiden Tageszähler im PREP-Abschnitt unten
+  (Punkt 5 und Rotations-Runbook-Überschrift) auf 46 synchronisiert. Kein Hardware-Zugriff
+  versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
 **Nächster konkreter Schritt:**
+0. **Neu (2026-10-12), vor allem anderen hier zu lesen:** `g4meover-deck` und `g4meover-companion`
+   (beide Sibling-Repos, GitHub-seitig frei zugänglich) lokal auschecken und gegen die unten unter
+   Risiken/Blocker beschriebenen Dateien abgleichen (`deck/ukfe_rf.py`, `device_discovery.py`,
+   `satellite_link.py`, `flipper_link.py`, `deck_ctl.py`/`deck_daemon.py`, `scenario_runner.py` +
+   `scenarios/*.json`, `zigbee_link.py`, `dogytag_link.py`, `lorix_link.py`, `hackrf_link.py`;
+   `flipperbridge.py`, `cockpit.py`, `webdeck.py`). Entscheidung treffen (nur lokal sinnvoll, da sie
+   den tatsächlichen Reifegrad an echter Hardware betrifft): für P1.2b/P0.2d/P4.4/P5.1/P7.1-2/P10.1-2
+   **wiederverwenden/integrieren** statt neu entwerfen, oder bewusst **neu bauen**, falls der
+   Deck-Stand (zuletzt 2026-08-15, nie auf echtem Pi gelaufen) inzwischen veraltet ist. Ohne diese
+   Entscheidung droht doppelte Arbeit an denselben Problemen in zwei Repos.
 1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — die Prüfschritt-Liste
    unter P0.2c oben (Abschnitt 4) ist pro Gerät fertig (Befehl + Soll-MAC/VID:PID), inkl. der
    `jq`-Einzeiler zum Zurückschreiben von `verified_at`/`mac`/`usb_id` statt Hand-Editieren; nur
@@ -1559,12 +1620,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Logging der Flipper-CLI-Antworten, P1.6c), P1.7 bewusst erst nach funktionierendem P1.3/P1.4
    angehen (kein Packaging eines beweglichen Ziels). Für P1.7c fehlt noch ein Icon-/Branding-Asset
    (siehe Blocker unten) — unabhängig vom Rest von Phase 1 besorgbar.
-4b. Nach Phase 1: P2.1-P2.3 (Abschnitt 4) sind jetzt ebenfalls in Unterschritte zerlegt. P2.1b
-   (Transport-Entscheidung Reverse-Kanal) und P2.2a (expliziter Moduswechsel-Befehl ja/nein) sind
-   als offene Entscheidungen markiert, die nur lokal gegen `G4MEOVER-FW` (außerhalb Cloud-Scope) bzw.
-   im Zusammenspiel mit P8.2 zu treffen sind — vorher `g4meover-companion` auf einen bereits
-   vorhandenen Reverse-Kanal-Mechanismus prüfen (P2.1a), um keine Doppelarbeit zu entwerfen.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 45 Tage überfällig:** Pi-SSH-Passwort und
+4b. Nach Phase 1: P2.1-P2.3 (Abschnitt 4) sind jetzt ebenfalls in Unterschritte zerlegt. P2.1a ist
+   seit 2026-10-12 ✅ (gegen das jetzt erreichbare `g4meover-companion` geprüft: kein vorhandener
+   Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
+   Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
+   (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 46 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1706,7 +1767,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 45 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 46 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -1736,6 +1797,42 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Repo-Pfad, sondern als lokalen Stand kennzeichnen). Blockiert die sinnvolle Vertiefung von P1.3/
   P1.4/P1.5, P0.2d und der `get_device_port()`-Integration aus der Cloud, da der tatsächliche
   Code-Stand von hier aus nicht einsehbar ist.
+  - **Ergänzt (2026-10-12), ändert die Einordnung deutlich:** die vier Pfade selbst bleiben
+    unauffindbar, aber die Sibling-Repos `g4meover-deck` und `g4meover-companion` (beide im
+    Zugriffs-Scope dieser Cloud-Sitzung, also diesmal tatsächlich gegengeprüft statt nur vermutet)
+    enthalten bereits einen großen Teil der gleichen Funktionalität, fertig und laut deren eigener
+    Doku getestet. `g4meover-deck/deck/` hat `ukfe_rf.py` (Python-Port des Frames inkl. CRC16-CCITT
+    `0x1021`/Init `0xFFFF` und einem 4-Byte keyed-MAC über einen FNV-artigen `mix32`-Mischer, Secret
+    vorne+hinten sandwichartig eingemischt — als „byte-genau gegen die C-Implementierung verifiziert"
+    dokumentiert), `device_discovery.py` (VID:PID→Gerät/Port, exakt dieselben VID:PIDs wie
+    `ecosystem/devices.json`), `satellite_link.py`, `flipper_link.py`, `deck_ctl.py`/`deck_daemon.py`
+    (+ `deck/dashboard.html`), `scenario_runner.py` mit sechs `scenarios/*.json`-Presets, sowie
+    `zigbee_link.py`, `dogytag_link.py`, `lorix_link.py` und `hackrf_link.py` (letzteres zum neuen
+    Inventar-Eintrag oben führend). `g4meover-deck/ROADMAP.md` führt diesen Stand (2026-08-15, **vor**
+    dem Start dieses Masterplans am 2026-08-26) als „code-komplett ... noch nicht auf echtem Pi",
+    die LoRaWAN/DogyTag-Anbindung dort bereits als „additiv ... read-only, kein Produktionseingriff"
+    — deckungsgleich mit CONSTRAINTS Regel 2/3, ohne dass ich das hier neu vorschreiben musste.
+    `g4meover-companion/` liefert zusätzlich `flipperbridge/flipperbridge.py` (USB-CDC
+    Flipper-Steuerung, laut README „live gegen COM3 verifiziert"), `cockpit/cockpit.py`
+    (CLI-Pi-Deck-Cockpit: dash/status/live/pull/sync/radio) und `webdeck/webdeck.py`
+    (dependency-freies Browser-Dashboard), ebenfalls als „live getestet" dokumentiert. Keines davon
+    liegt unter den im Tracker vermerkten `ecosystem/...`-Pfaden und keines ist 1:1 identisch mit der
+    dort beschriebenen Tkinter-GUI/Katalog-CLI — eigenständige, parallel entstandene Werkzeuge, nicht
+    dieselben Dateien unter falschem Pfad. Zur Probe geprüft: `g4meover-pentest-cockpit` (dritter
+    Kandidat, ebenfalls im Scope) ist dagegen ein komplett unabhängiges, allgemeines
+    Web-/Netzwerk-Pentest-Cockpit (Nmap/Nuclei/LLM-gestützt) ohne jeden Bezug zu Flipper/Heltec/Deck —
+    keine Übernahme von dort möglich, bewusst nicht weiter verfolgt.
+    Für mehrere offene TODOs ändert das die Ausgangslage von „muss aus der Cloud oder lokal neu
+    entworfen werden" zu „zuerst prüfen, ob/wie das bereits Vorhandene wiederverwendet wird, bevor
+    neu gebaut wird" — konkret P1.2b (Frame-Codec: Algorithmus jetzt bekannt/zitierbar, lokale
+    Verifikation gegen die aktuelle Firmware bleibt trotzdem sinnvoll, da `deck/ukfe_rf.py` Stand
+    spätestens 2026-08-15 ist), P0.2d (`device_discovery.py` deckt die vorgeschlagene
+    `get_device_port()`-Auflösung größtenteils bereits ab, fehlt nur `heltec-v4-hub`/`dogytag`),
+    P4.4/P5.1 (`lorix_link.py`/`dogytag_link.py` bereits additiv/read-only umgesetzt), P7.1/P7.2
+    (`scenario_runner.py` + sechs JSON-Presets neben dem hier erst am 2026-09-26 gebauten
+    `ecosystem/topology.json` — zwei Darstellungen derselben Szenario-Idee, die lokal abzugleichen
+    sind, bevor beide weiter auseinanderlaufen) und P10.1/P10.2 (`zigbee_link.py` bereits vorhanden).
+    Ich habe dabei nur gelesen, keine der beiden Sibling-Repos verändert, committet oder gepusht.
 - **Neu (2026-10-03), Repo-Hygiene:** wiederholt tritt Branch-Zeiger-Drift in diesem Checkout auf
   (siehe Log 2026-09-15/17/19/21/22/27/30 für die eine Richtung: lokaler `main`-Zeiger hinter
   `origin/main`). Diese Sitzung trat die **andere** Richtung auf: `HEAD` losgelöst 11 Commits
@@ -1778,6 +1875,10 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   lokal existieren (laut Tracker ✅ mit diesen Pfaden) — falls ja, in dieses Repo committen; falls
   bewusst lokal-only, den Tracker entsprechend umformulieren. Nur lokal feststellbar, da diese
   Dateien aus der Cloud-Sitzung heraus nicht sichtbar sind.
+  - **Ergänzt (2026-10-12):** die vier Pfade selbst bleiben unauffindbar, aber siehe den neuen
+    Fund unter Risiken/Blocker unten — in den Sibling-Repos `g4meover-deck`/`g4meover-companion`
+    liegt bereits überlappende, laut deren Doku getestete Funktionalität, die vor jedem Neubau
+    hier zuerst zu prüfen ist.
 - **Neu (2026-09-14):** für P1.7c (Packaging-Icon) fehlt ein Icon-/Branding-Asset (`.ico`/`.png`,
   Windows-Taskleiste + Kali-Desktop-Eintrag) — im Repo bisher nirgends vorhanden. Kein Hardware-Bezug,
   aber eine bewusste Design-/Marken-Entscheidung (Motiv, Farben), die hier aus der Cloud nicht

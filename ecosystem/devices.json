@@ -181,6 +181,20 @@
       "status": "planned",
       "notes": null,
       "verified_at": null
+    },
+    {
+      "id": "hackrf-one",
+      "name": "HackRF One",
+      "chip": null,
+      "host": null,
+      "transport": [],
+      "usb_id": null,
+      "last_known_port": null,
+      "mac": null,
+      "role": "1 MHz-6 GHz SDR am Pi-Deck (spaeter, siehe g4meover-deck/deck/hackrf_link.py)",
+      "status": "planned",
+      "notes": "Bisher nur Teil der Vision/des Codes im Sibling-Repo g4meover-deck (ROADMAP.md Phase 2/4), noch nicht in diesem Inventar gefuehrt -- Luecke beim Cross-Repo-Abgleich am 2026-10-12 gefunden.",
+      "verified_at": null
     }
   ]
 }
