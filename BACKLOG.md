@@ -5366,3 +5366,71 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `ditec_gol4_create_data()`, `can_commander` mit eigenem GPIO-Board, `g4meover-magspoof`/
       `ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht erreichbar) bleiben
       unverändert offen.
+
+## Firmware-Feature-Mining (Fortsetzung 33)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (usb-army-penetrator,
+      DISPLAY_TEXT), davor Ideen-Recherche (CANBUS) und Firmware-Feature-Mining (Ditec GOL4) —
+      Firmware-Feature-Mining für diese Sitzung entsprechend wieder an der Reihe.
+      Git-Identität vor dem ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Die `unlshd-093`-Restliste ist bereits vollständig abgearbeitet (siehe
+      Superrollo-GW60-Eintrag) und kein neuerer `unlshd-09x`/`unlshd-1xx`-Tag vorhanden
+      (per `git ls-remote --tags` bestätigt) — stattdessen gegen den aktuellen
+      Unleashed-`dev`-Branch (Commit `af2e764`, 2026-10-11) per
+      `git diff unlshd-093 af2e764` geprüft, was seit dem letzten Release tatsächlich neu
+      ist, statt bereits bekannten Umfang zu wiederholen: zwei neue, eigenständige
+      SubGHz-Protokolle (`doorbell32.c/.h`, `keyfinder2.c/.h`), eine neue NFC-Protokollfamilie
+      (`texkom`), ein neues LFRFID-Werkzeugmodul (`hitags.c/.h`), dazu Erweiterungen an
+      bereits portierten Protokollen (`nord_ice.c`, `faac_slh.c`, `prastel.c`, `keeloq.c`).
+- [x] **`doorbell32.c`/`.h`** gewählt: kleinster, vollständig eigenständiger neuer Kandidat
+      (247+71 Zeilen bei Unleashed), reines statisches 1:3-PWM-Protokoll ohne Rolling-Code,
+      Princeton-Familie mit 32 statt 24 Bit und 14×Te- statt 31×Te-Guard.
+- [x] Kompatibilitätsprüfung gegen eine frische `G4MEOVER-FW`-Zweitkopie: alle verwendeten
+      Hilfsstrukturen (`SubGhzBlockDecoder`/`_Generic`, `SubGhzProtocolDecoder`/`_Encoder`-
+      Vtables) vorhanden. Wie bei allen bisherigen SubGHz-Ports fehlt die gemeinsame
+      `common.c`-Hilfsschicht samt `SUBGHZ_ASSERT_*`-Makros — eigene `_alloc`/`_free`/
+      `_reset`/`_get_hash_data`/`_stop`/`_yield`-Funktionen nach dem Vorbild meines eigenen,
+      bereits produktiven `princeton.c` (gleiche Protokollfamilie) geschrieben. Zusätzlich
+      fehlt mir `SubGhzProtocolFlag_Sensors` komplett im Flag-Enum — bewusst weggelassen
+      (reine UI-Kategorisierung, kein Einfluss auf Encode/Decode).
+- [x] **Fund** (unverändertes Upstream-Verhalten, nur dokumentiert): der Decoder braucht
+      mindestens drei Wiederholungen statt zwei bis zur ersten Meldung
+      (`found_count == max(repeat-2, 0)`) — der allererste Rahmen wird mangels
+      Sync-Guard komplett auf Bit-Ebene verworfen, der zweite vervollständigt zwar 32 Bit,
+      scheitert aber am `last_data`-Vergleich (noch 0) — eine Stufe strenger als die bei
+      Nord ICE/Treadmill37/Allstar Firefly/Ditec GOL4 dokumentierte
+      `ceil(repeat/2)`/`floor(repeat/2)`-Klasse.
+- [x] Host-Repro (sechs Testgruppen: Rundlauf+Bit-Exaktheit, Negativtest unterschiedliche
+      Rahmen, Negativtest Bit-Korruption mit Resync inkl. differentieller Gegenprobe,
+      Negativtest Guard-Fensterprüfung, `te`-Rekonstruktion synchron zum Callback-Zeitpunkt)
+      unter `gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: 73378 Prüfungen, alle bestanden,
+      identischer Output beider Optimierungsstufen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-doorbell32-subghz-port/repro.c`.
+- [x] Vier Patches (`doorbell32_c`/`_h`, `protocol_items_c`/`_h`) gegen eine frische,
+      unabhängige `G4MEOVER-FW`-Zweitkopie mit `git apply --check` verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch. Reihenfolge-Hinweis gegenüber den
+      anderen, noch nicht angewendeten SubGHz-Port-Vorschlägen (derselbe Dateiende-Kontext
+      wie bei Jarolift/KeyFinder/Nord-ICE/Treadmill37/Allstar-Firefly/Ditec-GOL4/Superrollo)
+      dokumentiert.
+- [x] Details, Kompatibilitätsprüfung, Fund, Host-Repro, Risiko, Testhinweis in
+      `firmware-mining/doorbell32-subghz-port.md`.
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `mntm-012`-Basis anwenden, mit
+      `ufbt`/`fbt firmware_all` bauen, am Gerät gegen eine eigene, autorisierte
+      Funktürklingel empfangen; gezielt den Fund nachvollziehen (`Repeat=1` erneut senden →
+      kein Treffer, `Repeat=3` → ein Treffer).
+- [ ] Weitere neue `dev`-Branch-Kandidaten aus demselben Diff bewusst zurückgestellt für
+      künftige Sitzungen: `keyfinder2.c`/`.h` (zweites neues SubGHz-Protokoll, zu prüfen ob
+      Namenskollision mit meinem bereits portierten `keyfinder.c` ein Problem ist),
+      `texkom` (neue NFC-Protokollfamilie, mehrteilig wie MIFARE-Plus-AES, eigener
+      Rückstellpunkt), `lib/lfrfid/tools/hitags.c`/`.h` (959+77 Zeilen, größter einzelner
+      Kandidat, eigener Rückstellpunkt), die kleineren Erweiterungen an bereits portierten
+      `nord_ice.c`/`faac_slh.c`/`prastel.c`/`keeloq.c` (zu prüfen, ob sie neue Hersteller/
+      Fehlerkorrekturen oder nur Refactoring enthalten, bevor ich sie gegen meine bereits
+      vorgeschlagenen Patches für dieselben Dateien abgleiche).
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest (Poller-Zustandsautomat, laut eigener
+      Risikoeinschätzung hardwaregebunden), PSA-Bruteforce-Krypto-Konstanten, vier offene
+      CAN-Bus-Kandidaten (nur `can_commander` mit eigenem GPIO-Board), `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler,
+      `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht
+      erreichbar) bleiben unverändert offen.

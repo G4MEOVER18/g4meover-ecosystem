@@ -1,0 +1,9 @@
+diff --git a/lib/subghz/protocols/protocol_items.h b/lib/subghz/protocols/protocol_items.h
+index 01e93b7..c5a6653 100644
+--- a/lib/subghz/protocols/protocol_items.h
++++ b/lib/subghz/protocols/protocol_items.h
+@@ -85,3 +85,4 @@
+ #include "feron.h"
+ #include "roger.h"
+ #include "elplast.h"
++#include "doorbell32.h"
