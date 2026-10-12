@@ -5434,3 +5434,51 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler,
       `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht
       erreichbar) bleiben unverändert offen.
+
+## App-Verbesserung (usb-army-penetrator — Fortsetzung 3)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (Doorbell32
+      SubGHz-Port), davor App-Verbesserung (DISPLAY_TEXT) und Ideen-Recherche (CANBUS) —
+      App-Verbesserung für diese Sitzung entsprechend wieder an der Reihe. Git-Identität vor
+      dem ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `src/Attacks/Ducky/Extensions.h` erneut auf den noch offenen Rückstellpunkt
+      ("restliche Ducky-Handler") durchgesehen — alle Handler mit dem
+      `str.substr(str.find(' ') + 1)`-Muster waren bereits beim DISPLAY_TEXT-Fund als sicher
+      bestätigt. Stattdessen den Aufruferpfad von `handleUSBMode()`
+      (`USB_MOUNT_DISK_READ_ONLY`/`_CDROM_READ_ONLY`) weiterverfolgt bis
+      `src/Devices/USB/USBMSC.cpp`, noch nicht geprüft.
+- [x] **Fund**: `USBMSC::end()` prüft `if (!mscFile)` — exakt umgekehrt zu der in
+      derselben Datei dreifach (`msc_read_cb`/`msc_write_cb`/`msc_flush_cb`) konsistent
+      verwendeten Bedingung `mscFile && strlen(mscFile.name()) != 0` für "ein Disk-Image ist
+      offen". Dadurch: im Hauptfall (Image gemountet) läuft der gesamte Funktionskörper
+      nicht — kein `setUnitReady(false)`, kein Flush; im Rohzugriffs-Fall (`mountSD()`) läuft
+      er, flusht aber das ungültige `File`-Objekt statt `Devices::Storage` (dem tatsächlich
+      aktiven Backing-Store, wie `msc_flush_cb()` es im identischen Fall richtig macht).
+      `USBMSC::end()` wird von `USBCore::end()` aufgerufen, das wiederum der zentrale
+      Aufräum-Schritt direkt vor jedem Soft-Reset in `DuckyPayload::loop()`
+      (`requiresReset`-Zweig, `ESP.restart()`/`watchdog_reboot()`) ist — also genau der Pfad,
+      über den ein laufendes Ducky-Skript den Controller neu startet, während ein
+      Mass-Storage-Gerät aktiv am Host angemeldet ist.
+- [x] Fix (additiv, übernimmt 1:1 die im selben File bereits etablierte
+      Fallunterscheidung aus `msc_flush_cb()`): `setUnitReady(false)` unconditional,
+      danach `mscFile.flush()` bei offenem Image, sonst `Devices::Storage.flush()`.
+- [x] Patch gegen zwei frische, unabhängige Zweitkopien von
+      `G4MEOVER18/usb-army-penetrator` (`411b153`) mit `git apply --check` verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (zwei Szenarien: Image gemountet, kein Image gemountet/Rohzugriff) unter
+      `gcc -std=c++17 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: alle Prüfungen bestanden, identischer
+      Output beider Optimierungsstufen, keine Compiler-Warnungen — in
+      `repro-usbmsc-end-inverted-flush/repro.cpp`.
+- [x] Details, Fund, Patch, Host-Repro, Risiko, Testhinweis in
+      `usbmsc-end-inverted-flush-fix.md`. Patch und Repro in
+      `usbmsc-end-inverted-flush-fix/` bzw. `repro-usbmsc-end-inverted-flush/`.
+- [ ] Lokal zu tun: Patch anwenden, mit der jeweiligen Plattform-`platformio.ini`-Umgebung
+      bauen; Hauptfall (`USB_MOUNT_DISK_READ_ONLY <image>.img`, dann Reset mitten im Mount)
+      und Rohzugriffs-Fall (`mountSD()`, Schreibzugriff vom Host, dann Reset) je einmal am
+      Gerät nachvollziehen.
+- [ ] Die seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `can_commander` mit eigenem GPIO-Board, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `keyfinder2`/`texkom`/`hitags` aus dem Unleashed-dev-Diff,
+      `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen GitHub-Zugriffsbreite nicht
+      erreichbar) bleiben unverändert offen.

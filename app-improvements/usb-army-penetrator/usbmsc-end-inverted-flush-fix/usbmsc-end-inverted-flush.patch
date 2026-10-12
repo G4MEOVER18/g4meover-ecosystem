@@ -1,0 +1,23 @@
+diff --git a/src/Devices/USB/USBMSC.cpp b/src/Devices/USB/USBMSC.cpp
+index 3abee49..cf4cc06 100644
+--- a/src/Devices/USB/USBMSC.cpp
++++ b/src/Devices/USB/USBMSC.cpp
+@@ -157,11 +157,16 @@ void USBMSC::loop(Preferences &prefs)
+ 
+ void USBMSC::end()
+ {
+-    if (!mscFile)
++    usb_msc.setUnitReady(false);
++
++    if (mscFile && strlen(mscFile.name()) != 0)
+     {
+-        usb_msc.setUnitReady(false);
+         mscFile.flush();
+     }
++    else
++    {
++        Devices::Storage.flush();
++    }
+ }
+ 
+ bool USBMSC::mountDiskImage(const std::string &imageLocation, bool mountAsCD)
