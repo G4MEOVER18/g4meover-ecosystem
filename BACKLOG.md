@@ -5752,3 +5752,60 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitags` aus dem
       Unleashed-dev-Diff, `g4meover-deck`s restliche Module aus der letzten
       App-Verbesserungs-Sitzung) bleiben unverändert offen.
+
+## Firmware-Feature-Mining (Hitag S / ID82xx-Magic-Tag-Werkzeug)
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (LoRa Relay, neue Kategorie),
+      davor App-Verbesserung (`g4meover-deck`) und Firmware-Feature-Mining (KeyFinder2) —
+      Firmware-Feature-Mining für diese Sitzung entsprechend wieder an der Reihe. Vor dem
+      ersten Commit festgestellt, dass der lokale `main`-Branch-Zeiger noch nicht auf den
+      letzten Merge-Commit vorgerückt war (detached HEAD von der letzten Sitzung) — per `git
+      merge --ff-only` nachgezogen; auf `origin/main` war der Stand bereits korrekt vorhanden
+      (nur der lokale Branch-Zeiger war veraltet), keine Datenabweichung. Git-Identität gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus der seit der Doorbell32-Sitzung offenen `unlshd-093`→`dev`-Restliste
+      (`texkom`/`hitags`, `keyfinder2` bereits portiert) diesmal statt erneut zurückzustellen
+      den dort als "größter einzelner Kandidat" mehrfach vertagten Punkt aufgegriffen:
+      `lib/lfrfid/tools/hitags.c`/`.h` (959+77 Zeilen). Gegen den `dev`-Branch erneut
+      geprüft — weiterhin Commit `af2e764`, kein neuerer Stand.
+- [x] Kompatibilitätsprüfung gegen eine frische `G4MEOVER-FW`-Zweitkopie (Tag-Commit
+      `b359f6f`, `mntm-012`): `targets/f7/furi_hal/furi_hal_rfid.h` und `lib/bit_lib/bit_lib.h`
+      stellen jede von `hitags.c` benutzte Funktion/Signatur byteidentisch bereit (dasselbe
+      LF-125-kHz-Interface wie bei den bereits vorhandenen `tools/t5577.c`/`em4305.c`);
+      `lib/lfrfid/SConscript`s `GlobRecursive("*.c*")` erfasst neue Tool-Dateien automatisch.
+      Eigenständige Lücke identifiziert statt übersehen: `lfrfid_worker.h` kennt nur
+      Einzelprotokoll-Schreiben, das `LFRFIDWriteType`/`LFRFIDWriteRequest`-Dispatch-System,
+      für das `hitags.c` im `dev`-Branch eigentlich gedacht ist (sichtbar am
+      `test_lfrfid_protocol_em_write_hitags`-Unit-Test), existiert in `mntm-012`s Basis nicht
+      — das Werkzeugmodul selbst ist voll kompatibel, die Integrationsschicht fehlt komplett.
+- [x] Zwei additive Patches (`hitags_h.patch`/`hitags_c.patch`, Dateien unverändert aus dem
+      Unleashed-Quelltext übernommen) gegen drei unabhängige, frische `G4MEOVER-FW`-Zweitkopien
+      mit `git apply --check` verifiziert, real angewendet, paarweise per `diff -r`
+      byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (abweichend vom bisherigen Transkriptions-Muster): die tatsächliche,
+      unveränderte `hitags.c` zusammen mit der real aus `G4MEOVER-FW` kopierten
+      `lib/bit_lib/bit_lib.c` gegen schlanke Platzhalter für `furi.h`/`furi_hal_rfid.h`/
+      `core/check.h` kompiliert und die echte, modul-eigene `hitags_selftest()` ausgeführt —
+      prüft CRC-8, alle vier Frame-Builder und den Anticollision-Decoder (inkl.
+      TTF-Verwechslungsschutz, Alignment-Grenzfall, Präfix-Abgleich-Trust-Anchor) gegen
+      Datenblatt-/Proxmark3-Vektoren, ohne jede Hardware. Unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: `NULL`
+      (alle Vektoren bestanden) in beiden Fällen, identischer Output, keine ASan-/
+      UBSan-Meldungen.
+- [x] Details, Kompatibilitätsprüfung, Lücke, Patches, Host-Repro, Risiko, zweiphasige
+      Port-Skizze (Phase 1 hier erledigt; Phase 2 Integrationsschicht als eigener
+      Rückstellpunkt, zwei Optionen gegenübergestellt) und Testhinweis in
+      `firmware-mining/hitags-lfrfid-magic-tag-port.md` (Patches in
+      `firmware-mining/hitags-lfrfid-magic-tag-port/`, Host-Repro in
+      `firmware-mining/repro-hitags-lfrfid-magic-tag-port/`).
+- [ ] Lokal zu tun: beide Patches gegen die eigene `mntm-012`-Basis anwenden, mit
+      `ufbt`/`fbt firmware_all` bauen (reiner Compile-Test ohne Phase 2 — noch kein
+      Aufrufer); Host-Repro lokal nachvollziehen. Hardware-Test erst nach Phase 2 sinnvoll.
+- [ ] Phase 2 (Integrationsschicht: generisches `LFRFIDWriteType`-Dispatch-System nachbauen
+      ODER ein schlanker eigenständiger Scene-Pfad, siehe Abwägung im Dokument) bleibt
+      eigener Rückstellpunkt für eine künftige Sitzung, ebenso `hitagmicro.c`/`.h`
+      (327+57 Zeilen, dieselbe BPLM-Timing-Familie, nicht Teil dieser Sitzung) und `texkom`
+      aus derselben `dev`-Branch-Restliste. Die übrigen seit längerem zurückgestellten
+      Backlog-Punkte (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, `g4meover-deck`s restliche Module)
+      bleiben unverändert offen.
