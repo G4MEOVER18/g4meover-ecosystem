@@ -5809,3 +5809,75 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
       `usb-army-penetrator`s restliche Ducky-Handler, `g4meover-deck`s restliche Module)
       bleiben unverändert offen.
+
+## App-Verbesserung (g4meover-deck — Cross-Prozess-Counter-Race, aus vorigem Fund aufgegriffen)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (Hitag S), davor
+      Ideen-Recherche (LoRa Relay) und App-Verbesserung (g4meover-deck, Save-vor-Send) —
+      App-Verbesserung für diese Sitzung entsprechend wieder an der Reihe. Git-Identität
+      vor dem ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Frische, unabhängige Zweitkopie von `G4MEOVER18/g4meover-deck` (main, weiterhin
+      Commit `b030e45`) geklont. Statt eines der noch komplett ungeprüften Module
+      (`device_discovery.py`, `handshake_capture.py`, `hackrf_link.py`, `lorix_link.py`,
+      `dogytag_link.py`, `zigbee_link.py`, `wpa_crack.py`) aufzugreifen, bewusst den bereits
+      zweimal zurückgestellten, konkret benannten Punkt aus
+      `satellite-link-counter-saved-after-send-fix.md` übernommen: `deck_daemon` und
+      `deck-ctl` teilen sich `counter_file` ohne Datei-Locking über Prozessgrenzen hinweg.
+      `deck_daemon.py`/`deck_ctl.py` erneut gelesen, um die genaue Instanziierung zu
+      bestätigen: `deck_daemon.py` erzeugt genau ein `_link`-Objekt beim Prozessstart
+      (Modulebene, `ThreadingHTTPServer`), `deck_ctl.py`s `make_link()` erzeugt pro
+      CLI-Aufruf ein frisches `SatelliteLink`.
+- [x] **Fund**: `SatelliteLink.send()` liest `self._counter` nur einmal bei `__init__` von
+      der Platte und hält ihn danach nur im RAM. `self._lock` (`threading.Lock`) schützt
+      ausschließlich mehrere Threads innerhalb eines einzelnen Prozesses, nichts zwischen
+      zwei verschiedenen Prozessen. Läuft `deck_daemon` dauerhaft und wird währenddessen ein
+      `deck-ctl sat ...`-Aufruf ausgeführt, kennt dessen frisch geladener, niedrigerer
+      In-Memory-Zähler den zwischenzeitlichen Daemon-Fortschritt nicht — der vom `deck-ctl`-
+      Aufruf gesendete Counter wird vom Satelliten als bereits verbraucht verworfen, UND
+      dessen `_save_counter()` überschreibt die Platte anschließend mit diesem zu niedrigen
+      Wert. Jeder weitere, unabhängig gestartete `deck-ctl`-Aufruf liest ab dann denselben zu
+      niedrigen Stand und wird seinerseits verworfen — eine ganze Serie nachfolgender Befehle
+      (nicht nur einer), bis der wiederholt erhöhte Zähler den wahren, dem Satelliten bereits
+      bekannten Stand wieder eingeholt hat. Alle drei Aufrufer (`deck_ctl.py`, `deck_daemon.py`,
+      `tools/hid_stream_send.py`) teilen sich `send()` und sind gleich betroffen.
+- [x] Fix (additiv, neue Klasse `_CounterFileLock` plus angepasster Kritikalabschnitt in
+      `send()`): exklusiver Datei-Lock auf einer separaten `counter_file + ".lock"`-Datei
+      (`fcntl.flock` unter POSIX, `msvcrt.locking` unter Windows — beides Standardbibliothek,
+      keine neue Abhängigkeit), unter dem `send()` die `counter_file` bei jedem Aufruf per
+      `max(self._counter, self._load_counter()) + 1` neu einliest, bevor es erhöht und
+      persistiert. Patch baut auf dem bereits vorgeschlagenen Zwischenstand aus
+      `satellite-link-counter-saved-after-send-fix/satellite_link_py.patch` auf (beide ändern
+      dieselbe Methode) — Anwendungsreihenfolge im Dokument vermerkt. Gegen zwei frische,
+      unabhängige Zweitkopien verifiziert (Kopie 1 nur vorigen Patch, Kopie 2 vorigen Patch
+      plus diesen Patch mit `git apply --check` geprüft und real angewendet) — beide Kopien
+      byte-für-byte identisch zum erwarteten Endstand. Patch in
+      `app-improvements/g4meover-deck/satellite-link-cross-process-counter-race-fix/satellite_link_py.patch`.
+- [x] Host-Repro (echte `ukfe_rf.py`, `satellite_link_before.py`/`_after.py` 1:1 vor/nach
+      diesem Patch, Mock-`serial`-Modul, simulierter Satellit mit der realen
+      `counter <= last_counter`-Regel): ein `deck_daemon`-Stellvertreter sendet während ein
+      zuvor konstruierter `deck-ctl`-Stellvertreter noch nicht gesendet hat fünf Befehle,
+      danach zehn weitere, je frisch konstruierte Nachlauf-Aufrufe — Ist-Zustand verwirft
+      4/10 Nachlauf-Aufrufe, Fix verwirft 0/10, in mehreren Läufen deterministisch
+      reproduziert, in
+      `app-improvements/g4meover-deck/repro-satellite-link-cross-process-counter-race/repro.py`.
+      Zusätzlich mit vier echten, gleichzeitig laufenden Threads (kein gemeinsames Lock-Objekt,
+      bildet vier echte Prozesse nach) bestätigt: von 200 gesendeten Befehlen werden vor dem
+      Fix nur 50 angenommen (150 verworfen), nach dem Fix alle 200 — in
+      `repro-satellite-link-cross-process-counter-race/repro_threads.py`.
+- [x] Details, Nutzen, betroffene Datei, Anwendungsreihenfolge, Risiko, Testhinweis in
+      `app-improvements/g4meover-deck/satellite-link-cross-process-counter-race-fix.md`.
+- [ ] Lokal zu tun: zuerst `satellite-link-counter-saved-after-send-fix/satellite_link_py.patch`,
+      dann `satellite-link-cross-process-counter-race-fix/satellite_link_py.patch` gegen die
+      eigene `satellite_link.py` anwenden. Funktionstest: `deck_daemon`-Dienst (oder
+      `python3 deck_daemon.py` im Vordergrund) starten, parallel mehrfach `deck-ctl sat ping`
+      ausführen, während über die Ökosystem-UI/`curl -X POST .../sat/ping` ebenfalls Befehle
+      an denselben Satelliten gehen — vor dem Fix bleibt die Reaktion bei einem Teil der
+      `deck-ctl`-Aufrufe aus, nach dem Fix reagiert der Satellit auf jeden einzelnen Aufruf.
+- [ ] `g4meover-deck` weiterhin nicht vollständig durchgesehen (`device_discovery.py`,
+      `handshake_capture.py`, `hackrf_link.py`, `lorix_link.py`, `dogytag_link.py`,
+      `zigbee_link.py`, `wpa_crack.py`/`deck/tools/wpa_crack.py`, `flipper_link.py`) —
+      eigener Rückstellpunkt für künftige App-Verbesserungs-Sitzungen. Die übrigen seit
+      längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/
+      Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `texkom`/`hitagmicro.c` aus dem Unleashed-dev-Diff, Hitag-S-Phase-2-
+      Integrationsschicht) bleiben unverändert offen.
