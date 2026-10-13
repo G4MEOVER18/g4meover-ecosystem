@@ -1,0 +1,30 @@
+diff --git a/deck/satellite_link.py b/deck/satellite_link.py
+index db65e8f..8998eb9 100644
+--- a/deck/satellite_link.py
++++ b/deck/satellite_link.py
+@@ -45,6 +45,8 @@ class SatelliteLink:
+             tmp = self.counter_file + ".tmp"
+             with open(tmp, "w") as f:
+                 f.write(str(self._counter))
++                f.flush()
++                os.fsync(f.fileno())
+             os.replace(tmp, self.counter_file)  # atomar
+         except OSError:
+             pass
+@@ -66,10 +68,15 @@ class SatelliteLink:
+             self.open()
+             self._counter += 1
+             frame = ukfe_rf.build_frame(self.secret, self._counter, cmd, args)
++            # Zuerst persistieren, dann senden: stuerzt der Prozess (Kill/Stromausfall)
++            # zwischen diesen beiden Schritten ab, bleibt hoechstens ein ungenutzter
++            # Counter-Wert liegen (unkritisch, siehe _load_counter()) statt dass der
++            # naechste Prozessstart mit einem Counter weitermacht, den ein Satellit schon
++            # als "gesendet" akzeptiert hat und seinerseits als Replay verwirft.
++            self._save_counter()
+             assert self._serial is not None
+             self._serial.write(frame)
+             self._serial.flush()
+-            self._save_counter()
+             return self._counter
+ 
+     # ---- Bequeme Befehle ----

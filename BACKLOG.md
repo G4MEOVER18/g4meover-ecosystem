@@ -5616,3 +5616,69 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
       Ducky-Handler, `g4meover-magspoof`/`ukfe-esp-now-mesh` mit der aktuellen
       GitHub-Zugriffsbreite nicht erreichbar) bleiben unverändert offen.
+
+## App-Verbesserung (g4meover-deck — neu erfasst)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (KeyFinder2),
+      davor Ideen-Recherche (CAN Commander) und App-Verbesserung (usb-army-penetrator,
+      `USBMSC::end()`) — App-Verbesserung für diese Sitzung entsprechend wieder an der
+      Reihe. Repo-Zustand zu Sitzungsbeginn geprüft: HEAD stand detached auf demselben
+      Commit wie `origin/main`, lokaler `main`-Zeiger stand 32 Commits zurück — per
+      `git checkout main` + `git merge --ff-only origin/main` behoben (reines
+      Zeiger-Problem, kein Datenverlust, der zuvor als offen vermerkte Push bereits
+      durchgegangen). Git-Identität vor dem ersten Commit gesetzt.
+- [x] `g4meover-deck` (Raspberry-Pi-Ökosystem-OS) zum ersten Mal für `app-improvements/`
+      aufgegriffen — bisher kein eigener Eintrag. Frische, unabhängige Kopie von
+      `G4MEOVER18/g4meover-deck` (main, Commit `b030e45`) geklont, komplette
+      Python-Quelle gelesen (`deck/*.py`, `deck/tools/*.py`, ~2000 Zeilen).
+- [x] **Fund**: `SatelliteLink.send()` (`deck/satellite_link.py`) persistiert den
+      Rolling-Counter für das `ukfe_rf`-Anti-Replay-Schema erst **nach** dem UART-Write
+      an die Satelliten, nicht davor. Stirbt der Pi-seitige Prozess (Kill, SSH-Abbruch,
+      vor allem ein Stromausfall auf der SD-Karten-basierten Zielhardware ohne USV)
+      zwischen dem erfolgreichen Write und `_save_counter()`, hat der Satellit den Frame
+      bereits akzeptiert (sein `last_counter` steht auf dem neuen Wert), aber der
+      dafür verwendete Counter steht nicht auf der Platte — der nächste Prozessstart
+      sendet denselben oder einen niedrigeren Wert erneut und wird vom Satelliten als
+      bereits verbraucht verworfen (stiller Verlust des jeweils ersten Befehls nach
+      einem unsauberen Absturz). Alle drei Aufrufer (`deck_ctl.py`, `deck_daemon.py`,
+      `tools/hid_stream_send.py`) teilen sich `send()` und sind gleich betroffen.
+      Zusätzlich festgestellt und mitbehoben: `_save_counter()` ruft `os.replace()`
+      ohne vorheriges `fsync()` auf — auf dem beschriebenen SD-Karten-Zielsystem ohne
+      USV kann dadurch sogar ein bereits atomar umbenannter Stand nach einem echten
+      Stromausfall wieder auf eine ältere Version zurückfallen.
+- [x] Fix (additiv, zwei Stellen in derselben Methode): `_save_counter()` ruft jetzt
+      `f.flush()`/`os.fsync(f.fileno())` vor `os.replace()`; `send()` persistiert den
+      neuen Counter jetzt vor dem UART-Write statt danach. Stirbt der Prozess dazwischen,
+      bleibt höchstens ein Counter-Wert ungenutzt liegen — bereits in `_load_counter()`s
+      eigenem Kommentar als unkritischer Fall vorgesehen. Patch (`git apply --check`
+      gegen eine frische, unabhängige Zweitkopie verifiziert, real angewendet,
+      byte-für-byte abgeglichen — identisch) in
+      `app-improvements/g4meover-deck/satellite-link-counter-saved-after-send-fix/satellite_link_py.patch`.
+- [x] Host-Repro (echte `ukfe_rf.py` sowie `satellite_link_orig.py`/`_fixed.py`, 1:1 Stand
+      vor/nach dem Patch, Mock-`serial`-Modul statt pyserial, simulierter Satellit mit der
+      realen `counter <= last_counter`-Regel, injizierter Absturz direkt nach einem
+      erfolgreichen UART-Write): Ist-Zustand verwirft den ersten Befehl nach dem
+      simulierten Neustart (1/10), Fix verwirft keinen (0/10) — in zwei
+      aufeinanderfolgenden Läufen deterministisch reproduziert, in
+      `app-improvements/g4meover-deck/repro-satellite-link-counter-saved-after-send/repro.py`.
+- [x] Details, Nutzen, betroffene Datei, Risiko, Testhinweis in
+      `app-improvements/g4meover-deck/satellite-link-counter-saved-after-send-fix.md`.
+- [ ] Lokal zu tun: Patch einbauen, `deck-ctl sat ping` zweimal ausführen, den
+      Deck-Prozess (bzw. den `systemd`-Dienst) mitten in einem dritten Aufruf hart
+      abbrechen (`kill -9` oder Pi stromlos schalten direkt nach "gesendet: ping" auf der
+      Konsole), danach erneut `deck-ctl sat ping` ausführen — vor dem Fix bleibt die
+      Reaktion am Satelliten beim ersten Aufruf nach dem Neustart aus, nach dem Fix
+      reagiert er sofort.
+- [ ] Separat festgestellt, bewusst nicht mitgelöst (eigenständiger, größerer Fund):
+      `deck_daemon` (Dauerbetrieb) und einzelne `deck-ctl sat ...`-Aufrufe können
+      dieselbe `counter_file` ohne Datei-Locking über Prozessgrenzen hinweg
+      gleichzeitig beschreiben. `scenario_runner.py` nutzt für Labor-Szenarien bewusst
+      einen eigenen, nicht persistierten In-Memory-Zähler — kein eigenständiger Fund.
+      `g4meover-deck` darüber hinaus noch nicht vollständig durchgesehen
+      (`flipper_link.py`, `device_discovery.py`, `handshake_capture.py`,
+      `hackrf_link.py`, `lorix_link.py`, `dogytag_link.py`, `zigbee_link.py`,
+      `wpa_crack.py`/`deck/tools/wpa_crack.py`) — eigener Rückstellpunkt für künftige
+      App-Verbesserungs-Sitzungen. Die übrigen seit längerem zurückgestellten
+      Backlog-Punkte (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3
+      Rest, PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitags` aus
+      dem Unleashed-dev-Diff) bleiben unverändert offen.
