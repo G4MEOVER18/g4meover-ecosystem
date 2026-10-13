@@ -5682,3 +5682,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Rest, PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-
       Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitags` aus
       dem Unleashed-dev-Diff) bleiben unverändert offen.
+
+## Ideen-Recherche (LoRa Relay — neue Kategorie)
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (`g4meover-deck`), davor
+      Firmware-Feature-Mining (KeyFinder2) und Ideen-Recherche (CAN Commander) — Ideen-Recherche
+      war seit zwei Sitzungen nicht mehr an der Reihe und für diese Sitzung fällig.
+      `ideas/pentest-app-katalog.md` vollständig durchgesehen: alle bisherigen Cluster laut
+      eigenem Log bereits vollständig quelltextlich durchgesehen. Git-Identität vor dem ersten
+      Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer bislang komplett fehlenden Kategorie gesucht statt einen bestehenden
+      Cluster erneut anzufassen: "LoRa/LoRaWAN" — fehlt bislang trotz `g4meover-deck`s bereits
+      vorhandenem `lorix_link.py`-Pfad. RogueMaster-Bündel (`flipperzero-firmware-wPlugins`,
+      Branch `420`) per `git clone --filter=blob:none --no-checkout` durchsucht
+      (`applications/external/`, 820 Einträge) — **LoRa Relay** (App-ID `lora_relay`) als
+      einzige LoRa-App gefunden, Original-Quelle `ElectronicCats/flipper-SX1262-LoRa`
+      (Repo-HEAD-Commit `430db6c`), SX1262-Sniffer/-Sender für ein eigenes Erweiterungsmodul.
+- [x] Vollständig gelesen (zwei Kerndateien: `lora.c` 1064 Zeilen SX1262-SPI-Treiber,
+      `lora_relay.c` 2732 Zeilen App-Logik/UI; vendortes `text_input`-Eingabemodul und
+      `validators.c` überflogen, kein eigener Fund). API-87-Status gegen eine frische,
+      unabhängige Zweitkopie von `G4MEOVER18/G4MEOVER-FW` (Tag-Commit `b359f6f`, `mntm-012`)
+      verifiziert: alle vier Erweiterungsport-Pins (`gpio_ext_pa4/pc0/pc1/pc3`), drei
+      zweckentfremdete interne Pins (`gpio_swclk`/`gpio_usart_tx`/`gpio_usart_rx`),
+      `furi_hal_spi_bus_handle_external`, zweiter USB-CDC-Kanal (`usb_cdc_dual`/
+      `furi_hal_cdc_send`, identisches Muster zu GPIO Logic Analyzer) sowie Standard-GUI-/
+      Storage-/RTC-APIs byteidentisch vorhanden. Kein Port-Hindernis, reines externes FAP.
+- [x] **Fund**: `lora_view_sniffer_draw_callback()` (`lora_relay.c`) baut beim SD-Logging einer
+      Sniff-Sitzung eine JSON-Zeile per `snprintf(final_string, 666, ...)` — `final_string` ist
+      aber nur `char final_string[400]`, die `666` ein Literal statt `sizeof(final_string)`.
+      Alle anderen rund zwanzig `snprintf()`-Aufrufe derselben Datei übergeben korrekt
+      `sizeof(<puffer>)` — dieser eine Aufruf ist die einzige Ausnahme. Der dominante variable
+      Anteil des Formatstrings ist die Hex-Darstellung des zuletzt per LoRa empfangenen,
+      vollständig fremdbestimmten Pakets (bis zu 255 Byte Nutzlast → bis zu 510 Hex-Zeichen) —
+      ein einzelnes LoRa-Paket mit ausreichend langer Nutzlast (ab rund 132 Byte) während
+      aktivem "Recording" überschreibt dadurch den Stack, ganz ohne Pairing/Authentifizierung
+      (LoRa kennt keinen Verbindungsaufbau); beim maximal möglichen 255-Byte-Paket schreibt
+      `snprintf()` bis zu 638 Nutzzeichen plus Nullterminator — rund 239 Byte über das
+      tatsächliche Array hinaus. GCCs eigene `_FORTIFY_SOURCE`-Prüfung erkennt den Widerspruch
+      bereits statisch beim Kompilieren (`specified bound 666 exceeds destination size 400`).
+- [x] Fix (additiv, eine Zeile): Größenangabe durch `sizeof(final_string)` ersetzt — identisches
+      Muster zu jedem anderen `snprintf()`-Aufruf in derselben Datei, kein
+      Verhaltensunterschied im Normalfall (Äquivalenztest siehe Host-Repro). Patch gegen eine
+      frische, unabhängige Zweitkopie von `ElectronicCats/flipper-SX1262-LoRa` (Commit
+      `430db6c`) mit `git apply --check` verifiziert, real angewendet, Ergebnis gegen eine
+      zweite, unabhängig geklonte Kopie per `diff -r` byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`final_string`-Aufbau 1:1 transkribiert, nur die drei Firmware-Aufrufe durch
+      feste Platzhalterwerte ersetzt): fünf fork-isolierte Szenarien (Regression 20-Byte-Paket
+      ORIGINAL, Fund an der Schwelle 140-Byte-Paket ORIGINAL, Fund worst case 255-Byte-Paket
+      ORIGINAL, Fix 255-Byte-Paket FIX, Äquivalenztest 20-Byte-Paket ORIGINAL vs. FIX) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: alle fünf Szenarien bestanden, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen — in
+      `firmware-mining/repro-lora-relay-app-port/repro.c`.
+- [x] Details, API-87-Kompatibilitätsprüfung, Fund, Fix, Host-Repro, Risiko, Testhinweis in
+      `firmware-mining/lora-relay-app-port.md` (Patch in
+      `firmware-mining/lora-relay-app-port/lora_relay_sniffer_log_overflow.patch`). Kuratiert
+      in `ideas/lora-relay-api-status.md`. `ideas/pentest-app-katalog.md` um die neue Kategorie
+      "LoRa" sowie einen Log-Eintrag unter "Nächste Recherche-Aufträge" ergänzt.
+- [ ] Lokal zu tun: die eine Zeile gegen die eigene `lora_relay`-App-Kopie patchen, mit
+      `ufbt`/`fbt` bauen; Fundnachvollzug gemäß Testhinweis in
+      `firmware-mining/lora-relay-app-port.md` (SX1262-Modul am Erweiterungsport, Sniffer-
+      Ansicht öffnen, "Recording" aktivieren, von einem zweiten eigenen LoRa-Sender ein
+      Testpaket mit mindestens ~140 Byte Nutzlast senden).
+- [ ] Der Transmitter-/Replay-Pfad (`tx_payload()`/`send_data()`, Log-Datei-Parsing) bewusst
+      nicht als eigenständiger Fund dokumentiert (VLA-Länge stammt aus derselben, zuvor
+      gelesenen Zeile, setzt bereits physischen SD-Karten-Zugriff voraus) — Rückstellpunkt für
+      eine künftige Sitzung. Die übrigen seit längerem zurückgestellten Backlog-Punkte
+      (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitags` aus dem
+      Unleashed-dev-Diff, `g4meover-deck`s restliche Module aus der letzten
+      App-Verbesserungs-Sitzung) bleiben unverändert offen.

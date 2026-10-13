@@ -1,0 +1,13 @@
+diff --git a/applications_user/lora_app/lora_relay.c b/applications_user/lora_app/lora_relay.c
+index e26fe0d..ee7b01b 100644
+--- a/applications_user/lora_app/lora_relay.c
++++ b/applications_user/lora_app/lora_relay.c
+@@ -1774,7 +1774,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
+             // JSON format
+             snprintf(
+                 final_string,
+-                666,
++                sizeof(final_string),
+                 "{\"date\":\"%s\", \"time\":\"%s\", \"frequency\":\"%s\", \"bw\":\"%s\", \"sf\":\"%s\", \"RSSI\":\"%d\", \"payload\":\"%s\"}",
+                 date_string,
+                 time_string,
