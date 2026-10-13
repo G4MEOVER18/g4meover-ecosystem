@@ -166,6 +166,22 @@ Graph-Kopie entsteht.
       Enumerationscode aus `pi_flash_v4.py`/`flipper_ctl.py` — beim Übernehmen prüfen, welches
       der beiden Tools das bereits sauberer kapselt, und von dort in eine gemeinsame Helper-Datei
       (z. B. `ecosystem/tools/device_ports.py`) auslagern statt zu duplizieren.
+      **Konkretisiert (2026-10-13, Cloud):** die am 2026-10-12 vermutete Deckungslücke in
+      `g4meover-deck/deck/device_discovery.py` ist jetzt exakt beziffert statt nur vermutet — das
+      dortige `KNOWN`-Dict kennt genau 5 VID:PID-Paare (Flipper `0483:5740`, WROOM `1A86:55D4`,
+      Heltec V3 `10C4:EA60`, LilyGo `303A:1001`, CC2531 `0451:16A8`), identisch zu den fünf
+      PC/Pi-USB-Einträgen in `ecosystem/devices.json`. **Fehlen tatsächlich zwei:** `dogytag`
+      (dort wie hier `usb_id` noch unbekannt — kein Lücken-Unterschied, beide warten auf denselben
+      P0.2c-Schritt) und `heltec-v4-hub` — Letzteres trägt dieselbe VID:PID wie LilyGo
+      (`303A:1001`, in `KNOWN` nur auf „LilyGo T-Dongle S3" gemappt), fehlt aber eher deshalb, weil
+      der Deck-Stand laut eigenem `ROADMAP.md` vom 2026-08-15 datiert — **vor** der vollen
+      V4-Aufnahme in dieses Inventar (Abschnitt 1, ab 2026-08-26) — nicht wegen einer bewussten
+      Host-Trennung (CC2531, ebenfalls Pi-seitig, ist in `KNOWN` bereits enthalten). Lokal zu
+      klären: ob beide VID:PID `303A:1001`-Geräte je nach Host zuverlässig unterscheidbar sind,
+      bevor ein `heltec-v4-hub`-Eintrag ergänzt wird (sonst mapped `KNOWN` beide auf „LilyGo").
+      `match_connected_usb_devices()` kann das `KNOWN`-Dict direkt als Startpunkt übernehmen (4 von
+      6 aktiven PC/Pi-USB-Geräten bereits vorhanden), muss aber die beiden fehlenden Fälle
+      ergänzen statt sie zu übersehen.
   - Verifikation: `python -c "import json;json.load(open('ecosystem/devices.json'))"` ✅ (Cloud,
     Syntax geprüft) + Soll/Ist-Abgleich gegen Abschnitt-1-Tabelle (lokal, nach Replug, noch offen).
 - [ ] P0.3 CC2531-Zigbee-Pipeline am Pi: Sniffer-FW-Status prüfen, `whsniff`/`tshark`-Capture → pcap.
@@ -236,17 +252,23 @@ Graph-Kopie entsteht.
     Portauflösung **nicht** neu erfinden: denselben `get_device_port()`-Contract aus P0.2d nutzen,
     sobald der dort vorgeschlagene Helper lokal existiert — sonst driften zwei Port-Logiken
     (Cockpit vs. Flash-Tools) auseinander.
-  - [ ] P1.2b **Lokal, nicht aus der Cloud lieferbar:** Frame-Encode/-Decode (v1-Header aus
-    Abschnitt „Alle Transporte tragen denselben signierten Frame" in `FLEET-COMMANDS.md`) als
-    eigenständiges Modul, getrennt von der Transport-Schicht. Grund für „nur lokal": `CRC16`-Polynom
-    und der **keyed-MAC**-Algorithmus (`MAC4`) sind nur in der echten Firmware verifizierbar
-    (`heltec-v4-hub`, `lora-ukfe`, `heltec-ukfe-rx`, …) — diese Repos liegen außerhalb des
-    GitHub-Zugriffs-Scopes dieser Cloud-Sitzung (nur `g4meover-ecosystem`). Ein hier geschriebener
-    Codec wäre reine Vermutung statt gegen die reale Quelle verifizierter Bytes — genau das Risiko,
-    das die firmware-mining-Routine mit ihren Host-Repros bewusst vermeidet (dort immer gegen
-    echten Firmware-Quellcode geprüft). Lokal denselben Ansatz übertragen: Host-Repro (reines
-    Python/C, ohne Hardware) gegen die tatsächliche Firmware-Implementierung schreiben, danach erst
-    ins Cockpit integrieren.
+  - [x] P1.2b **Codec gegen die reale Firmware verifiziert ✅ (2026-10-13, Cloud):** die bisherige
+    Einordnung „nur lokal verifizierbar, da `heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx` außerhalb
+    des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung liegen" stimmte nicht (mehr) — alle drei Repos
+    sind öffentlich und per `add_repo` lesend erreichbar (dieselbe Lücke wie bei `g4meover-deck`/
+    `g4meover-companion` am 2026-10-12, hier für den gesamten Firmware-Satz bestätigt). Host-Repro
+    (reines C, Original-`ukfe_rf.c`/`.h` direkt aus `heltec-v4-hub` eingebunden, `gcc -O0`/`-O1
+    -Wall -Wextra -fsanitize=address,undefined`) gegen `deck/ukfe_rf.py` (`g4meover-deck`)
+    gegengeprüft: fünf Testfälle (leere Args, Rand-Counter 0/`0xFFFFFFFF`, volle 40 Byte Args)
+    byte-identisch, keine Sanitizer-Meldungen, Build→Parse-Rundlauf (MAC+CRC+Anti-Replay) bestanden.
+    Zusätzlich `ukfe_rf.c` über alle drei Firmware-Repos `diff`-geprüft: byte-identisch (nur die
+    `.h`-Kommando-Enums unterscheiden sich um später ergänzte Codes, Frame-Layout/Konstanten/API
+    unverändert). Details + Testvektoren: [`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md).
+    Damit bleibt nur noch die **Integration** (reale Serial-Verbindung, reales Secret aus
+    `secret_local.py` statt Platzhalter) lokal zu erledigen — der Algorithmus selbst ist jetzt
+    gegen die echte Quelle verifiziert, kein Vermutungs-Codec mehr. Gilt nur für v1
+    (`UKFE_RF_VERSION=0x01`); die v2-Erweiterung aus `UKFE-RF-V2-SPEC.md` existiert in keinem der
+    drei Repos, bleibt Entwurf.
   - [ ] P1.2c **Lokal:** Auto-Port-Übernahme aus dem bestehenden Kali-Cockpit-Prototyp (WAN-Tab,
     P1.1 bereits ✅) in die neue Transport-Abstraktion überführen statt neu zu entwerfen.
 - [ ] P1.3 Tab **Geräte**: Live-Liste (aus devices.json + Probe), Status/Batt/RSSI je Gerät.
@@ -283,10 +305,11 @@ Graph-Kopie entsteht.
   - [ ] P1.5a Command-Katalog-Tabelle direkt aus der Befehls-Matrix in `FLEET-COMMANDS.md` ableiten
     (Code/Befehl/Args/Status-Spalte übernehmen) statt einer zweiten, separat gepflegten Liste im
     GUI-Code.
-  - [ ] P1.5b Raw-Frame-Sender ist **blockiert auf P1.2b** (Frame-Encode/-Decode, als lokal markiert
-    — CRC16/keyed-MAC nur gegen echte Firmware verifizierbar): ohne fertigen Codec kein sicherer
-    Raw-Frame-Versand, nicht vorher als Freitext-Bytes ohne CRC/MAC durchreichen (würde von der
-    Firmware ohnehin verworfen).
+  - [ ] P1.5b Raw-Frame-Sender ist **blockiert auf P1.2b** — Codec-Algorithmus seit 2026-10-13
+    gegen die reale Firmware verifiziert (siehe P1.2b), offen bleibt nur noch die lokale
+    Cockpit-Integration (reale Serial-Verbindung + reales Secret statt Platzhalter): ohne die
+    bleibt kein sicherer Raw-Frame-Versand, nicht vorher als Freitext-Bytes ohne CRC/MAC
+    durchreichen (würde von der Firmware ohnehin verworfen).
   - [ ] P1.5c Ergebnis-Anzeige mit Quell-ID setzt v2-`SRC_ID`/`ORIGIN_ID` (P0.4f) voraus; bis dahin
     Fallback: Ergebnis ohne Quell-ID anzeigen (wie v1 es implizit über den Transport-Pfad macht),
     Feld erst nachrüsten sobald P0.4f live ist — kein Platzhalter-Wert erfinden.
@@ -334,14 +357,22 @@ Graph-Kopie entsteht.
     ausgehende Anfrage entgegennimmt. Ergebnis: **kein** vorhandener Reverse-Kanal-Mechanismus,
     P2.1b/P2.1c müssen tatsächlich neu entworfen werden (siehe dort) — keine Doppelarbeit, aber
     auch keine Abkürzung.
-  - [ ] P2.1b **Lokal:** Transport-Entscheidung — zwei Optionen, keine davon hier vorentscheidbar ohne
-    echten Blick in `G4MEOVER-FW` (ebenfalls außerhalb Scope): (a) die bereits von `flipper_ctl.py`
-    genutzte CLI-/RPC-Verbindung um einen eigenen, App-seitig ausgelösten Request erweitern (kein
-    neuer Transport, nur neue Richtung auf demselben Kanal), oder (b) ein eigener UART-Pin
-    (`furi_hal_serial`, LPUART) getrennt von der USB-CLI. (a) ist der risikoärmere Standardpfad
-    (kein zusätzliches Kabel/Pin nötig, nutzt den ohnehin vorhandenen Kanal aus P2.0) — als Vorschlag
-    hier vermerkt, endgültige Wahl aber lokal gegen die echte RPC-Implementierung von `G4MEOVER-FW`
-    zu prüfen.
+  - [ ] P2.1b **Lokal:** Transport-Entscheidung — zwei Optionen, (a) die bereits von
+    `flipper_ctl.py` genutzte CLI-/RPC-Verbindung um einen eigenen, App-seitig ausgelösten Request
+    erweitern (kein neuer Transport, nur neue Richtung auf demselben Kanal), oder (b) ein eigener
+    UART-Pin (`furi_hal_serial`, LPUART) getrennt von der USB-CLI. **Teilgeprüft (2026-10-13,
+    Cloud):** `G4MEOVER-FW` selbst ist entgegen der bisherigen „außerhalb Scope"-Annahme per
+    `add_repo` erreichbar, enthält aber in `applications_user/` nur ein `README.md` — der
+    eigentliche App-Quellcode (`lora_ukfe`, laut `CHANGELOG.md` als vorinstallierte App geführt)
+    liegt im separaten `lora-ukfe`-Repo. Dort zeigt `uart_comm.c`: der **bestehende** Flipper↔Hub-
+    Kanal (für SubGHz/LoRa-Kommandos, nicht die hier gesuchte Reverse-Richtung) nutzt bereits Option
+    (b) — ein eigener `furi_hal_serial`-Kanal mit `expansion_disable()/_enable()`-Handling, nicht
+    die CLI. Das entscheidet P2.1b nicht (anderer Zweck, andere Richtung), liefert aber ein reales
+    Präzedenz-Beispiel für (b) inkl. Expansion-Konflikt-Behandlung (vgl. firmware-mining-Funde zu
+    RS485 Modbus/CAN Commander). `CHANGELOG.md` vermerkt zusätzlich `cli_bridge` (CLI-GUI-Bridge)
+    als weiterhin deaktiviert (fehlende Portierung auf die mntm-012-`CliSession`-API) — relevant,
+    falls Option (a) auf dieser Bridge aufbauen sollte, lokal gegen den tatsächlichen
+    `flipper_ctl.py`-Verbindungsweg (USB-CLI vs. RPC) zu prüfen, nicht hier vorentschieden.
   - [ ] P2.1c Protokoll-Skizze (unabhängig von P2.1b, gilt für beide Optionen): Flipper-App sendet
     `{tool, args}` → Pi-seitiger Listener (Erweiterung des P2.0-Engines, sobald `flipper_ctl.py`
     committet ist, siehe Blocker unten) führt das Tool aus → Ergebnis als kurzer Text (Displaybreite
@@ -1575,20 +1606,68 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Punkt selbst (zuletzt am 2026-09-11 eskaliert). Die beiden Tageszähler im PREP-Abschnitt unten
   (Punkt 5 und Rotations-Runbook-Überschrift) auf 46 synchronisiert. Kein Hardware-Zugriff
   versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-10-13 (Cloud-Heartbeat): den am 2026-10-12 aufgedeckten Zusammenhang (Sibling-Repos
+  erreichbar, obwohl der Tracker sie wiederholt als „außerhalb des Cloud-Scopes" geführt hatte)
+  konsequent weiterverfolgt statt die drei vordersten TODOs erneut zu wiederholen — diesmal für
+  den gesamten Firmware-Repo-Satz (`heltec-v4-hub`, `lora-ukfe`, `heltec-ukfe-rx`, `G4MEOVER-FW`),
+  nicht nur `g4meover-deck`/`g4meover-companion`. Echter, host-geprüfter Fund statt nur Textmenge:
+  P1.2b galt bisher als „nur lokal verifizierbar" (Begründung: Firmware-Quelle außerhalb Scope) —
+  das war falsch. `ukfe_rf.c` wurde über `heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx` per `diff`
+  byte-identisch bestätigt; ein Host-Repro (Original-C direkt aus `heltec-v4-hub` eingebunden,
+  `gcc -O0`/`-O1 -Wall -Wextra -fsanitize=address,undefined`) gegen `deck/ukfe_rf.py` zeigt für
+  fünf Testfälle (leere Args, Counter-Randwerte 0/`0xFFFFFFFF`, volle 40-Byte-Args, Build→Parse-
+  Rundlauf mit MAC/CRC/Anti-Replay) byte-identische Frames, keine Sanitizer-Meldungen. Details +
+  Testvektoren in neuem [`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md). P1.2b/P1.5b
+  in Abschnitt 4 entsprechend auf „Codec verifiziert, nur Integration bleibt lokal" aktualisiert.
+  P0.2d: die seit 2026-10-12 vermutete Deckungslücke in `device_discovery.py` jetzt exakt
+  beziffert (fehlen nur `dogytag` und `heltec-v4-hub`, nicht mehr nur grob „größtenteils
+  abgedeckt"). P7.1/P7.2: `scenario_runner.py`s `scenarios/*.json` sind keine zweite
+  Graph-Darstellung neben `ecosystem/topology.json`, sondern ausführbare Schrittfolgen (Runbook-
+  Format, am Beispiel `esp-now-smoke.json` gegengeprüft) — komplementär, nicht dasselbe
+  Datenmodell zweimal. P2.1b: `G4MEOVER-FW` ist ebenfalls per `add_repo` erreichbar, enthält aber
+  in `applications_user/` nur ein `README.md` — der tatsächliche `lora_ukfe`-App-Quellcode liegt
+  separat im `lora-ukfe`-Repo; dessen `uart_comm.c` zeigt, dass der bestehende Flipper↔Hub-Kanal
+  (anderer Zweck als die gesuchte Reverse-Richtung) bereits einen eigenen `furi_hal_serial`-Kanal
+  mit Expansion-Handling nutzt statt der CLI — entscheidet P2.1b nicht, liefert aber ein reales
+  Präzedenzbeispiel; `CHANGELOG.md` vermerkt zusätzlich `cli_bridge` als weiterhin deaktiviert.
+  „Nur lokal möglich" unten entsprechend für P1.2b/P2.1a/b korrigiert. Übliche Repo-Hygiene vorab:
+  Git-Identität stand wieder auf dem Cloud-Default, vor dem ersten Commit korrigiert; `HEAD` stand
+  lösgelöst 4 Commits vor dem lokalen `main`-Zeiger (dieselbe Firmware-Mining-/App-Verbesserungs-
+  Routine wie gewohnt, keine Überschneidung mit dieser Datei/`ecosystem/`/`FLEET-COMMANDS.md`/
+  `CONSTRAINTS.md`/`WORKFLOW.md` — geprüft per `git log 4615fa8..HEAD --`), per `git checkout -B
+  main HEAD` nachgezogen. `ecosystem/devices.json`/`ecosystem/topology.json` Syntax erneut per
+  `json.load` geprüft: beide gültig. Zugangsdaten-Rotation (Pi-SSH, LORIX-Admin) weiterhin
+  unverändert offen (seit 2026-08-27, jetzt 47 Tage) — keine erneute Push-Notification ohne neuen
+  Sachstand zu diesem Punkt selbst (zuletzt am 2026-09-11 eskaliert). Die beiden Tageszähler im
+  PREP-Abschnitt unten auf 47 synchronisiert. Geklonte Firmware-/Sibling-Repos (`heltec-v4-hub`,
+  `lora-ukfe`, `heltec-ukfe-rx`, `g4meover-deck`, `G4MEOVER-FW`) nur gelesen, nichts verändert,
+  committet oder gepusht; der C/Python-Host-Repro-Treiber ist reines Verifikations-Tooling (keine
+  Firmware-/GUI-Code-Lieferung), lief ausschließlich im Cloud-Container. Kein Hardware-Zugriff
+  versucht, nichts geflasht.
 
 ## PREP für nächste lokale Session
 
 **Nächster konkreter Schritt:**
-0. **Neu (2026-10-12), vor allem anderen hier zu lesen:** `g4meover-deck` und `g4meover-companion`
-   (beide Sibling-Repos, GitHub-seitig frei zugänglich) lokal auschecken und gegen die unten unter
-   Risiken/Blocker beschriebenen Dateien abgleichen (`deck/ukfe_rf.py`, `device_discovery.py`,
-   `satellite_link.py`, `flipper_link.py`, `deck_ctl.py`/`deck_daemon.py`, `scenario_runner.py` +
-   `scenarios/*.json`, `zigbee_link.py`, `dogytag_link.py`, `lorix_link.py`, `hackrf_link.py`;
-   `flipperbridge.py`, `cockpit.py`, `webdeck.py`). Entscheidung treffen (nur lokal sinnvoll, da sie
-   den tatsächlichen Reifegrad an echter Hardware betrifft): für P1.2b/P0.2d/P4.4/P5.1/P7.1-2/P10.1-2
-   **wiederverwenden/integrieren** statt neu entwerfen, oder bewusst **neu bauen**, falls der
-   Deck-Stand (zuletzt 2026-08-15, nie auf echtem Pi gelaufen) inzwischen veraltet ist. Ohne diese
-   Entscheidung droht doppelte Arbeit an denselben Problemen in zwei Repos.
+0. **Neu (2026-10-12/13), vor allem anderen hier zu lesen:** `g4meover-deck` und
+   `g4meover-companion` (beide Sibling-Repos, GitHub-seitig frei zugänglich) lokal auschecken und
+   gegen die unten unter Risiken/Blocker beschriebenen Dateien abgleichen (`deck/ukfe_rf.py`,
+   `device_discovery.py`, `satellite_link.py`, `flipper_link.py`, `deck_ctl.py`/`deck_daemon.py`,
+   `scenario_runner.py` + `scenarios/*.json`, `zigbee_link.py`, `dogytag_link.py`, `lorix_link.py`,
+   `hackrf_link.py`; `flipperbridge.py`, `cockpit.py`, `webdeck.py`). **Für P1.2b (Codec) und
+   P7.1/P7.2 (Szenario-Format) ist die Entscheidung inzwischen per Cloud-Gegenprobe vorbereitet,
+   nicht mehr offen zu entwerfen:** P1.2b ist gegen die reale Firmware verifiziert (siehe
+   `UKFE-RF-CODEC-CROSSCHECK.md`) — lokal nur noch integrieren, nicht neu entwerfen. P7.1/P7.2 sind
+   komplementär (Runbook vs. Graph, siehe Abschnitt 4/PREP-Log 2026-10-13) — beide behalten, nicht
+   eins durch das andere ersetzen. **Noch offen, nur lokal zu entscheiden** (betrifft den
+   tatsächlichen Reifegrad an echter Hardware, der von hier nicht prüfbar ist): für P0.2d
+   (`device_discovery.py`, jetzt exakt bezifferte Lücke: fehlt nur `dogytag`/`heltec-v4-hub`),
+   P4.4/P5.1 (`lorix_link.py`/`dogytag_link.py`) und P10.1/P10.2 (`zigbee_link.py`) sowie für die
+   komplette Tool-Ebene (`deck_ctl.py`/`cockpit.py`/`webdeck.py` vs. die im Tracker als ✅
+   geführten, aber im Repo nicht auffindbaren `g4meover_control.py`/`flipper_ctl.py`, siehe
+   Blocker unten) weiterhin: **wiederverwenden/integrieren** statt neu entwerfen, oder bewusst
+   **neu bauen**, falls der Deck-Stand (zuletzt 2026-08-15, nie auf echtem Pi gelaufen) inzwischen
+   veraltet ist. Ohne diese Entscheidung droht weiterhin doppelte Arbeit an denselben Problemen in
+   zwei Repos.
 1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — die Prüfschritt-Liste
    unter P0.2c oben (Abschnitt 4) ist pro Gerät fertig (Befehl + Soll-MAC/VID:PID), inkl. der
    `jq`-Einzeiler zum Zurückschreiben von `verified_at`/`mac`/`usb_id` statt Hand-Editieren; nur
@@ -1610,9 +1689,10 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    kleinen Firmware-Patch auf `heltec-v4-hub` umsetzen (P0.4e/f) — nur `SRC_ID`/Versionsbyte,
    BLE-Transport separat später.
 4. Sobald Zeit für Phase 1 (aktueller Fokus) ist: P1.2a/b/c oben (Abschnitt 4) sind jetzt
-   Unterschritte statt einer einzelnen Zeile. P1.2b (Frame-Codec) **zuerst gegen die echte
-   Firmware-Quelle verifizieren** (`heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx`), erst danach
-   Host-Repro schreiben und ins Cockpit integrieren — nicht aus der v1-Doku allein raten.
+   Unterschritte statt einer einzelnen Zeile. P1.2b (Frame-Codec) ist **seit 2026-10-13 bereits
+   gegen die echte Firmware-Quelle verifiziert** (Host-Repro siehe
+   [`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md)) — nur noch ins Cockpit mit realer
+   Serial-Verbindung + realem Secret integrieren, kein Vermutungs-Codec mehr zu schreiben.
    **Davor** aber den neuen Blocker unten klären: `g4meover_control.py`/`flipper_ctl.py` existieren
    nicht im Repo — erst prüfen/committen, dann P1.3/P1.4/P1.5 (jetzt ebenfalls in Unterschritte
    zerlegt, siehe Abschnitt 4) darauf aufsetzen. P1.6 (Log-Panel) und P1.7 (Packaging) sind jetzt
@@ -1625,7 +1705,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 46 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 47 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1767,7 +1847,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 46 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 47 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -1824,15 +1904,24 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     keine Übernahme von dort möglich, bewusst nicht weiter verfolgt.
     Für mehrere offene TODOs ändert das die Ausgangslage von „muss aus der Cloud oder lokal neu
     entworfen werden" zu „zuerst prüfen, ob/wie das bereits Vorhandene wiederverwendet wird, bevor
-    neu gebaut wird" — konkret P1.2b (Frame-Codec: Algorithmus jetzt bekannt/zitierbar, lokale
-    Verifikation gegen die aktuelle Firmware bleibt trotzdem sinnvoll, da `deck/ukfe_rf.py` Stand
-    spätestens 2026-08-15 ist), P0.2d (`device_discovery.py` deckt die vorgeschlagene
-    `get_device_port()`-Auflösung größtenteils bereits ab, fehlt nur `heltec-v4-hub`/`dogytag`),
-    P4.4/P5.1 (`lorix_link.py`/`dogytag_link.py` bereits additiv/read-only umgesetzt), P7.1/P7.2
+    neu gebaut wird" — konkret P1.2b (Frame-Codec: **seit 2026-10-13 gegen die reale Firmware
+    verifiziert, siehe dort und [`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md)**,
+    nur die Integration bleibt lokal), P0.2d (`device_discovery.py` deckt die vorgeschlagene
+    `get_device_port()`-Auflösung größtenteils bereits ab — **seit 2026-10-13 exakt beziffert:**
+    fehlen tatsächlich nur `dogytag` und `heltec-v4-hub`, siehe P0.2d oben), P4.4/P5.1
+    (`lorix_link.py`/`dogytag_link.py` bereits additiv/read-only umgesetzt), P7.1/P7.2
     (`scenario_runner.py` + sechs JSON-Presets neben dem hier erst am 2026-09-26 gebauten
-    `ecosystem/topology.json` — zwei Darstellungen derselben Szenario-Idee, die lokal abzugleichen
-    sind, bevor beide weiter auseinanderlaufen) und P10.1/P10.2 (`zigbee_link.py` bereits vorhanden).
-    Ich habe dabei nur gelesen, keine der beiden Sibling-Repos verändert, committet oder gepusht.
+    `ecosystem/topology.json` — **konkretisiert (2026-10-13):** kein echtes Duplikat, sondern zwei
+    komplementäre Formate. `scenarios/*.json` sind ausführbare Schrittfolgen für
+    `scenario_runner.py` (`precheck`/`note`/`sat`-Steps, z. B. `esp-now-smoke.json`:
+    3× ESP-NOW-Ping mit Satelliten-ACK-Verifikation) — ein Runbook, kein Graph.
+    `ecosystem/topology.json` ist ein Knoten-/Kanten-Graph für die Live-Visualisierung (Phase 7).
+    Für P7.1/P7.2 heißt das: nicht zwei Datenmodelle angleichen, sondern `scenario_runner.py`s
+    Ausführungs-Events (welcher Step gerade läuft) als Event-Quelle für die Graph-Animation
+    nutzen — dieselbe Einordnung wie P7.1c/P7.2b (Abschnitt 4) bereits für den P1.6a-Log-Queue-
+    Mechanismus trifft, hier nur mit `scenario_runner.py` statt eines neu zu bauenden
+    Event-Erzeugers) und P10.1/P10.2 (`zigbee_link.py` bereits vorhanden). Ich habe dabei nur
+    gelesen, keine der Sibling-/Firmware-Repos verändert, committet oder gepusht.
 - **Neu (2026-10-03), Repo-Hygiene:** wiederholt tritt Branch-Zeiger-Drift in diesem Checkout auf
   (siehe Log 2026-09-15/17/19/21/22/27/30 für die eine Richtung: lokaler `main`-Zeiger hinter
   `origin/main`). Diese Sitzung trat die **andere** Richtung auf: `HEAD` losgelöst 11 Commits
@@ -1849,14 +1938,17 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
 - P0.4e/f: Firmware-Owner-Review der jetzt vorliegenden Spec-Vorschläge, jede Firmware-Umsetzung
   (Compile/Flash/Funktest auf V3/V4/LilyGo/WROOM).
 - Phase 1 GUI-Arbeit, sofern gegen echte Serial-/USB-Geräte getestet wird. P1.2b (Frame-Codec)
-  zusätzlich deshalb nur lokal möglich, weil die zur Verifikation nötige Firmware-Quelle
-  (`heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx`) außerhalb des GitHub-Zugriffs-Scopes dieser
-  Cloud-Sitzung liegt — unabhängig von der Hardware-Frage.
+  **nicht mehr zusätzlich lokal-gebunden** — die Algorithmus-Verifikation ist seit 2026-10-13
+  gegen die echte Firmware erledigt (siehe oben, `UKFE-RF-CODEC-CROSSCHECK.md`); lokal bleibt nur
+  noch die Integration (reale Serial-Verbindung), aus demselben Grund wie der Rest von Phase 1.
 - P2.1a/b (Reverse-Kanal-Prüfung gegen `g4meover-companion`, Transport-Entscheidung gegen
-  `G4MEOVER-FW`): dieselbe Begründung wie bei P1.2b — beide Repos liegen außerhalb des
-  GitHub-Zugriffs-Scopes dieser Cloud-Sitzung, eine hier getroffene Entscheidung wäre Vermutung statt
-  gegen den echten Quellcode geprüft. P2.1/P2.3 App-seitige Umsetzung zusätzlich Hardware-gebunden
-  (`fbt`-Build, Flipper-Display-Gegenprobe).
+  `G4MEOVER-FW`): **Korrektur (2026-10-13):** beide Repos liegen entgegen der bisherigen Annahme
+  **nicht** außerhalb des GitHub-Zugriffs-Scopes — per `add_repo` lesend erreichbar (geprüft, siehe
+  P2.1b oben). Die endgültige Transport-Entscheidung bleibt trotzdem offen (gefundene Evidenz in
+  `lora-ukfe/uart_comm.c` betrifft einen anderen Kanal, entscheidet P2.1b nicht abschließend), aber
+  „nur lokal lieferbar" trifft als Begründung nicht mehr zu — eine künftige Sitzung kann hier direkt
+  weiterlesen statt erneut zu vermuten. P2.1/P2.3 App-seitige Umsetzung bleibt Hardware-gebunden
+  (`fbt`-Build, Flipper-Display-Gegenprobe) — das ist unverändert nur lokal möglich.
 - Zugangsdaten-Rotation + ggf. Git-Historie-Bereinigung (Force-Push) für den Punkt oben — reine
   Cloud-Sitzungen können das nicht anstoßen, nur wiederholt aufzeigen (jetzt mit korrekter
   Commit-Angabe).

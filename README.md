@@ -16,6 +16,8 @@ Interaktive Kontroll-Karte: alle Geräte, **farbcodierte Transporte** (UART · U
 
 ## Struktur
 - **[`FLEET-COMMANDS.md`](FLEET-COMMANDS.md)** — Befehls- & Fähigkeits-Matrix: jeder `ukfe_rf`-Befehl × Gerät × Status.
+- **[`UKFE-RF-V2-SPEC.md`](UKFE-RF-V2-SPEC.md)** — `ukfe_rf`-v2-Entwurf (BLE-Transport, Ergebnis-Envelope mit Quell-ID, neue Commands).
+- **[`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md)** — Host-Repro: `ukfe_rf`-v1-Codec (CRC16/keyed-MAC) gegen die reale Firmware verifiziert.
 - **[`TEST-PLAN.md`](TEST-PLAN.md)** — Flash-Test-Aufträge für die offenen Firmware-PRs.
 - `WORKFLOW.md` — Arbeitsweise & Kontext (vor jeder Sitzung lesen).
 - `CONSTRAINTS.md` — **verbindliche** Regeln (Sicherheit, Nichts-Pushen-Listen, Commit-Stil).
