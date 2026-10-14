@@ -1,0 +1,67 @@
+diff --git a/lib/nfc/protocols/felica/felica_listener.c b/lib/nfc/protocols/felica/felica_listener.c
+index 3bf1093..beede12 100644
+--- a/lib/nfc/protocols/felica/felica_listener.c
++++ b/lib/nfc/protocols/felica/felica_listener.c
+@@ -246,9 +246,11 @@ NfcCommand felica_listener_run(NfcGenericEvent event, void* context) {
+         felica_listener_reset(instance);
+     } else if(nfc_event->type == NfcEventTypeRxEnd) {
+         FURI_LOG_D(TAG, "Rx Done");
++        FelicaError error = FelicaErrorNone;
+         do {
+             if(!felica_crc_check(nfc_event->data.buffer)) {
+                 FURI_LOG_E(TAG, "Wrong CRC");
++                error = FelicaErrorWrongCrc;
+                 break;
+             }
+ 
+@@ -259,6 +261,7 @@ NfcCommand felica_listener_run(NfcGenericEvent event, void* context) {
+             if((request->length != size) ||
+                (!felica_listener_check_block_list_size(instance, request))) {
+                 FURI_LOG_E(TAG, "Wrong request length");
++                error = FelicaErrorProtocol;
+                 break;
+             }
+ 
+@@ -266,28 +269,37 @@ NfcCommand felica_listener_run(NfcGenericEvent event, void* context) {
+                 // Will always respond at Time Slot 0 for now.
+                 nfc_felica_listener_timer_anticol_start(instance->nfc, 0);
+                 if(request->polling.system_code != FELICA_SYSTEM_CODE_CODE) {
+-                    FelicaError error = felica_listener_process_system_code(instance, request);
+-                    if(error == FelicaErrorFeatureUnsupported) {
+-                        command = NfcCommandReset;
+-                    } else if(error != FelicaErrorNone) {
++                    error = felica_listener_process_system_code(instance, request);
++                    if(error != FelicaErrorNone) {
+                         FURI_LOG_E(
+                             TAG, "Error when handling Polling with System Code: %2X", error);
+                     }
+                     break;
+                 } else {
+                     FURI_LOG_E(TAG, "Hardware Polling command leaking through");
++                    error = FelicaErrorIgnore;
+                     break;
+                 }
+             } else if(!felica_listener_check_idm(instance, &request->header.idm)) {
+                 FURI_LOG_E(TAG, "Wrong IDm");
++                error = FelicaErrorIgnore;
+                 break;
+             }
+ 
+-            FelicaError error = felica_listener_process_request(instance, request);
++            error = felica_listener_process_request(instance, request);
+             if(error != FelicaErrorNone) {
+                 FURI_LOG_E(TAG, "Processing error: %2X", error);
+             }
+         } while(false);
++
++        // Jeder Pfad oben, der ohne Erfolg abbricht, hat KEINEN Response gesendet (weder
++        // bei Protokollfehlern noch beim bewusst stillen Ignorieren). `command` blieb bis
++        // hierher aber auf NfcCommandContinue (Default), wenn nicht einer der frueheren
++        // Pfade explizit zurueckgesetzt hat -- das liess die Emulation nach jeder
++        // abgelehnten Anfrage haengen, bis ein Field-Off/-On-Zyklus sie neu aktiviert hat.
++        if(error != FelicaErrorNone) {
++            command = NfcCommandReset;
++        }
+         bit_buffer_reset(nfc_event->data.buffer);
+     }
+     return command;

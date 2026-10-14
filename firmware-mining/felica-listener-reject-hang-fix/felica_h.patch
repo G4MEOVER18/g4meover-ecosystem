@@ -1,0 +1,12 @@
+diff --git a/lib/nfc/protocols/felica/felica.h b/lib/nfc/protocols/felica/felica.h
+index bc83ff8..e358b5b 100644
+--- a/lib/nfc/protocols/felica/felica.h
++++ b/lib/nfc/protocols/felica/felica.h
+@@ -74,6 +74,7 @@ typedef enum {
+     FelicaErrorProtocol,
+     FelicaErrorTimeout,
+     FelicaErrorFeatureUnsupported,
++    FelicaErrorIgnore,
+ } FelicaError;
+ 
+ typedef enum {

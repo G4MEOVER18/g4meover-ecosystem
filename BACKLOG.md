@@ -5881,3 +5881,52 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
       Ducky-Handler, `texkom`/`hitagmicro.c` aus dem Unleashed-dev-Diff, Hitag-S-Phase-2-
       Integrationsschicht) bleiben unverändert offen.
+
+## Firmware-Feature-Mining (NFC FeliCa-Listener — neuer Durchlauf)
+- [x] Unleashed `dev` erneut gegen den zuletzt geprüften Stand (`af2e764`) geprüft: genau ein
+      neuer Inhaltscommit, `3fb1d517` (PR #4465, "NFC: Fix FeliCa command handling",
+      13.10.2026) — bündelt zehn Teilfixe für die FeliCa-Emulation (`felica_listener.c`,
+      `felica_poller*.c`, `felica.h`). Neun der zehn Teilfixe bauen auf einer
+      `FelicaSystem`/`FelicaService`-Multisystem-Infrastruktur auf, die in meiner
+      `mntm-012`-Basis (`G4MEOVER-FW`, `b359f6f`) nicht existiert (mein `felica_listener.c`
+      entspricht einem älteren, einfacheren Entwicklungsstand) — nicht portierbar ohne vorher
+      die Multisystem-Emulation selbst nachzuziehen, eigener größerer Rückstellpunkt
+      (vergleichbar mit `texkom`).
+- [x] Den einen eigenständig portierbaren Teilfix aufgegriffen: "Fix FeliCa emulation hanging
+      after rejected commands" — betrifft ausschließlich `felica_listener_run()`
+      (`NfcEventTypeRxEnd`-Zweig), bei mir byte-identisch zum Unleashed-Vorher-Stand
+      (`3fb1d517^`, gegen frische Zweitkopie verglichen). **Fund:** `command` wird nur in
+      einem einzigen Ablehnungspfad (System-Code nicht unterstützt) auf `NfcCommandReset`
+      gesetzt; die vier übrigen Ablehnungspfade (falsche CRC, falsche Länge,
+      Hardware-Polling-Leak, falsche IDm) sowie ein Frame-Exchange-Fehler bei sonst gültiger
+      Anfrage bleiben auf `NfcCommandContinue` stehen, obwohl kein Response gesendet wurde —
+      die Emulation haengt danach bis zum naechsten externen Field-Off/-On-Zyklus. Fix
+      (additiv): lokale `FelicaError error`-Variable auf jedem Pfad gesetzt, finale
+      `command`-Entscheidung von `error == FelicaErrorFeatureUnsupported` auf
+      `error != FelicaErrorNone` verallgemeinert; ein neuer Enum-Wert `FelicaErrorIgnore`
+      (Namensgebung aus Unleasheds PR übernommen) markiert die zwei bewusst stillen Pfade.
+      Zwei additive Patches (`felica_h.patch`, `felica_listener_c.patch`) gegen zwei frische,
+      unabhängige `G4MEOVER-FW`-Zweitkopien mit `git apply --check` verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch. Host-Repro (Kontrollfluss von
+      `felica_listener_run()`s `NfcEventTypeRxEnd`-Zweig, ALT/NEU nebeneinander, acht
+      Szenarien) unter ASan/UBSan bei `-O0`/`-O1`: ALT lässt 5/8 abgelehnte Anfragen ohne
+      Reset, NEU setzt in allen fünf Fällen korrekt zurück, beide Erfolgsfälle unverändert —
+      identischer Output beider Optimierungsstufen, keine Compiler-Warnungen. Details, Fund,
+      Risiko, Port-Skizze, Testhinweis in `firmware-mining/felica-listener-reject-hang-fix.md`
+      (Patches in `firmware-mining/felica-listener-reject-hang-fix/`, Host-Repro in
+      `firmware-mining/repro-felica-listener-reject-hang-fix/`).
+- [ ] Lokal zu tun: `felica_h.patch`, dann `felica_listener_c.patch` gegen die eigene
+      `mntm-012`-Basis anwenden, mit `ufbt`/`fbt firmware_all` bauen. Funktionstest: eigene
+      FeliCa-Karte emulieren, mit einem Reader/zweiten Flipper mehrfach hintereinander
+      pollen/lesen, dabei mindestens eine Anfrage bewusst zur Ablehnung bringen (z. B.
+      Polling mit fremdem System-Code, oder zwei Leseversuche ohne Feld-Unterbrechung) — vor
+      dem Fix bleibt die Karte danach fuer den Rest der Sitzung stumm, nach dem Fix antwortet
+      sie auf die naechste gueltige Anfrage wieder normal.
+- [ ] Die neun verbleibenden Teilfixe aus PR #4465 (Standard-FeliCa-Multisystem-Emulation)
+      bleiben zurückgestellt, bis die zugrundeliegende Multisystem-Infrastruktur selbst
+      portiert ist — eigener, groesserer Rueckstellpunkt. Die uebrigen seit laengerem
+      zurueckgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/
+      Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht) bleiben
+      unveraendert offen.
