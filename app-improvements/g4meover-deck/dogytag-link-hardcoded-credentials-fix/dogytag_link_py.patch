@@ -1,0 +1,49 @@
+diff --git a/deck/dogytag_link.py b/deck/dogytag_link.py
+index 4a20169..1f42863 100644
+--- a/deck/dogytag_link.py
++++ b/deck/dogytag_link.py
+@@ -12,6 +12,10 @@ Datenfluss (siehe project_dogytag_ttn_infra):
+ Topics: dogytag/<device>/{status,telemetry,lora,433,wifi_seen,event}
+ 
+ Nur eigene Infrastruktur. Broker-Zugang via Env überschreibbar.
++
++MQTT-Zugangsdaten kommen aus der Umgebung (`DOGYTAG_MQTT_USER`/`DOGYTAG_MQTT_PASS`)
++oder gitignored `secret_local.py` (Variablen `MQTT_USER`/`MQTT_PASS`) — analog zum
++TTN-Key-Muster in `lorix_link.py`. NIE hardcoden (Repo ist public).
+ """
+ from __future__ import annotations
+ import json
+@@ -20,19 +24,29 @@ import time
+ 
+ BROKER_HOST = os.getenv("DOGYTAG_MQTT_HOST", "192.168.0.80")
+ BROKER_PORT = int(os.getenv("DOGYTAG_MQTT_PORT", "1883"))
+-BROKER_USER = os.getenv("DOGYTAG_MQTT_USER", "yanis")
+-BROKER_PASS = os.getenv("DOGYTAG_MQTT_PASS", "12345678")
+ TOPIC = os.getenv("DOGYTAG_TOPIC", "dogytag/#")
+ 
+ 
++def _creds() -> tuple[str | None, str | None]:
++    user = os.getenv("DOGYTAG_MQTT_USER")
++    if user is not None:
++        return user, os.getenv("DOGYTAG_MQTT_PASS")
++    try:  # gitignored lokaler Override (deck/secret_local.py)
++        from secret_local import MQTT_USER, MQTT_PASS  # type: ignore
++        return MQTT_USER, MQTT_PASS
++    except Exception:
++        return None, None
++
++
+ def _client():
+     import paho.mqtt.client as mqtt
+     try:  # paho v2 API
+         c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+     except (AttributeError, TypeError):  # paho v1
+         c = mqtt.Client()
+-    if BROKER_USER:
+-        c.username_pw_set(BROKER_USER, BROKER_PASS)
++    user, pw = _creds()
++    if user:
++        c.username_pw_set(user, pw)
+     return c
+ 
+ 

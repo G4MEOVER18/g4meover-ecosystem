@@ -6004,3 +6004,47 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
       Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht,
       `g4meover-deck`s restliche Module) bleiben unverändert offen.
+
+## App-Verbesserung: g4meover-deck — dogytag_link.py Klartext-Default-Zugangsdaten
+
+- [x] Frische, unabhängige Zweitkopie von `G4MEOVER18/g4meover-deck` (main, weiterhin
+      Commit `b030e45`) geklont. Statt eines der noch komplett ungeprüften Module
+      (`device_discovery.py`, `handshake_capture.py`, `hackrf_link.py`, `zigbee_link.py`,
+      `wpa_crack.py`) den beim letzten Cross-Repo-Heartbeat bereits identifizierten, bisher
+      nur dokumentierten Punkt aufgegriffen: `dogytag_link.py` las `BROKER_USER`/`BROKER_PASS`
+      per `os.getenv(..., "yanis")`/`os.getenv(..., "12345678")` — ein echt wirkendes
+      Zugangsdaten-Paar als Default direkt im Quelltext eines öffentlichen Repos, im
+      Gegensatz zum an zwei anderen Stellen im selben Repo (`lorix_link.py._key()`,
+      `ukfe_rf.py`s `DEFAULT_SECRET`-Override) konsequent genutzten
+      Env-zuerst/gitignored-`secret_local.py`-danach-Muster.
+- [x] Fix (additiv): `BROKER_USER`/`BROKER_PASS`-Konstanten entfernt, neue Funktion
+      `_creds()` liest `DOGYTAG_MQTT_USER`/`DOGYTAG_MQTT_PASS` aus der Umgebung oder
+      `MQTT_USER`/`MQTT_PASS` aus gitignored `secret_local.py` (analog `lorix_link._key()`).
+      `_client()` ruft `username_pw_set()` nur noch auf, wenn tatsächlich ein Benutzername
+      konfiguriert ist — ohne Konfiguration verbindet sich der Client anonym statt mit dem
+      festen Rateversuch. Patch gegen zwei frische, unabhängige Zweitkopien mit
+      `git apply --check` verifiziert, real angewendet, byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`repro.py`, `dogytag_link.py` ALT/NEU direkt von der Platte geladen, `paho.
+      mqtt.client` durch einen Aufzeichnungs-Stand-in ersetzt, kein Broker/Netzwerk nötig):
+      ALT sendet ohne jede Konfiguration unbedingt `yanis`/`12345678`, NEU verbindet sich im
+      selben Fall ohne Zugangsdaten; beide Stände verwenden echte, per Env gesetzte
+      Zugangsdaten korrekt, NEU zusätzlich mit dem `secret_local.py`-Fallback geprüft.
+- [x] Details, Fund, Fix, Host-Repro, Risiko, Testhinweis, Quelle in
+      `app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md` (Patch in
+      `app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix/dogytag_link_py.patch`,
+      Host-Repro in
+      `app-improvements/g4meover-deck/repro-dogytag-link-hardcoded-credentials-fix/repro.py`).
+- [ ] Lokal zu tun: Patch gegen die eigene `dogytag_link.py` anwenden. Entweder
+      `deck/secret_local.py` mit `MQTT_USER`/`MQTT_PASS` anlegen oder
+      `DOGYTAG_MQTT_USER`/`DOGYTAG_MQTT_PASS` exportieren (eine davon nötig, falls der reale
+      Broker Auth verlangt), danach `python3 deck/dogytag_link.py` ausführen und prüfen, dass
+      `detect()` weiterhin `{"ready": True, ...}` liefert. Mit `tcpdump`/`mosquitto`-Logging
+      auf Port 1883 bestätigen, dass `yanis`/`12345678` nicht mehr verschickt wird.
+- [ ] `g4meover-deck` weiterhin nicht vollständig durchgesehen (`device_discovery.py`,
+      `handshake_capture.py`, `hackrf_link.py`, `zigbee_link.py`,
+      `wpa_crack.py`/`deck/tools/wpa_crack.py`, `flipper_link.py`) — eigener Rückstellpunkt
+      für künftige App-Verbesserungs-Sitzungen. Die übrigen seit längerem zurückgestellten
+      Backlog-Punkte (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`,
+      Hitag-S-Phase-2-Integrationsschicht) bleiben unverändert offen.
