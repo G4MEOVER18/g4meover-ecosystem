@@ -1,0 +1,13 @@
+--- a/sobe.c
++++ b/sobe.c
+@@ -84,6 +84,10 @@
+   sobe_analysis_stop(analysis);
+   sobe_worker_stop(worker);
+ 
++  if (app->use_external_ir) {
++    sobe_worker_set_tx_output(worker, false);
++  }
++
+   sobe_analysis_free(analysis);
+   sobe_worker_free(worker);
+ 

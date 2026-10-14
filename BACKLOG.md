@@ -5930,3 +5930,77 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
       Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht) bleiben
       unveraendert offen.
+
+## Ideen-Recherche (Sobe — IR-Ghost-Detector, Gegenstück zu Nyx)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (NFC FeliCa-Listener),
+      davor App-Verbesserung (`g4meover-deck`) und Firmware-Feature-Mining (Hitag S) —
+      Ideen-Recherche war von den drei WORKFLOW-Kategorien am längsten nicht an der Reihe
+      (letzter Ideen-Recherche-Eintrag: LoRa Relay). Git-Identität vor dem ersten Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`). Zusätzlich den zwischenzeitlichen
+      Cloud-Heartbeat-Commit (Masterplan, Cross-Repo-Vertiefung) auf `main` übernommen (reiner
+      Fast-Forward, kein eigener Beitrag dieser Sitzung).
+- [x] Gezielt nach einem Gegenstück/Alternativkandidaten zur bereits katalogisierten
+      Counter-Surveillance-App **Nyx** (IR-Erkennung versteckter Kameras) gesucht, statt einen
+      der bereits mehrfach durchsuchten Cluster (NFC/CAN/GPIO-Serial) erneut aufzugreifen.
+      **Sobe** (`sacriphanius/sobe`, GitLab, MIT) gefunden: 521 Zeilen über acht Quelldateien,
+      vollständig gelesen (100 %). Sehr junges Projekt (zwei Commits, ein Tag, letzte Aktivität
+      26.07.2026).
+- [x] Gegenüber Nyx als eigenständig statt redundant eingeordnet (anders als der
+      Badge-Audit-vs.-Access-Audit-Fall): Sobes zusätzlicher aktiver 38-kHz-Sweep-Modus
+      (Optic-Spy-Finder-Prinzip gegen Kamera-Linsen-Reflexionen) deckt einen Erkennungsfall ab,
+      den das listen-only Nyx laut eigener Doku bewusst nicht abdeckt — beide Apps ergänzen
+      sich, kein Verwerfungs-Fall.
+- [x] API-87-Status gegen eine frische, bloblose `Next-Flip/Momentum-Firmware`-Zweitkopie
+      (Tag `mntm-012`, Commit `b359f6f`) verifiziert: alle sieben verwendeten
+      `furi_hal_infrared_*`-Funktionen, der `FuriHalInfraredTxPin`-Enum,
+      `furi_hal_power_enable_otg()`/`_disable_otg()`, `gpio_ext_pa7`, die drei verwendeten
+      `NotificationSequence`-Symbole und `elements_progress_bar()` byteidentisch vorhanden.
+      Dabei die `furi_hal_infrared`-Zustandsmaschine (`InfraredStateIdle`/`AsyncRx`/`AsyncTx`/...)
+      im Firmware-Quelltext nachvollzogen und bestätigt, dass Sobes im ~65-ms-Takt wechselnder
+      RX/TX-Sweep-Zyklus (`ir_worker.c::sobe_worker_thread()`) keine der internen
+      `furi_check()`-Zustandsvorbedingungen verletzt (beide Stop-Funktionen sind synchron und
+      garantieren `InfraredStateIdle` vor der Rückkehr) — kein Crash-Risiko, trotz anfänglicher
+      Vermutung eines möglichen `furi_check()`-Abbruchs im Sweep-Modus.
+- [x] **Fund**: der GPIO-Autoerkennungsblock in `sobe.c::sobe_app()` reimplementiert von Hand
+      exakt die bereits vorhandene Firmware-Funktion `furi_hal_infrared_detect_tx_output()`
+      (identischer Algorithmus) — reine Duplikation, kein eigener Fund dort. Der tatsächliche
+      Fund liegt in `ir_worker.c::sobe_worker_set_tx_output()`: die einzige Stelle im gesamten
+      Quelltext, die `furi_hal_power_enable_otg()`/`_disable_otg()` aufruft, wird genau einmal
+      beim App-Start aufgerufen (wenn ein externes IR-Modul erkannt wurde) und nie wieder — auch
+      nicht in der Aufräumsequenz von `sobe_app()` beim Beenden. Zum Vergleich der offizielle
+      Referenzpfad (`applications/main/infrared/infrared_app.c`): dort steht direkt vor
+      `infrared_free()` explizit `infrared_set_tx_pin(internal)` plus
+      `infrared_enable_otg(false)` — die Firmware macht die OTG-Abschaltung beim Beenden also
+      zur Pflicht für jede extern aktivierende App. Konsequenz: mit angeschlossenem externem
+      IR-Modul gestartet, bleibt die 5-V-OTG-Boost-Versorgung nach regulärem App-Ende dauerhaft
+      an (bekannter Akku-Verschleiß-Faktor), kein Ziel-Sicherheitsrisiko.
+- [x] Fix (additiv, vier neue Zeilen in `sobe.c::sobe_app()`): direkt nach
+      `sobe_worker_stop(worker);` und vor `sobe_worker_free(worker);` die bereits vorhandene
+      Funktion ein zweites Mal mit `false` aufrufen, wenn extern aktiviert war — spiegelt exakt
+      das offizielle `infrared_set_tx_pin(internal) + infrared_enable_otg(false)`-Muster. Patch
+      gegen zwei frische, unabhängige Zweitkopien mit `git apply --check` verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (Kontrollfluss-Nachbildung von `sobe_worker_set_tx_output()` sowie dem
+      Start-/Exit-Ablauf von `sobe_app()`, Mock für `furi_hal_power_enable_otg()`/`_disable_otg()`
+      über ein gemeinsames globales Bool) unter ASan/UBSan bei `-O0`/`-O1`: zwei
+      Regressionsfälle (kein externes Modul) lassen OTG in beiden Versionen korrekt aus, ALT
+      lässt OTG nach simuliertem App-Ende bei erkanntem externem Modul an (der Fund), NEU schaltet
+      es korrekt wieder ab — identischer Output beider Optimierungsstufen, keine
+      Compiler-/Sanitizer-Meldungen.
+- [x] Details, Fund, Fix, Host-Repro, Risiko, Testhinweis in
+      `ideas/sobe-ir-ghost-detector-app-status.md` (Patch in
+      `ideas/sobe-otg-left-enabled-on-exit-fix/sobe_c.patch`, Host-Repro in
+      `ideas/repro-sobe-otg-left-enabled-on-exit/repro.c`). `ideas/pentest-app-katalog.md` um
+      die neue Katalog-Zeile (Counter-Surveillance/TSCM) sowie einen Log-Eintrag unter "Nächste
+      Recherche-Aufträge" ergänzt.
+- [ ] Lokal zu tun: Patch gegen die eigene `sobe.c` anwenden, mit `ufbt launch_app`/`fbt` bauen.
+      Funktionstest: eigenes externes IR-Modul am Erweiterungsport anschließen, Sobe starten
+      (Anzeige muss "EXT" zeigen), über "Zurück" beenden, danach über `Settings → Power →
+      USB-Power-Output` (oder per `power` CLI) prüfen, dass die 5-V-Ausgabe aus ist — vor dem
+      Fix bleibt sie an, nach dem Fix ist sie nach dem Beenden aus. Ohne externes Modul (reiner
+      interner IR-Betrieb) unverändertes Verhalten vor/nach dem Fix.
+- [ ] Die übrigen seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht,
+      `g4meover-deck`s restliche Module) bleiben unverändert offen.
