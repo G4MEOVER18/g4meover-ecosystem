@@ -6048,3 +6048,64 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
       `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`,
       Hitag-S-Phase-2-Integrationsschicht) bleiben unverändert offen.
+
+## Firmware-Feature-Mining: SubGHz "Add Manually" -- Security+-2.0-Transmitter-Leak
+
+- [x] Unleashed-`dev`-Branch erneut gegen den zuletzt geprüften Stand (`af2e764`)
+      gegengeprüft (frische, unauthentifizierte Zweitkopie, Tiefe 50): sechs neue Commits,
+      davon fünf reine Pflege (Changelog, `fbt format`, Nice-O-Code-Verbesserungen,
+      Multi-Frame-Dedupe) oder bereits portiert (FeliCa-Listener-Fix, letzte Sitzung) und ein
+      neuer, bisher nicht geprüfter Inhaltscommit: `e1ebaa3` ("SubGHz: safe exit on unknown
+      preset, fix Security+ 2.0 transmitter leak", schließt Issues #1159/#1161), acht Dateien,
+      zwei eigenständige Fixes gebündelt.
+- [x] Beide Teile einzeln gelesen. Den größeren (`subghz_setting_get_inx_preset_by_name()` von
+      `furi_crash()` auf `-1`-Rückgabewert, fünf Dateien/Aufrufer anzupassen) als eigenständigen
+      Rückstellpunkt für eine künftige Sitzung eingeordnet — mehrteilig genug für einen eigenen
+      Beitrag. Den zweiten, vollständig eigenständigen Teil aufgegriffen: in
+      `applications/main/subghz/helpers/subghz_txrx_create_protocol_key.c` folgen alle acht
+      `subghz_txrx_gen_*_protocol()`-Funktionen (für den "Add Manually"-Dialog) demselben
+      Muster -- Wegwerf-`SubGhzTransmitter` allozieren, `instance->fff_data` befüllen, danach
+      sofort wieder freigeben -- außer `subghz_txrx_gen_secplus_v2_protocol()`: die einzige der
+      acht, die den Transmitter nie wieder freigibt.
+- [x] Gegen eine frische, unabhängige `G4MEOVER-FW`-Zweitkopie (`mntm-012`, `b359f6f`)
+      verifiziert: die Funktion ist byte-identisch zum Unleashed-Vorher-Stand (`e1ebaa3^`).
+      Aufrufer (`subghz_scene_set_counter.c`/`subghz_scene_set_type.c`) sowie den Teardown-Pfad
+      (`subghz_txrx_free()`) geprüft: jeder erneute Aufruf während einer laufenden
+      SubGHz-App-Sitzung (z. B. "Add Manually" → Security+ 2.0 mehrfach hintereinander ohne
+      die App zu verlassen) überschreibt `instance->transmitter` mit einer frischen Allokation,
+      bevor die vorherige je freigegeben wurde -- ein echter, bei normaler Bedienung wiederholt
+      auslösbarer Heap-Leak auf dem speicherknappen STM32WB55.
+- [x] Fix (additiv, eine Zeile): `subghz_transmitter_free(instance->transmitter);` unmittelbar
+      vor dem bestehenden `return ret;` ergänzt -- gleicht die Funktion exakt an das in
+      derselben Datei bereits etablierte Muster der sieben Schwesterfunktionen an. Patch
+      (`subghz_txrx_create_protocol_key_c.patch`) gegen zwei frische, unabhängige Zweitkopien
+      mit `git apply --check` verifiziert, real angewendet, byte-für-byte abgeglichen --
+      identisch.
+- [x] Host-Repro (`repro.c`, echte `malloc()`/`free()`-Wrapper um einen Platzhalter-Transmitter,
+      ALT/NEU nebeneinander, *n* simulierte "Add Manually"-Durchläufe gegen dieselbe langlebige
+      `SubGhzTxRx`-Instanz): unter
+      `gcc -std=c11 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: ALT meldet bei 5 Durchläufen zuverlässig `LeakSanitizer: detected memory
+      leaks` ("Direct leak of 20 byte(s) in 5 object(s)", Exit 1), NEU beendet sich in beiden
+      Stufen sauber ohne jede Meldung (Exit 0).
+- [x] Details, Fund, Fix, Risiko, Port-Skizze, Testhinweis, Host-Repro, Quelle in
+      `firmware-mining/secplus-v2-manual-gen-transmitter-leak-fix.md` (Patch in
+      `firmware-mining/secplus-v2-manual-gen-transmitter-leak-fix/`, Host-Repro in
+      `firmware-mining/repro-secplus-v2-manual-gen-transmitter-leak-fix/`).
+- [ ] Lokal zu tun: Patch gegen die eigene `subghz_txrx_create_protocol_key.c` anwenden, mit
+      `ufbt`/`fbt firmware_all` bauen. Funktionstest: SubGHz-App → "Add Manually" → "Security+
+      2.0" mehrfach hintereinander mit unterschiedlichen Werten bestätigen, ohne die App
+      zwischendurch zu verlassen -- funktional (Schlüssel wird weiterhin korrekt erzeugt,
+      gespeichert, gesendet) vor/nach dem Fix unverändert; der behobene Leak selbst ist am
+      Gerät ohne Heap-Statistik-Tooling nicht direkt beobachtbar (siehe Host-Repro für den
+      quantitativen Nachweis).
+- [ ] Der größere, zurückgestellte Teil desselben Upstream-Commits ("safe exit on unknown
+      preset": `subghz_setting_get_inx_preset_by_name()` + fünf abhängige Dateien/Aufrufer,
+      alle gegen meine `mntm-012`-Basis als byte-identisch zum Unleashed-Vorher-Stand
+      verifiziert, grundsätzlich portierbar) bleibt eigener Rückstellpunkt für eine künftige
+      Sitzung. Die übrigen seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-
+      Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-
+      Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-
+      penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-
+      Phase-2-Integrationsschicht, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      `g4meover-deck`s restliche Module) bleiben unverändert offen.

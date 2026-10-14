@@ -1,0 +1,12 @@
+diff --git a/applications/main/subghz/helpers/subghz_txrx_create_protocol_key.c b/applications/main/subghz/helpers/subghz_txrx_create_protocol_key.c
+index 9b7ba80..fac10db 100644
+--- a/applications/main/subghz/helpers/subghz_txrx_create_protocol_key.c
++++ b/applications/main/subghz/helpers/subghz_txrx_create_protocol_key.c
+@@ -358,6 +358,7 @@ bool subghz_txrx_gen_secplus_v2_protocol(
+             instance->preset);
+         ret = true;
+     }
++    subghz_transmitter_free(instance->transmitter);
+     return ret;
+ }
+ 
