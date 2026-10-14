@@ -591,6 +591,13 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     zusätzlicher Kanal nötig), (2) LORIX-eigene Sicht (Gateway-Auslastung, Paketforwarder-Status,
     unabhängig davon ob TTN gerade erreichbar ist) — nur lokal gegen die echte LORIX-Firmware-
     Version zu klären, ob sie eine JSON-/SNMP-Statusabfrage anbietet oder nur die Web-UI.
+    **Teilweise beantwortet (2026-10-14, Cloud):** für die TTN-Sicht (1) existiert in
+    `g4meover-deck/deck/lorix_link.py` bereits ein fertiger, read-only TTN-v3-HTTP-API-Client
+    (`gateway_status()` gegen `/api/v3/gs/gateways/<id>/connection/stats`, `device_fleet()` gegen
+    `/api/v3/applications/<app>/devices` + Join-Status je Gerät) — Doppelarbeit vermeiden, diesen
+    übernehmen statt neu zu entwerfen. Nutzt den TTN-API-Key sauber über Env/gitignored
+    `secret_local.py`, kein Secret im Klartext (im Gegensatz zum neuen Fund bei `dogytag_link.py`,
+    siehe Risiken/Blocker unten). Die LORIX-eigene Sicht (2) bleibt offen/nur lokal.
   - [ ] P4.4b Optionales Raw-Packet-Forwarder-Log: nur falls P4.4a (2) keine strukturierte Abfrage
     hergibt, ersatzweise `journalctl`/Log-Datei des Packet-Forwarder-Diensts per Pi-SSH tailen
     (`tail -f`/`journalctl -u <dienst> -f`) und roh im GUI-Log-Panel (P1.6) anzeigen — bewusst als
@@ -609,23 +616,56 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
 
 ### Phase 5 — DogyTag-Integration
 - [ ] P5.1 DogyTag-Tab: Live-Position/Batt/State via TTN-Uplinks (App dogytag-v1) — read-only.
-  - [ ] P5.1a Ingestion-Pfad: denselben MQTT-Subscribe-Ansatz wie P4.1b wiederverwenden (eigene
-    TTN-v3-Application `dogytag-v1` statt der Ökosystem-App, sonst identisches Topic-Schema
-    `v3/dogytag-v1/devices/<dev-id>/up`) — kein zweiter Ingestion-Mechanismus nur für DogyTag.
-  - [ ] P5.1b Uplink-Payload-Decoder (Position/Batt/State aus den rohen FRMPayload-Bytes): **lokal,
-    nicht aus der Cloud lieferbar** — Payload-Format ist entweder in der DogyTag-Firmware selbst
-    oder in der TTN-Payload-Formatter-Konfiguration der App `dogytag-v1` festgelegt, beides
-    außerhalb des Cloud-Zugriffs-Scopes (analog P1.2b/P2.1b/P4.3a); ohne den echten Uplink-Payload
-    zu raten wäre unverifizierte Annahme, kein prüfbares Artefakt.
+  - [ ] P5.1a **Grundannahme korrigiert (2026-10-14, Cloud — echter Repo-Fund, nicht nur
+    Textmenge):** bisher ging dieser Punkt von einem TTN/LoRaWAN-Ingestion-Pfad aus (siehe
+    Überschrift). Ein bisher nirgends im Tracker erwähntes, eigenständiges Repo
+    `G4MEOVER18/dogytag-firmware` (public, per `list_repos`/`add_repo` erreichbar) zeigt: der
+    tatsächlich *laufende* Datenpfad ist **nicht** TTN/LoRaWAN, sondern das in der eigenen
+    `README.md` dokumentierte Raw-LoRa-Beacon-Protokoll (868 MHz, NEAR_FIND) vom Tag zum
+    `heltec-gateway`, der die Daten direkt per WiFi/MQTT an denselben lokalen Broker
+    (`192.168.0.80:1883`) published, den `g4meover-deck/deck/dogytag_link.py` bereits liest.
+    `heltec-gateway/src/main.cpp` published exakt das dort erwartete Topic-Schema
+    (`dogytag/<id>/{status,telemetry,lora,gps,ack,log,event,lora433}`, zusätzlich
+    `dogytag/gateway/*`) als fertiges JSON (z. B. `publishTelemetry()`/`publishStatus()`,
+    Zeilen ~769–824) — **kein TTN-Zwischenschritt nötig.** Die TTN-Application `dogytag-v1`
+    existiert zwar wirklich (als `TTN_APP_ID`/Kommentar in `heltec-tag`/`xiao-tag`/
+    `heltec-gateway` gegengeprüft, Name stimmt mit dem bisherigen Tracker-Eintrag überein), aber
+    laut `xiao-tag/docs/LORAWAN_INTEGRATION.md`/`WORK_CONTINUATION_PLAN.md`/`BACKEND_CODES.md`
+    (Readiness-Codes enden bei `real-join-slot-pending`/`real-join-blocked`/`simulated-join`,
+    kein einziger "join-success"/"uplink-sent"-Code existiert) ist der echte LoRaWAN-OTAA-Join
+    **noch nicht implementiert** — ein MQTT-Subscribe auf die TTN-Bridge (wie bisher für P4.1b
+    angenommen) hätte also aktuell nichts zu liefern. Ingestion-Pfad daher **geändert**: direkt
+    `mosquitto_sub -h 192.168.0.80 -t 'dogytag/#' -v` (identisch zu P5.3a) statt TTN-MQTT/HTTP-API
+    — kein zweiter Ingestion-Mechanismus, aber ein anderer als der bisher angenommene. TTN/LoRaWAN
+    bleibt als *zukünftiger* Zusatzpfad relevant, sobald die Firmware-Seite weiter ist (siehe
+    `lorix_link.py`-Fund unten), ist aber nicht mehr die Grundlage für P5.1.
+  - [x] P5.1b Uplink-Payload-Decoder: **damit erledigt statt weiterhin lokal-blockiert** — die
+    Payloads sind bereits fertiges JSON vom Gateway selbst (`ArduinoJson`/`StaticJsonDocument`,
+    siehe oben), kein rohes LoRaWAN-FRMPayload zu dekodieren. `g4meover-deck/deck/dogytag_link.py`
+    (`summarize()`) liest die Felder bereits passend (`online`/`state`/`joined`/`bat_pct`/`bat_mv`/
+    `gw_rssi`/`mode`/`fw`) — lokal nur noch gegen die echten Feldnamen aus `publishStatus()`/
+    `publishTelemetry()` abgleichen (z. B. `wifi_rssi` vs. das dort erwartete `gw_rssi` — leichte
+    Namensabweichung, lokal zu klären, ob `dogytag_link.py` angepasst oder die Firmware-Seite
+    erweitert wird), kein Entwurf mehr nötig.
   - [ ] P5.1c Tab-Grundgerüst hängt am selben Blocker wie P1.3.0/P4.1a (`g4meover_control.py`
     im Repo nicht auffindbar) — erst dort klären/committen, dann hier als weiteren Tab anlegen,
-    kein zweites GUI-Grundgerüst.
-  - Verifikation: P5.1a (Cloud-Teil) — MQTT-Topic-Schema ist bereits durch P4.1b belegt, keine
-    weitere Prüfung nötig; P5.1b/c nur lokal (echte App-Credentials, echter Uplink).
+    kein zweites GUI-Grundgerüst. `g4meover-deck`s eigenes `dogytag_link.py`
+    (`detect()`/`snapshot()`/`summarize()`) kann als fertige Datenquelle für diesen Tab
+    übernommen werden statt eines Neubaus (siehe P5.1a/b).
+  - Verifikation: P5.1a/b (Cloud-Teil) — Topic-Schema und JSON-Felder gegen den echten
+    `heltec-gateway`-Quellcode verifiziert (nicht nur vermutet) ✅ (2026-10-14); P5.1c nur lokal
+    (echter Broker-Zugriff, echtes GUI-Grundgerüst).
 - [ ] P5.2 Konfig-Downlinks (Intervall/Modus) — additiv, Produktion nicht umkonfigurieren.
-  - [ ] P5.2a Baut auf P4.2 (Downlink-Kommandokanal) auf, sobald dessen P4.2a-Blocker (Fleet-
-    Broadcast-Code im Repo nicht auffindbar) geklärt ist — kein eigener Downlink-Pfad nur für
-    DogyTag.
+  - [ ] P5.2a **Ergänzt (2026-10-14):** da der reale Datenpfad laut P5.1a-Fund MQTT statt TTN/
+    LoRaWAN ist, gibt es bereits einen echten, passenden Downlink-Kanal: `heltec-gateway/src/
+    main.cpp` abonniert `dogytag/+/cmd` und reicht das Kommando ans Tag weiter
+    (`sendCmdToTracker()`, Tag öffnet laut README ein 400-ms-CMD-Fenster nach jedem ACK) — dieser
+    Pfad existiert bereits und bräuchte nur ein `PUBLISH` auf `dogytag/<id>/cmd`, **widerspricht
+    aber P5.3a** (dort bisher „nur `SUBSCRIBE`, nie `PUBLISH`" auf `dogytag/#` festgelegt) —
+    lokal zu entscheiden, ob dieser eine, enger gefasste `cmd`-Publish-Pfad als bewusste Ausnahme
+    gilt (Produktionsgerät bekäme dann reale Downlinks) oder P5.2 komplett auf das in P4.2
+    geplante, noch unauffindbare Fleet-Broadcast/TTN-Downlink-System wartet. Kein eigener
+    Downlink-Pfad nur für DogyTag erfinden, falls diese Entscheidung für Wiederverwendung fällt.
   - [ ] P5.2b **CONSTRAINTS-Grenze konkretisiert:** „Produktion nicht umkonfigurieren" heißt hier
     praktisch — kein Downlink-Test gegen das echte, im Feld laufende DogyTag-Gerät, solange kein
     zweites (Test-)Gerät oder ein Simulator-/Staging-Device auf derselben TTN-Application zur
@@ -846,6 +886,14 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     Flash-Vorgang. Nur relevant, falls das Projekt einen eigenen Zigbee-Koordinator betreiben will
     (z. B. für eigene Testgeräte) statt nur zu sniffen — als optionale, eigenständige Entscheidung
     markiert, kein Default, keine Umsetzung ohne diese Entscheidung.
+    **Konkretisiert (2026-10-14, Cloud):** diese Entscheidung ist nicht mehr rein hypothetisch —
+    `g4meover-deck/deck/zigbee_link.py` spricht bereits das TI-Z-Stack-Monitor-Test-Protokoll
+    (ZNP/MT) über Serial mit dem CC2531 (`SYS_PING`/`SYS_VERSION`-Frames, laut eigenem Kommentar
+    „live verifiziert": `SYS_PING` → `fe 02 61 01 79 01 1a`) — das setzt also bereits ein
+    **Coordinator-Image** voraus, nicht das Sniffer-Image aus P0.3a/b. Lokal zu klären, welches
+    Image aktuell tatsächlich auf dem Dongle ist (P0.3a klärt das ohnehin als ersten Schritt) und
+    ob dieser bereits vorhandene ZNP-Client übernommen wird, statt einen neuen Koordinator-Codepfad
+    zu entwerfen.
   - Verifikation: nur lokal (CC2531 physisch am Pi, echter Zigbee-Traffic in Empfangsreichweite).
 
 ### Phase 11 — 433-MHz-Erweiterung (wenn HW da)
@@ -1644,6 +1692,48 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   committet oder gepusht; der C/Python-Host-Repro-Treiber ist reines Verifikations-Tooling (keine
   Firmware-/GUI-Code-Lieferung), lief ausschließlich im Cloud-Container. Kein Hardware-Zugriff
   versucht, nichts geflasht.
+- 2026-10-14 (Cloud-Heartbeat): den seit 2026-10-12/13 laufenden Cross-Repo-Abgleich fortgesetzt,
+  diesmal `g4meover-deck`s bisher nur als „vorhanden" vermerkte `dogytag_link.py`/`lorix_link.py`/
+  `zigbee_link.py` tatsächlich gelesen statt nur aufgelistet — zwei echte Funde statt weiterer
+  Textmenge. **Sicherheitsrelevant, per Push-Notification eskaliert:** `dogytag_link.py`
+  (öffentliches Repo) hat Klartext-Default-Zugangsdaten (`BROKER_USER`/`BROKER_PASS` als
+  `os.getenv(..., "yanis"/"12345678")`) direkt im Quelltext statt hinter dem im selben Repo bei
+  `lorix_link.py`/`ukfe_rf.py` konsequent genutzten `secret_local.py`-Gitignore-Muster — Details,
+  Begründung und Sofortmaßnahme unter Risiken/Blocker und PREP Punkt 0a. **Architekturfund, löst
+  einen länger stehenden Blocker auf:** beim Verfolgen dieses Funds ein bisher nirgends im Tracker
+  erwähntes, öffentliches Repo `G4MEOVER18/dogytag-firmware` entdeckt (per `list_repos` gefunden,
+  nicht erraten) — enthält die tatsächliche DogyTag-Firmware (xiao-tag/heltec-tag/heltec-gateway/
+  cubecell-433modem). Kernfund: der reale Datenpfad ist entgegen der seit Phase-4/5-Verfeinerung
+  (2026-09-19/21) angenommenen TTN/LoRaWAN-Route **direktes lokales MQTT** vom `heltec-gateway`
+  (`dogytag/<id>/{status,telemetry,lora,gps,ack,log,event}` an `192.168.0.80:1883`, Quellcode-Beleg
+  in `heltec-gateway/src/main.cpp` `publishStatus()`/`publishTelemetry()`/`publishLoraPacket()`) —
+  LoRaWAN-OTAA-Join ist laut eigener Firmware-Doku (`LORAWAN_INTEGRATION.md`,
+  `WORK_CONTINUATION_PLAN.md`, `BACKEND_CODES.md`: Readiness-Codes enden bei
+  `real-join-slot-pending`/`simulated-join`, kein „join-success") noch nicht implementiert. P5.1a/b
+  entsprechend korrigiert (MQTT-Pfad statt TTN, Payload bereits JSON vom Gateway selbst — kein
+  FRMPayload-Decoder mehr nötig, P5.1b von „lokal, nicht aus der Cloud lieferbar" auf „erledigt"
+  gesetzt), P5.2a bekam einen neuen, aber mit P5.3a kollidierenden Downlink-Kandidaten
+  (`dogytag/+/cmd`, von `heltec-gateway` bereits abonniert) als offene lokale Entscheidung. Zweiter
+  Fund, kleiner: `lorix_link.py` hat bereits einen fertigen, sauberen (Key via
+  Env/`secret_local.py`, kein Klartext) TTN-v3-HTTP-API-Client für Gateway-Status/Geräte-Flotte —
+  beantwortet P4.4a(1) vollständig, löst das dort bisher offene „JSON-/SNMP-Statusabfrage vs.
+  Web-UI"-Problem für die TTN-Sicht. Dritter Fund: `zigbee_link.py` spricht bereits ZNP/MT
+  (Z-Stack-Coordinator-Protokoll) mit dem CC2531, nicht Sniffer-Modus — P10.2c entsprechend
+  präzisiert (Coordinator-Image vorausgesetzt, keine rein hypothetische Option mehr). Alle drei
+  Dateien nur gelesen, `g4meover-deck` nicht verändert (kein Push-Recht, ohnehin nur additiv zu
+  korrigieren gewesen). Übliche Repo-Hygiene vorab: Git-Identität dieses Checkouts stand wieder auf
+  dem Cloud-Default, vor dem ersten Commit korrigiert; `HEAD`/lokaler `main`-Zeiger/`origin/main`
+  waren diesmal deckungsgleich (`b86bc4b`), keine Drift. Die 5 seit dem letzten Masterplan-Log-
+  Eintrag (`8db181b`, 2026-10-13) gelandeten Commits gegen diese Datei/`ecosystem/`/
+  `FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft: keine Überschneidung, dieselbe
+  separate Firmware-Mining-/App-Verbesserungs-Routine. `ecosystem/devices.json`/
+  `ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide gültig. Repo-Sichtbarkeit
+  von `g4meover-ecosystem` per GitHub-API geprüft: weiterhin `private`. Pi-SSH-/LORIX-
+  Zugangsdaten-Rotation (das andere, länger bekannte Credential-Thema) weiterhin unverändert offen
+  (seit 2026-08-27, jetzt 48 Tage) — keine erneute Push-Notification zu diesem einen Punkt ohne
+  neuen Sachstand (zuletzt am 2026-09-11 eskaliert; der heutige Fund ist ein anderes, neues
+  Credential-Problem in einem anderen Repo, verdient eine eigene Eskalation, siehe oben). Kein
+  Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1668,6 +1758,23 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    **neu bauen**, falls der Deck-Stand (zuletzt 2026-08-15, nie auf echtem Pi gelaufen) inzwischen
    veraltet ist. Ohne diese Entscheidung droht weiterhin doppelte Arbeit an denselben Problemen in
    zwei Repos.
+0a. **Neu (2026-10-14), zuerst zu erledigen — Sicherheitsrelevant:** `g4meover-deck/deck/
+   dogytag_link.py` hat Klartext-Default-Zugangsdaten (`BROKER_USER`/`BROKER_PASS`) direkt im
+   Quelltext eines **öffentlichen** Repos (siehe Risiken/Blocker unten). Erst prüfen, ob das
+   Passwort noch real gültig ist; falls ja, mosquitto-Broker-Passwort rotieren, dann den
+   Default-Fallback im Code auf das `secret_local.py`-Muster umstellen, das dasselbe Repo bei
+   `lorix_link.py`/`ukfe_rf.py` bereits richtig macht.
+0b. **Neu (2026-10-14), neues Repo `G4MEOVER18/dogytag-firmware` (public) gefunden und geprüft:**
+   enthält die tatsächliche DogyTag-Firmware (xiao-tag/heltec-tag/heltec-gateway/
+   cubecell-433modem) — bisher nirgends im Tracker erwähnt. Zentraler Fund: der reale
+   DogyTag-Datenpfad läuft **nicht** über TTN/LoRaWAN (das ist laut Firmware-Doku noch nicht
+   funktionsfähig — kein OTAA-Join implementiert), sondern direkt per lokalem MQTT vom
+   `heltec-gateway` (Topics `dogytag/<id>/{status,telemetry,lora,gps,ack,log,event}` an
+   `192.168.0.80:1883`) — exakt das, was `dogytag_link.py` bereits liest. P5.1/P5.2 oben
+   entsprechend korrigiert; lokal nur noch gegen die echten Feldnamen abgleichen (siehe P5.1b)
+   und die P5.2a-Downlink-Frage (`dogytag/+/cmd` wiederverwenden vs. P5.3a-Grenze) entscheiden.
+   Vor jeder weiteren Phase-5-Arbeit dieses Repo einmal überfliegen (README + die in P5.1a/b
+   zitierten Docs), bevor auf der alten TTN-Annahme weitergebaut wird.
 1. `ecosystem/devices.json` gegen echte Ports/MACs verifizieren (P0.2c) — die Prüfschritt-Liste
    unter P0.2c oben (Abschnitt 4) ist pro Gerät fertig (Befehl + Soll-MAC/VID:PID), inkl. der
    `jq`-Einzeiler zum Zurückschreiben von `verified_at`/`mac`/`usb_id` statt Hand-Editieren; nur
@@ -1705,7 +1812,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 47 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 48 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1847,7 +1954,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 47 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 48 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -1922,6 +2029,28 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     Mechanismus trifft, hier nur mit `scenario_runner.py` statt eines neu zu bauenden
     Event-Erzeugers) und P10.1/P10.2 (`zigbee_link.py` bereits vorhanden). Ich habe dabei nur
     gelesen, keine der Sibling-/Firmware-Repos verändert, committet oder gepusht.
+- **Sicherheitsrelevant, neu (2026-10-14), per Push-Notification eskaliert:** beim Gegenlesen von
+  `g4meover-deck/deck/dogytag_link.py` (Sibling-Repo, **public**, siehe oben) gefunden:
+  `BROKER_USER`/`BROKER_PASS` sind dort als `os.getenv(..., "yanis")` /
+  `os.getenv(..., "12345678")` definiert — also ein Klartext-Login (Benutzername **und** Passwort)
+  als **Default-Fallback direkt im Quelltext**, nicht hinter einer `.gitignore`d
+  `secret_local.py`, wie es dasselbe Repo bei den beiden anderen echten Geheimnissen
+  (`lorix_link.py`s `DOGYTAG_TTN_KEY`/`secret_local.TTN_KEY`, `ukfe_rf.py`s
+  `DEFAULT_SECRET`/`secret_local.SECRET`) konsequent vormacht — dort überschreibt das lokale,
+  ungetrackte Secret immer nur einen harmlosen Platzhalter, hier ist der Fallback-Wert selbst
+  bereits ein scharf aussehendes Zugangsdaten-Paar für den mosquitto-Broker
+  (`192.168.0.80:1883`), öffentlich einsehbar. Ob dieses Passwort aktuell noch real auf dem
+  Broker gültig ist, ist von hier aus nicht prüfbar (LAN-Adresse, aus der Cloud nicht erreichbar)
+  — aber unabhängig davon ist der Fund selbst schon ein Repo-Hygiene-Fehler nach demselben
+  Maßstab, den dieses Repo an anderer Stelle selbst anlegt (CONSTRAINTS Regel 3). Ich habe nichts
+  an `g4meover-deck` verändert (nur Lesezugriff, kein Push-Recht) — **lokal zu erledigen:**
+  (1) Broker-Passwort rotieren, falls `12345678`/`yanis` noch echte, gültige Zugangsdaten sind;
+  (2) in `dogytag_link.py` den Default-Fallback auf leere/`None`-Werte ändern (Muster wie bei
+  `lorix_link.py`/`ukfe_rf.py` übernehmen: echtes Passwort nur via Env oder `secret_local.py`),
+  damit kein künftiger Checkout versehentlich mit einem öffentlich bekannten Passwort verbindet.
+  Per Push-Notification an den User gemeldet, da neu und sicherheitsrelevant (anders als die
+  bereits bekannte, mehrfach eskalierte Pi-SSH/LORIX-Rotation unten, die ohne neuen Sachstand
+  nicht erneut eskaliert wird).
 - **Neu (2026-10-03), Repo-Hygiene:** wiederholt tritt Branch-Zeiger-Drift in diesem Checkout auf
   (siehe Log 2026-09-15/17/19/21/22/27/30 für die eine Richtung: lokaler `main`-Zeiger hinter
   `origin/main`). Diese Sitzung trat die **andere** Richtung auf: `HEAD` losgelöst 11 Commits
