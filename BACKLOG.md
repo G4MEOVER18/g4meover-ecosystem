@@ -6109,3 +6109,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-
       Phase-2-Integrationsschicht, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
       `g4meover-deck`s restliche Module) bleiben unverändert offen.
+
+## Ideen-Recherche: PINGEQUA RF Lab — 2,4-GHz-Spektrumanalysator (neue Kategorie)
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (SubGHz "Add
+      Manually" Security+-2.0-Transmitter-Leak), davor App-Verbesserung (`g4meover-deck`
+      dogytag_link.py) und Ideen-Recherche (Sobe) — nach dem etablierten Rotationsmuster war
+      Ideen-Recherche wieder an der Reihe. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer bislang komplett fehlenden Kategorie gesucht: ein eigener
+      2,4-GHz-Breitband-Spektrumüberblick, Gegenstück zum bereits katalogisierten
+      Sub-GHz-`Frequency Analyzer+` — die bestehenden nRF24-Einträge
+      (`ideas/nrf24-sniffer-mousejack-api-status.md`) decken nur Sniffing/Mousejack/
+      Kanal-Diagnose auf Protokollebene ab, keinen visuellen Spektrum-Scan. **PINGEQUA RF Lab**
+      (`pingequalab/rf-lab`, MIT, Hersteller-FAP zum eigenen PINGEQUA-2-in-1-Board) gefunden und
+      vollständig gelesen (4770 Zeilen über 29 Dateien: Chip-Arbiter, nRF24-Register-Layer,
+      CC1101-Minimaltreiber, Board-Erkennung, Scanner-/Signalgenerator-Szenen, Settings-/
+      Log-Persistenz, About-Screen). Aktiv gepflegt, aktueller Release-Tag `v0.5.4`.
+- [x] API-87-Status gegen einen frischen, blobfreien Sparse-Checkout von `G4MEOVER18/G4MEOVER-FW`
+      (Tag `v2.0.0`, Commit `b359f6f`) verifiziert: alle drei vom Chip-Arbiter angesteuerten
+      GPIO-Pins (`gpio_ext_pa4`/`_pb2`/`_pc3`) sowie `furi_hal_spi_bus_handle_external` samt
+      aller sechs genutzten SPI-HAL-Funktionen (`_handle_init`/`_deinit`, `_acquire`/`_release`,
+      `furi_hal_spi_bus_trx`) byteidentisch vorhanden — dasselbe bereits mehrfach verifizierte
+      Muster wie bei SPI Flash Dump/SWD Probe/i2c Tools/CAN Transceiver. Der Chip-Arbiter
+      dokumentiert im eigenen Kommentarkopf zudem einen bereits selbst behobenen
+      API-Kompatibilitätsfund (`v0.2.1`: nicht exportiertes
+      `furi_hal_spi_bus_handle_external_extra`-Handle, seit `v0.2.2` durch das öffentliche
+      `furi_hal_spi_bus_handle_external` plus manuell verwaltete CS-Pins ersetzt).
+- [x] **Fund**: der dreiseitige About-Screen (`views/about_view.c::draw_page_brand()`) zeigt die
+      App-Version als festen Literal-String `"v0.5.3"` an. Per `git log -- views/about_view.c`
+      auf den `v0.5.3`-Release-Commit (`16e6752`) zurückverfolgt, seitdem nicht mehr
+      aktualisiert — der nachfolgende `v0.5.4`-Release-Commit (`312e6a0`, laut `CHANGELOG.md`
+      ein echter Funktionsfix der Signalgenerator-Bus-Arbitrierung) hat `application.fam`s
+      `fap_version` auf `(0, 5, 4)` angehoben, die einzige Versions-String-Stelle im gesamten
+      Quellbestand aber übersehen (per `grep` über alle Dateien bestätigt: keine andere Datei
+      trägt eine Versionsnummer). Gegen das tatsächlich ausgelieferte
+      `dist/v0.5.4/pingequa_rf_toolkit.fap`-Binary verifiziert: `strings … | grep -i "v0.5"`
+      liefert ausschließlich `v0.5.3` — die aktuell veröffentlichte `.fap`-Datei zeigt auf dem
+      Gerät also eine Versionsnummer, die bereits eine Veröffentlichung hinter der tatsächlich
+      installierten liegt. Reiner Informationsfund (irreführende Selbstauskunft beim
+      Support/Debugging), kein Funktions-/Sicherheitsrisiko — Scanner und Signalgenerator selbst
+      sind von diesem String vollständig unberührt.
+- [x] Fix (additiv, eine Zeile): `"v0.5.3"` → `"v0.5.4"` in `draw_page_brand()`. Patch
+      (`about_view_c.patch`) gegen zwei frische, unabhängige Zweitkopien von `pingequalab/rf-lab`
+      mit `git apply --check` verifiziert, real angewendet, byte-für-byte abgeglichen —
+      identisch.
+- [x] Details, Fund, Fix, Testhinweis, Quelle, Sicherheitsrahmen in
+      `ideas/pingequa-rf-lab-2in1-app-status.md` (Patch in
+      `ideas/pingequa-rf-lab-stale-about-version-fix/about_view_c.patch`).
+      `ideas/pentest-app-katalog.md` um die neue Katalog-Zeile (Kategorie "2.4G / BLE") sowie
+      einen Log-Eintrag unter "Nächste Recherche-Aufträge" ergänzt.
+- [ ] Lokal zu tun: Patch gegen die eigene `views/about_view.c` anwenden, mit `ufbt launch` neu
+      bauen. Funktionstest: `Apps → GPIO → PINGEQUA RF Lab → About`, erste Seite zeigt jetzt
+      `v0.5.4` statt `v0.5.3` — Scanner/Signalgenerator/Export/Settings-Persistenz unverändert,
+      da der Patch ausschließlich diese eine Zeichenkette betrifft. Zusätzliche Hardware
+      (PINGEQUA-2-in-1-Board) für den eigentlichen Funktionstest von Scanner/Signalgenerator
+      selbst weiterhin erforderlich, unabhängig von diesem kosmetischen Fix.
+- [ ] Die übrigen seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht, neun
+      verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, `g4meover-deck`s restliche Module,
+      SubGHz "safe exit on unknown preset" (zurückgestellter größerer Teil desselben
+      Upstream-Commits)) bleiben unverändert offen.
