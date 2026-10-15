@@ -1734,6 +1734,34 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   neuen Sachstand (zuletzt am 2026-09-11 eskaliert; der heutige Fund ist ein anderes, neues
   Credential-Problem in einem anderen Repo, verdient eine eigene Eskalation, siehe oben). Kein
   Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-10-15 (Cloud-Heartbeat): statt einer weiteren, reinen Wiederholungsrunde an denselben drei
+  vordersten TODOs (P0.2c/d, P0.3a-d, P0.4e/f — seit 2026-10-05 wiederholt als ohne Mehrwert
+  vermerkt) einen echten Doku-Konsistenzfund geschlossen: die am 2026-10-14 per Push-Notification
+  eskalierte `dogytag_link.py`-Klartext-Credential-Lücke (PREP 0a, Risiken/Blocker) hat die
+  separate App-Verbesserungs-Routine dieses Repos inzwischen als fertigen, zweifach gegen frische
+  Zweitkopien verifizierten Patch samt hardwarefreiem Repro abgeliefert
+  ([`app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md`](app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md),
+  Commit `13abd45`) — der Masterplan führte den Punkt bis eben noch als unbearbeitet. PREP 0a und
+  die zugehörige Risiken/Blocker-Notiz entsprechend aktualisiert: Code-Teil erledigt, nur noch
+  lokal zu entscheiden/auszuführen bleibt (1) Passwort-Gültigkeits-Check/Rotation und (2) das
+  Anwenden des Patches gegen `g4meover-deck` selbst (dieses Repo hat dort kein Push-Recht). Übliche
+  Repo-Hygiene vorab: Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default, vor dem
+  ersten Commit auf `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert; lokaler `main`-Zeiger
+  lag 11 Commits hinter `origin/main`/`HEAD` zurück (dieselbe Drift-Richtung wie an den meisten
+  Vortagen) — per `git checkout -B main HEAD` nachgezogen, kein Datenverlust (reiner Fast-Forward,
+  `origin/main` unverändert). Die 11 seit dem letzten Masterplan-Log-Eintrag (`b86bc4b`,
+  2026-10-14) gelandeten Commits gezielt gegen diese Datei/`ecosystem/`/`FLEET-COMMANDS.md`/
+  `CONSTRAINTS.md`/`WORKFLOW.md` geprüft: keine Überschneidung außer dem oben verarbeiteten
+  `13abd45`-Fund, Rest dieselbe separate Firmware-Mining-/App-Verbesserungs-/Ideen-Recherche-
+  Routine. `ecosystem/devices.json`/`ecosystem/topology.json` Syntax erneut per `json.load`
+  geprüft: beide gültig. Repo-Sichtbarkeit (`g4meover-ecosystem`) per GitHub-API geprüft:
+  weiterhin `private`. Pi-SSH-/LORIX-Zugangsdaten-Rotation (das längere, andere Credential-Thema)
+  weiterhin unverändert offen (seit 2026-08-27, jetzt 49 Tage) — keine erneute Push-Notification
+  ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; der heutige Fund betrifft das andere,
+  bereits am 2026-10-14 separat eskalierte Credential-Thema und ist jetzt mit Fix-Vorschlag
+  versehen, keine neue Eskalation nötig). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben (der verlinkte Patch stammt aus der separaten
+  App-Verbesserungs-Routine, nicht aus dieser Sitzung).
 
 ## PREP für nächste lokale Session
 
@@ -1758,12 +1786,19 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    **neu bauen**, falls der Deck-Stand (zuletzt 2026-08-15, nie auf echtem Pi gelaufen) inzwischen
    veraltet ist. Ohne diese Entscheidung droht weiterhin doppelte Arbeit an denselben Problemen in
    zwei Repos.
-0a. **Neu (2026-10-14), zuerst zu erledigen — Sicherheitsrelevant:** `g4meover-deck/deck/
-   dogytag_link.py` hat Klartext-Default-Zugangsdaten (`BROKER_USER`/`BROKER_PASS`) direkt im
-   Quelltext eines **öffentlichen** Repos (siehe Risiken/Blocker unten). Erst prüfen, ob das
-   Passwort noch real gültig ist; falls ja, mosquitto-Broker-Passwort rotieren, dann den
-   Default-Fallback im Code auf das `secret_local.py`-Muster umstellen, das dasselbe Repo bei
-   `lorix_link.py`/`ukfe_rf.py` bereits richtig macht.
+0a. **Seit 2026-10-14 offen, Code-Teil seit 2026-10-15 erledigt — Sicherheitsrelevant, Rest nur
+   lokal:** `g4meover-deck/deck/dogytag_link.py` hatte Klartext-Default-Zugangsdaten
+   (`BROKER_USER`/`BROKER_PASS`) direkt im Quelltext eines **öffentlichen** Repos (siehe
+   Risiken/Blocker unten). Die separate App-Verbesserungs-Routine dieses Repos hat dafür
+   inzwischen einen fertigen, verifizierten Patch-Vorschlag abgeliefert:
+   [`app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md`](app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md)
+   (neue `_creds()`-Funktion nach dem `lorix_link.py`-Muster: Env zuerst, dann gitignoretes
+   `secret_local.py`, sonst kein `username_pw_set()`-Aufruf mehr — kein Klartext-Fallback mehr).
+   Nur noch lokal zu erledigen, da dieses Repo kein Push-Recht auf `g4meover-deck` hat: (1) prüfen,
+   ob `yanis`/`12345678` noch ein real gültiges Broker-Passwort ist; falls ja, zuerst rotieren;
+   (2) den verlinkten Patch gegen `g4meover-deck` anwenden (oder per PR eigenständig öffnen); (3)
+   `secret_local.py`/Env mit den echten Zugangsdaten befüllen, danach `detect()`/`snapshot()`
+   gegenprüfen (siehe Testhinweis in der verlinkten Datei).
 0b. **Neu (2026-10-14), neues Repo `G4MEOVER18/dogytag-firmware` (public) gefunden und geprüft:**
    enthält die tatsächliche DogyTag-Firmware (xiao-tag/heltec-tag/heltec-gateway/
    cubecell-433modem) — bisher nirgends im Tracker erwähnt. Zentraler Fund: der reale
@@ -2051,6 +2086,10 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Per Push-Notification an den User gemeldet, da neu und sicherheitsrelevant (anders als die
   bereits bekannte, mehrfach eskalierte Pi-SSH/LORIX-Rotation unten, die ohne neuen Sachstand
   nicht erneut eskaliert wird).
+  - **Ergänzt (2026-10-15):** Punkt (2) ist jetzt vorbereitet statt nur gefordert — fertiger,
+    gegen zwei frische Zweitkopien verifizierter Patch samt hardwarefreiem Repro in
+    [`app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md`](app-improvements/g4meover-deck/dogytag-link-hardcoded-credentials-fix.md).
+    Punkt (1) (Passwort-Gültigkeit/Rotation) bleibt unverändert nur lokal prüfbar — siehe PREP 0a.
 - **Neu (2026-10-03), Repo-Hygiene:** wiederholt tritt Branch-Zeiger-Drift in diesem Checkout auf
   (siehe Log 2026-09-15/17/19/21/22/27/30 für die eine Richtung: lokaler `main`-Zeiger hinter
   `origin/main`). Diese Sitzung trat die **andere** Richtung auf: `HEAD` losgelöst 11 Commits
