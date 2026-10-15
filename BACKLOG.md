@@ -6171,3 +6171,74 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, `g4meover-deck`s restliche Module,
       SubGHz "safe exit on unknown preset" (zurückgestellter größerer Teil desselben
       Upstream-Commits)) bleiben unverändert offen.
+
+## App-Verbesserung: g4meover-deck — zigbee_link.py verwechselt AREQ mit SRSP-Antwort
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (PINGEQUA RF Lab), davor
+      Firmware-Feature-Mining (SubGHz "Add Manually" Security+-2.0-Transmitter-Leak) und
+      App-Verbesserung (`g4meover-deck` dogytag_link.py) — nach dem etablierten
+      Rotationsmuster (Ideen → App → Firmware → Ideen → App → ...) war App-Verbesserung für
+      diese Sitzung an der Reihe. Git-Identität vor dem ersten Commit gesetzt (`G4MEOVER18
+      <g4me.over.18@gmail.com>`).
+- [x] Frische, unabhängige Zweitkopie von `G4MEOVER18/g4meover-deck` (main, weiterhin Commit
+      `b030e45`) geklont. Statt eines der bereits zweimal gefundenen Zähler-Race-Fälle
+      (`satellite_link.py`) eines der in `dogytag-link-hardcoded-credentials-fix.md` als
+      Rückstellpunkt benannten, noch komplett ungeprüften Module aufgegriffen:
+      `device_discovery.py`, `handshake_capture.py` und `hackrf_link.py` vollständig
+      gelesen (reine Wrapper um CLI-Tools/pyserial, Eingabe konsequent geklemmt bzw. per
+      `subprocess.run()` mit Argument-Liste statt Shell — kein Fund), `wpa_crack.py`
+      vollständig gelesen (Hashcat-/hcxpcapngtool-Pipeline, Feldindizes stimmen mit der
+      eigenen Formatdokumentation überein, keine Shell-Injektion — kein Fund), danach
+      `zigbee_link.py` (CC2531-Koordinator über TI-Z-Stack-ZNP/MT) vollständig gelesen.
+- [x] **Fund** in `zigbee_link.py::ZigbeeLink._sreq()`: das ZNP-Rahmenformat kodiert den
+      Frame-Typ in den oberen drei Bit von CMD0 (SREQ `0x20`, SRSP `0x60`, AREQ `0x40`) —
+      die eigene Kopfzeilen-Dokumentation belegt das bereits selbst
+      ("SYS_PING -> fe 02 61 01 79 01 1a", CMD0=`0x61` = SRSP, während das gesendete SREQ
+      laut `SYS_PING = (0x21, 0x01)` CMD0=`0x21` trägt). `_sreq()` liest nach dem Senden
+      aber einfach den ersten auf `SOF` folgenden Frame vom Draht und hält ihn für die
+      Antwort, ohne CMD0/CMD1 gegen die erwartete SRSP-Signatur zu prüfen. Ein
+      Z-Stack-Koordinator sendet jederzeit unaufgeforderte AREQs (`SYS_RESET_IND`,
+      `ZDO_STATE_CHANGE_IND`, `AF_INCOMING_MSG`, Device-Announce) — läuft eine solche der
+      echten SRSP voraus, liest `ping()`/`version()` deren Nutzdaten als falsches, aber
+      plausibel aussehendes Ergebnis, ohne jede Fehlermeldung; die echte SRSP bleibt
+      unverarbeitet im Puffer und wird erst vom nächsten Aufruf verworfen.
+- [x] Fix (additiv, zwei neue Zeilen): erwartetes SRSP-CMD0 aus dem gesendeten Kommando
+      berechnet (`(cmd[0] & 0x1F) | 0x60`), vor der bestehenden Rückgabe gegen CMD0/CMD1 des
+      eingetroffenen Frames geprüft — bei Nichtübereinstimmung wird der Frame verworfen und
+      innerhalb des bestehenden Zeitbudgets weitergelesen statt ihn ungeprüft
+      zurückzugeben. Patch (`zigbee_link_py.patch`) gegen zwei frische, unabhängige
+      Zweitkopien mit `git apply --check` verifiziert, real angewendet, byte-für-byte
+      abgeglichen — identisch.
+- [x] Host-Repro (`repro.py`, `_frame()`/`_sreq()` ALT/NEU 1:1 transkribiert, `MockSerial`
+      bildet nur das von `_sreq()` genutzte pyserial-Teilinterface nach, kein echtes
+      CC2531/Serial nötig): acht Szenarien — Regression ohne Störung (ALT=NEU), der
+      eigentliche Fund (AREQ vor echter SRSP: ALT liefert die AREQ-Nutzdaten als falsche
+      Antwort, NEU verwirft sie und liefert die echte SRSP), nur AREQ ohne nachfolgende
+      SRSP (ALT meldet fälschlich Erfolg, NEU korrekt `None`), mehrere AREQs hintereinander,
+      ein anderes Kommando (`SYS_VERSION`) sowie eine fremde SRSP für ein anderes Kommando
+      (beide von NEU korrekt verworfen bzw. gefunden), ein Äquivalenztest über 20
+      Antwortlängen ohne Störung — 29/29 Einzelprüfungen bestanden, ALLE CHECKS BESTANDEN.
+- [x] Details, Fund, Fix, Host-Repro, Risiko, Testhinweis, Quelle in
+      `app-improvements/g4meover-deck/zigbee-link-sreq-areq-confusion-fix.md` (Patch in
+      `app-improvements/g4meover-deck/zigbee-link-sreq-areq-confusion-fix/zigbee_link_py.patch`,
+      Host-Repro in
+      `app-improvements/g4meover-deck/repro-zigbee-link-sreq-areq-confusion/repro.py`).
+- [ ] Lokal zu tun: Patch gegen die eigene `zigbee_link.py` anwenden. Funktionstest: CC2531
+      am Pi anschließen, `ZigbeeLink(port).info()` wiederholt aufrufen während aktivem
+      Netzwerkbetrieb (z. B. während ein weiteres Zigbee-Gerät joint) — vor dem Fix können
+      einzelne Aufrufe sporadisch ein plausibel aussehendes, aber falsches
+      `capabilities`-Bitmuster liefern, nach dem Fix bleibt `info()` entweder korrekt oder
+      liefert `reachable: False`/`None` statt einer falschen Antwort. Ohne eingehende AREQs
+      (ruhiger Bus) unverändertes Verhalten vor/nach dem Fix.
+- [ ] Bewusst nicht mitgefixt (eigener, kleinerer Rückstellpunkt): `_sreq()` prüft weiterhin
+      nicht die FCS der eingehenden Antwort selbst — dieser Patch behebt ausschließlich die
+      Typverwechslung zwischen SRSP und AREQ. `g4meover-deck` weiterhin nicht vollständig
+      durchgesehen (`flipper_link.py` dünner Wrapper, bereits überflogen, aber nicht Zeile für
+      Zeile als eigenständiger Fund-Kandidat geprüft; `deck_ctl.py`/`deck_daemon.py`/
+      `scenario_runner.py`/`lorix_link.py`/`ukfe_rf.py` als Aufrufer/Kernmodule bereits an
+      anderer Stelle mitgeprüft). Die übrigen seit längerem zurückgestellten Backlog-Punkte
+      (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`,
+      Hitag-S-Phase-2-Integrationsschicht, neun verbleibende FeliCa-Multisystem-Teilfixe aus
+      PR #4465, SubGHz "safe exit on unknown preset") bleiben unverändert offen.

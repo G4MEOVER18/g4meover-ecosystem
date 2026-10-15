@@ -1,0 +1,29 @@
+diff --git a/deck/zigbee_link.py b/deck/zigbee_link.py
+index 22f5ff4..3952f1f 100644
+--- a/deck/zigbee_link.py
++++ b/deck/zigbee_link.py
+@@ -47,10 +47,14 @@ class ZigbeeLink:
+     def __exit__(self, *a): self.close()
+ 
+     def _sreq(self, cmd, data: bytes = b"", timeout: float = 1.5):
+-        """Sendet SREQ, liest die SRSP-Nutzdaten (oder None)."""
++        """Sendet SREQ, liest die SRSP-Nutzdaten (oder None). Verwirft dabei
++        unverlangte AREQ-Frames (z. B. ZDO_STATE_CHANGE_IND/SYS_RESET_IND, die
++        der Koordinator jederzeit unaufgefordert senden kann), statt sie
++        faelschlich als Antwort auf dieses SREQ zu lesen."""
+         assert self._s
+         self._s.reset_input_buffer()
+         self._s.write(_frame(cmd[0], cmd[1], data))
++        expect_cmd0 = (cmd[0] & 0x1F) | 0x60  # SREQ -> SRSP: Typ-Bits ersetzen, Subsystem gleich
+         end = time.time() + timeout
+         # auf SOF synchronisieren
+         while time.time() < end:
+@@ -63,6 +67,8 @@ class ZigbeeLink:
+                 payload = self._s.read(ln + 1)  # DATA + FCS
+                 if len(payload) < ln + 1:
+                     return None
++                if hdr[1] != expect_cmd0 or hdr[2] != cmd[1]:
++                    continue  # Fremd-Frame (z.B. AREQ) -- weiter auf die echte SRSP warten
+                 return payload[:ln]
+         return None
+ 
