@@ -6242,3 +6242,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`,
       Hitag-S-Phase-2-Integrationsschicht, neun verbleibende FeliCa-Multisystem-Teilfixe aus
       PR #4465, SubGHz "safe exit on unknown preset") bleiben unverändert offen.
+
+## Firmware-Feature-Mining: SubGHz "safe exit on unknown preset" (zurückgestellter Teil von e1ebaa3)
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      App-Verbesserung (`g4meover-deck` `zigbee_link.py`), davor Ideen-Recherche (PINGEQUA RF
+      Lab), davor Firmware-Feature-Mining (SubGHz Security+-2.0-Transmitter-Leak) — nach dem
+      etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war
+      Firmware-Feature-Mining für diese Sitzung an der Reihe. Git-Identität vor dem ersten
+      Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Den in `secplus-v2-manual-gen-transmitter-leak-fix.md` benannten Rückstellpunkt
+      aufgegriffen: den größeren, zurückgestellten Teil von Unleashed-Commit `e1ebaa3`
+      ("SubGHz: safe exit on unknown preset, fix Security+ 2.0 transmitter leak"). Frische,
+      unabhängige Zweitkopie von `DarkFlippers/unleashed-firmware` (`dev`-Branch, Tiefe 30)
+      geklont — weiterhin derselbe Commit, kein neuerer Stand seitdem. Vollständigen Diff
+      erneut gelesen: `subghz_setting_get_inx_preset_by_name()` wechselt von `furi_crash()`
+      auf einen regulären `-1`-Rückgabewert, vier Aufrufer (direkt oder über
+      `subghz_setting_get_preset_data_by_name()`) werden entsprechend auf den neuen
+      Fehlerfall angepasst.
+- [x] Gegen eine frische, unabhängige `G4MEOVER-FW`-Zweitkopie (`mntm-012`, Tag `v2.0.0`,
+      Commit `b359f6f`) verifiziert: die fünf betroffenen Dateien existieren alle, haben sich
+      im Rahmen (Frequenzlisten/Regionen in `subghz_setting.c`, `tx_from_internal_fff` in
+      `subghz_txrx.c`) zwar an anderen Stellen bereits vom geprüften Unleashed-Vorher-Stand
+      (`e1ebaa3^`) entfernt — die jeweils betroffenen Funktionen/Codeblöcke selbst
+      (`subghz_setting_get_inx_preset_by_name()`, `subghz_setting_get_preset_data_by_name()`,
+      der Preset-Datenblock in `subghz_txrx_tx_start()`, `subghz_txrx_rx_start()` komplett,
+      der `preset_index`-Block in `subghz_key_load()` und in
+      `subghz_scene_receiver_config_var_list_enter_callback()`) sind byte-identisch zum
+      Unleashed-Vorher-Stand. Per `grep` über den gesamten Quellbestand zusätzlich bestätigt:
+      keine weiteren, hier nicht behandelten Aufrufer der beiden geänderten Funktionen.
+- [x] Fünf additive Patches erstellt (keine zwei überlappen sich): `furi_crash()` →
+      `FURI_LOG_E()` plus `-1`-Rückgabe in `subghz_setting_get_inx_preset_by_name()`;
+      `NULL`-Prüfung vor dem Array-Zugriff in `subghz_setting_get_preset_data_by_name()`;
+      Doc-Kommentare in `subghz_setting.h`; `preset_data`-Zwischenvariable plus
+      `NULL`-Prüfung in `subghz_txrx_tx_start()`/`subghz_txrx_rx_start()`
+      (`subghz_txrx.c`); `size_t` → `int` plus `-1`-Abbruch in `subghz_key_load()`
+      (`subghz_i.c`, identisches `break`-Muster wie die zehn bereits vorhandenen
+      Fehlerpfade derselben Funktion); Default-Index-Fallback in
+      `subghz_scene_receiver_config_var_list_enter_callback()`. Alle fünf Patches gegen
+      zwei frische, unabhängige Zweitkopien mit `git apply --check` verifiziert, real
+      angewendet, byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`repro.c`, `subghz_setting_get_inx_preset_by_name()`/
+      `subghz_setting_get_preset_data_by_name()` sowie stellvertretend für die vier echten
+      Aufrufer das `subghz_txrx_rx_start()`-Muster ALT/NEU nebeneinander, `furi_crash()`
+      exakt wie im bestehenden `stub_furi_crash.c`-Muster dieses Repos durch `_exit(42)`
+      nachgebildet): unter
+      `gcc -std=c11 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: bekannter Preset-Name liefert in ALT und NEU identisch Exit 0 (RX
+      gestartet); unbekannter Preset-Name löst in ALT `furi_crash()` aus (Exit 42, Prozess
+      stirbt), in NEU wird der Fehler geloggt und der Vorgang kontrolliert abgebrochen
+      (Exit 0, Prozess bleibt am Leben) — vier aufeinanderfolgende Läufe je Kombination
+      deterministisch reproduziert, keine Compiler-/Sanitizer-Warnungen in beiden Stufen.
+- [x] Details, Fund, Fix, Risiko, Port-Skizze, Testhinweis, Host-Repro, Quelle in
+      `firmware-mining/subghz-safe-exit-unknown-preset.md` (fünf Patches in
+      `firmware-mining/subghz-safe-exit-unknown-preset/`, Host-Repro in
+      `firmware-mining/repro-subghz-safe-exit-unknown-preset/`). Damit ist der gesamte
+      Inhalt von Unleashed-Commit `e1ebaa3` jetzt vollständig in diesem Repo erfasst (beide
+      Teile portiert).
+- [ ] Lokal zu tun: alle fünf Patches gegen die eigene Firmware anwenden (Reihenfolge
+      unabhängig, keine Überlappung), mit `ufbt`/`fbt firmware_all` bauen. Funktionstest:
+      eine gespeicherte `.sub`-Datei nehmen, das `Preset:`-Feld auf einen erfundenen Namen
+      setzen, zurück nach `SubGHz/` kopieren und im SubGHz-App-Hauptmenü öffnen — vor dem
+      Fix stürzt die Firmware beim Öffnen/Senden ab (Reset), nach dem Fix erscheint ein
+      Fehler-Log-Eintrag, die App bleibt bedienbar. Für alle regulären, mit real
+      existierenden Presets gespeicherten Dateien funktional unverändert vor/nach dem Fix.
+- [ ] Die übrigen seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht, neun
+      verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, `g4meover-deck`s restliche
+      Module (`flipper_link.py`-Bestätigung)) bleiben unverändert offen.
