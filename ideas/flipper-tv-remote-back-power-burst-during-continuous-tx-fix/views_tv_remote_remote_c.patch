@@ -1,0 +1,19 @@
+diff --git a/views/tv_remote_remote.c b/views/tv_remote_remote.c
+index 3bed479..0eead3d 100644
+--- a/views/tv_remote_remote.c
++++ b/views/tv_remote_remote.c
+@@ -464,6 +464,14 @@ static void tv_remote_remote_update_model(
+ /* ---- Brief IR burst (for Back / Power single-shot) ---- */
+ 
+ static void tv_remote_ir_burst(TvRemoteApp* app, uint8_t button_index) {
++    /* A burst (Back/Power, or a non-continuous hold action) must always win
++     * over an already-running continuous-hold TX for a different button --
++     * otherwise tv_remote_tx_start()'s worker_active guard below silently
++     * no-ops, and the code that follows stops the *old* transmission early
++     * without ever having sent the one the caller actually asked for. */
++    if(app->worker_active && app->remote_selected != button_index) {
++        tv_remote_tx_stop(app);
++    }
+     tv_remote_tx_start(app, button_index);
+     if(app->tx_active) {
+         furi_delay_ms(IR_BURST_MS);

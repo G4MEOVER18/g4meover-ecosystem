@@ -6312,3 +6312,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht, neun
       verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, `g4meover-deck`s restliche
       Module (`flipper_link.py`-Bestätigung)) bleiben unverändert offen.
+
+## Ideen-Recherche: TV Remote (jmanion0139) — neue Kategorie "Infrarot (Fernbedienung)"
+- [x] `reports/` durchgesehen: letzte Sitzung (`2026-10-15-1228.md`) war Firmware-Feature-Mining
+      (SubGHz "safe exit on unknown preset", zurückgestellter Teil von `e1ebaa3`), davor
+      App-Verbesserung (`g4meover-deck` zigbee_link.py) und Ideen-Recherche (PINGEQUA RF Lab) —
+      nach dem etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → Ideen → ...) war
+      Ideen-Recherche für diese Sitzung an der Reihe. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer bislang komplett fehlenden Kategorie gesucht: eine eigene
+      Infrarot-Fernbedienungs-App, Gegenstück zur bisher nur über Gegenüberwachung (Nyx/Sobe)
+      abgedeckten IR-Erkennungsseite. **TV Remote** (`jmanion0139/flipper_tv_remote`, GPL-3.0,
+      Tag `v1.1`, Commit `9ce9d3e`) gefunden und vollständig gelesen (2390 Zeilen über sechs
+      Quelldateien: App-Lebenszyklus/Dateiformat, Lern-Ansicht, Fernbedienungs-Ansicht).
+- [x] API-87-Status gegen einen frischen, blobfreien Sparse-Checkout von `G4MEOVER18/G4MEOVER-FW`
+      (Tag `v2.0.0`, Commit `b359f6f`, `lib/infrared`/`lib/flipper_format`/`lib/toolbox`)
+      verifiziert: alle genutzten `infrared_worker_*`/`infrared_get_protocol_*`/
+      `flipper_format_*`/`saved_struct_*`-Symbole byteidentisch vorhanden — reine GUI-/
+      Infrarot-/Storage-API, kein Erweiterungsport, kein Zusatzmodul nötig (nur eingebauter
+      IR-Blaster/-Empfänger).
+- [x] **Fund**: `tv_remote_ir_burst()` (`views/tv_remote_remote.c`) ruft `tv_remote_tx_start()`
+      und prüft danach pauschal `app->tx_active`, ohne zu unterscheiden, ob der Start tatsächlich
+      für die angeforderte Taste gegriffen hat oder wegen des `worker_active`-Guards sofort
+      abgebrochen wurde. Ist bei aktiver Einstellung "Hold TX: Continuous" bereits eine
+      Dauer-Halten-Sendung für eine andere Taste aktiv (z. B. Up gehalten → Vol_up-Dauersendung),
+      bricht ein Back-Tipp oder ein per Doppeltipp ausgelöster Power-Befehl diese zwar vorzeitig
+      ab, sendet dabei aber selbst nie das angeforderte Signal — obwohl die UI es bereits als
+      ausgelöst (Ring eingefärbt) anzeigt. Kein konstruierter Randfall: mit aktiviertem
+      "Continuous"-Modus ist "während des Lautstärke-/Senderkanal-Haltens zu Back/Power
+      wechseln, ohne vorher loszulassen" eine naheliegende Bediensituation.
+- [x] Fix (additiv, in `tv_remote_ir_burst()`): vor dem eigentlichen Start eine bereits für eine
+      ANDERE Taste laufende Übertragung explizit über das vorhandene `tv_remote_tx_stop()`
+      beenden, bevor `tv_remote_tx_start()` für die neue Taste aufgerufen wird. Patch gegen zwei
+      frische, unabhängige Zweitkopien mit `git apply --check` verifiziert, real angewendet,
+      byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`repro.c`): `tv_remote_tx_start()`/`_tx_stop()`/`_ir_burst()` 1:1 aus dem
+      Quelltext übernommen (IR-Hardware-Aufrufe durch einen Sende-Log-Zähler ersetzt). Vier
+      Szenarien (Regression, Back während laufendem Continuous-Hold, Power-Doppeltipp während
+      laufendem Continuous-Hold, Äquivalenztest für den praktisch unerreichbaren Gleichtasten-Fall)
+      unter `gcc -fsanitize=address,undefined` bei `-O0`/`-O1`: ALT sendet in beiden
+      Fund-Szenarien nachweislich 0 Back-/Power-Signale, NEU sendet in beiden Fällen korrekt —
+      ALLE CHECKS BESTANDEN in beiden Stufen, keine Compiler-/Sanitizer-Warnungen.
+- [x] Details, Fund, Fix, Host-Repro, Testhinweis, Quelle, Sicherheitsrahmen in
+      `ideas/flipper-tv-remote-app-status.md` (Patch in
+      `ideas/flipper-tv-remote-back-power-burst-during-continuous-tx-fix/
+      views_tv_remote_remote_c.patch`, Host-Repro in
+      `ideas/repro-flipper-tv-remote-back-power-burst-during-continuous-tx/repro.c`).
+      `ideas/pentest-app-katalog.md` um die neue Kategorie "Infrarot (Fernbedienung)" sowie einen
+      Log-Eintrag unter "Nächste Recherche-Aufträge" ergänzt.
+- [ ] Lokal zu tun: Patch gegen die eigene Kopie von `flipper_tv_remote` anwenden, mit `ufbt`
+      bauen. Funktionstest: Settings → "Hold TX: Continuous" aktivieren, eine gelernte
+      Fernbedienung öffnen, eine D-Pad-Richtung gedrückt HALTEN (löst die Dauer-Sendung der
+      Hold-Aktion aus), währenddessen kurz auf Back tippen — vor dem Fix bricht die
+      Dauer-Sendung ab, ohne dass am Zielgerät ein Back-Befehl ankommt; nach dem Fix wird Back
+      tatsächlich gesendet. Mit "Hold TX: Single" (Standard) nicht reproduzierbar.
+- [ ] Die übrigen seit längerem zurückgestellten Backlog-Punkte (NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, `texkom`/`hitagmicro.c`, Hitag-S-Phase-2-Integrationsschicht, neun
+      verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, `g4meover-deck`s restliche
+      Module (`flipper_link.py`-Bestätigung), SubGHz "safe exit on unknown preset"
+      (zurückgestellter größerer Teil desselben Upstream-Commits, inzwischen vollständig
+      portiert)) bleiben unverändert offen.
