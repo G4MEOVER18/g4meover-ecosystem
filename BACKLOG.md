@@ -6374,3 +6374,70 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Module (`flipper_link.py`-Bestätigung), SubGHz "safe exit on unknown preset"
       (zurückgestellter größerer Teil desselben Upstream-Commits, inzwischen vollständig
       portiert)) bleiben unverändert offen.
+
+## App-Verbesserung: g4meover-deck — flipper_link.py::find_flipper() akzeptiert im Fallback jedes ttyACM*-Gerät ungeprüft
+
+- [x] `reports/` durchgesehen: letzte Sitzung (`2026-10-15-1827.md`) war Ideen-Recherche
+      (TV Remote, neue Kategorie "Infrarot (Fernbedienung)"), davor Firmware-Feature-Mining
+      (SubGHz "safe exit on unknown preset") und App-Verbesserung (`g4meover-deck`
+      zigbee_link.py) — nach dem etablierten Rotationsmuster (Firmware → Ideen → App →
+      Firmware → ...) war App-Verbesserung für diese Sitzung an der Reihe. Git-Identität vor
+      dem ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Frische, unabhängige Zweitkopie von `G4MEOVER18/g4meover-deck` (main, weiterhin Commit
+      `b030e45`) geklont. Statt eines erneuten Durchlaufs über bereits mehrfach geprüfte
+      Module den in `zigbee-link-sreq-areq-confusion-fix.md` als letzten offenen Rückstellpunkt
+      benannten `flipper_link.py` aufgegriffen (bislang nur als "dünner Wrapper" überflogen,
+      nicht Zeile für Zeile geprüft) und vollständig gelesen (71 Zeilen).
+- [x] **Fund** in `find_flipper()`: erste Stufe (`device_discovery.find_port`, korrekter
+      VID:PID-Abgleich) ist von einem breiten `except Exception` umgeben; schlägt sie fehl
+      (z. B. `device_discovery` nicht im `sys.path`, `pyserial` fehlt, sonstige Ausnahme),
+      liefert die zweite Stufe ungeprüft den alphabetisch ersten `/dev/ttyACM*`-Pfad zurück —
+      ohne jede Identitätsprüfung. `device_discovery.KNOWN` dokumentiert selbst, dass sowohl
+      der CC2531-Zigbee-Koordinator (VID `0x0451`) als auch der LilyGo T-Dongle S3 (VID
+      `0x303A`, eigener Code-Hinweis `"native-USB-CDC remote still (S3-Quirk)"`) unter Linux
+      ebenfalls als `/dev/ttyACM*` erscheinen können — im Vollbetrieb des Ökosystems (mehrere
+      Geräte gleichzeitig am Pi) der Normalfall. Liegt eines dieser Geräte alphabetisch vor dem
+      Flipper und schlägt `device_discovery` fehl, öffnet `FlipperLink` den falschen Port und
+      sendet flipperbridge-RPC-Bytes an ein Gerät, das sie nicht versteht — ohne erkennbaren
+      Grund für den Fehlschlag an dieser Stelle. Nebenfund: `sorted(glob.glob(...))` sortiert
+      rein lexikografisch, ab zweistelligen Portnummern in falscher Reihenfolge
+      (`"/dev/ttyACM10"` < `"/dev/ttyACM2"`).
+- [x] Fix (additiv, neue Zwischenstufe zwischen den beiden bestehenden): direkter
+      `serial.tools.list_ports.comports()`-VID:PID-Abgleich gegen die bereits in
+      `device_discovery.KNOWN` hinterlegte Flipper-Kennung (`0x0483:0x5740`) — greift auch,
+      wenn `device_discovery` selbst nicht verfügbar ist, solange nur `pyserial` installiert
+      ist. Erst wenn auch das fehlschlägt, der bisherige blinde Glob-Fallback, jetzt
+      längenbewusst statt rein lexikografisch sortiert. Patch gegen zwei frische, unabhängige
+      Zweitkopien mit `git apply --check` verifiziert, real angewendet, byte-für-byte
+      abgeglichen — identisch. Mit `python3 -m py_compile` geprüft.
+- [x] Host-Repro (`repro.py`, `find_flipper()` ALT/NEU 1:1 transkribiert, `device_discovery`
+      und `serial.tools.list_ports` als Fake-Module in `sys.modules` eingehängt bzw. bewusst
+      weggelassen für ein echtes `ModuleNotFoundError` — kein echter Flipper, kein echtes
+      `pyserial` nötig): sieben Szenariengruppen — Regression (device_discovery findet
+      Flipper direkt), der eigentliche Fund (device_discovery fehlt, CC2531 vor Flipper auf
+      ttyACM*: ALT liefert den falschen Port, NEU den Flipper), dieselbe Fund-Variante mit
+      LilyGo T-Dongle S3, der dokumentierte Grenzfall (weder device_discovery noch pyserial
+      verfügbar: ALT=NEU, keine Verschlechterung), der Sortier-Nebenfund bei zweistelligen
+      Portnummern, kein Gerät angeschlossen, ein Äquivalenztest über 20 von device_discovery
+      direkt gelieferte Ports — 26/26 Einzelprüfungen bestanden, ALLE CHECKS BESTANDEN.
+- [x] Details, Fund, Fix, Host-Repro, Risiko, Testhinweis, Quelle in
+      `app-improvements/g4meover-deck/flipper-link-unverified-fallback-fix.md` (Patch in
+      `app-improvements/g4meover-deck/flipper-link-unverified-fallback-fix/flipper_link_py.patch`,
+      Host-Repro in
+      `app-improvements/g4meover-deck/repro-flipper-link-unverified-fallback/repro.py`).
+- [ ] Lokal zu tun: Patch gegen die eigene `flipper_link.py` anwenden. Funktionstest: Flipper
+      und CC2531 (oder LilyGo T-Dongle S3) gleichzeitig am Pi anschließen, `device_discovery.py`
+      kurzzeitig aus dem `sys.path` entfernen (simuliert unvollständige `install.sh`-Installation),
+      `FlipperLink().info()` aufrufen — vor dem Fix kann je nach alphabetischer ttyACM-Reihenfolge
+      das falsche Gerät gewählt werden, nach dem Fix immer der per VID:PID identifizierte
+      Flipper-Port. Mit vorhandenem `device_discovery.py` (Normalfall) unverändertes Verhalten.
+- [ ] Bewusst nicht mitgefixt (eigener, kleinerer Rückstellpunkt): schließt den blinden
+      Glob-Fallback (dritte Stufe) nicht komplett — fehlt auch `pyserial` komplett, bleibt das
+      bisherige ungeprüfte Verhalten (dokumentierte, bewusst in Kauf genommene Grenze für
+      diesen seltenen Fall). Die übrigen seit längerem zurückgestellten Backlog-Punkte
+      (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, `texkom`/`hitagmicro.c`,
+      Hitag-S-Phase-2-Integrationsschicht, neun verbleibende FeliCa-Multisystem-Teilfixe aus
+      PR #4465) bleiben unverändert offen. `g4meover-deck` ist damit vollständig durchgesehen
+      (alle Module mindestens einmal gelesen).

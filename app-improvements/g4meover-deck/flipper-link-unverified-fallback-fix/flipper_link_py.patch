@@ -1,0 +1,37 @@
+diff --git a/deck/flipper_link.py b/deck/flipper_link.py
+index 82cf052..cc10721 100644
+--- a/deck/flipper_link.py
++++ b/deck/flipper_link.py
+@@ -18,9 +18,15 @@ except ImportError:
+     HAVE_BRIDGE = False
+ 
+ 
++FLIPPER_VID_PID = (0x0483, 0x5740)  # siehe device_discovery.KNOWN / REACHABILITY.md
++
++
+ def find_flipper() -> str | None:
+     """Flipper-Port plattformunabhängig finden: erst per VID:PID (device_discovery,
+-    funktioniert auf Windows COMx UND Linux), dann Fallback /dev/ttyACM*."""
++    funktioniert auf Windows COMx UND Linux), dann direkt per pyserial-VID:PID (falls
++    device_discovery nicht vendored/verfügbar ist, z. B. weil install.sh es nicht
++    mitkopiert hat), zuletzt Fallback /dev/ttyACM* ohne Identitätsprüfung (nur wenn
++    auch pyserial fehlt)."""
+     try:
+         import device_discovery
+         port = device_discovery.find_port("Flipper Zero")
+@@ -28,7 +34,14 @@ def find_flipper() -> str | None:
+             return port
+     except Exception:  # noqa: BLE001
+         pass
+-    ports = sorted(glob.glob("/dev/ttyACM*"))
++    try:
++        import serial.tools.list_ports
++        for p in serial.tools.list_ports.comports():
++            if (p.vid, p.pid) == FLIPPER_VID_PID:
++                return p.device
++    except Exception:  # noqa: BLE001
++        pass
++    ports = sorted(glob.glob("/dev/ttyACM*"), key=lambda s: (len(s), s))
+     return ports[0] if ports else None
+ 
+ 
