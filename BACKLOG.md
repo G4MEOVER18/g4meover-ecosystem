@@ -6441,3 +6441,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Hitag-S-Phase-2-Integrationsschicht, neun verbleibende FeliCa-Multisystem-Teilfixe aus
       PR #4465) bleiben unverändert offen. `g4meover-deck` ist damit vollständig durchgesehen
       (alle Module mindestens einmal gelesen).
+
+## Firmware-Feature-Mining: ID82xx/Hitag-micro-Magic-Chip-Schreiber (`hitagmicro.c`/`.h`)
+
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (`g4meover-deck`
+      `flipper_link.py`), davor Ideen-Recherche (TV Remote) und Firmware-Feature-Mining
+      (SubGHz "safe exit on unknown preset") — nach dem etablierten Rotationsmuster
+      (Firmware → Ideen → App → Firmware → ...) war Firmware-Feature-Mining für diese
+      Sitzung an der Reihe. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Aus derselben seit der Doorbell32-Sitzung offenen `unlshd-093`→`dev`-Restliste
+      (`keyfinder2`/`texkom`/`hitags`/`hitagmicro`) den in `hitags-lfrfid-magic-tag-port.md`
+      als eigenen Rückstellpunkt benannten zweiten Kandidaten derselben BPLM-Timing-Familie
+      aufgegriffen: `lib/lfrfid/tools/hitagmicro.c`/`.h` (327+57 Zeilen). Gegen den
+      `dev`-Branch erneut geprüft — jetzt Commit `f62964c` (zuletzt `af2e764`; einziger
+      Commit seither, der die Dateien berührt, ist ein reiner `fmt`-Lauf, Dateigröße
+      unverändert — keine inhaltliche Änderung, keine Wiederholung).
+- [x] Kompatibilitätsprüfung gegen eine frische `G4MEOVER-FW`-Zweitkopie (`b359f6f`):
+      `furi_hal_rfid_*`-Timer-Interface und `bit_lib_set_bit`/`_get_bit`/`_reverse_16_fast`
+      byteidentisch vorhanden; anders als `hitags.c` ruft `hitagmicro.c` nie
+      `tim_read_capture_*` auf (rein open-loop Schreiben, kein UID-Lesen, keine
+      Anticollision). Dieselbe Integrationslücke wie bei `hitags.c` (kein
+      Mehrfachziel-Dispatch in `lfrfid_worker.h`) bestätigt — kein Port-Hindernis für das
+      Werkzeugmodul selbst.
+- [x] Zwei additive Patches (`hitagmicro_c.patch`/`hitagmicro_h.patch`, Dateien unverändert
+      aus dem Unleashed-Quelltext übernommen) gegen zwei unabhängige, frische
+      `G4MEOVER-FW`-Zweitkopien mit `git apply --check` verifiziert (beide Reihenfolgen
+      geprüft), real angewendet, per `diff -r` und `md5sum` gegen den Unleashed-Quelltext
+      abgeglichen — identisch.
+- [x] Host-Repro (abweichend von der reinen Transkriptions-Methode, da `hitagmicro.c` —
+      anders als `hitags.c` — keinen eigenen Selbsttest mitbringt): die tatsächliche,
+      unveränderte `hitagmicro_write()` gegen einen aufzeichnenden `furi_delay_us()`-Host-Shim
+      aufgerufen, der jedes gesendete Bit aus der Dauer-Sequenz rekonstruiert (jedes Bit
+      läuft vor jeder anderen Aktion durch `furi_delay_us(96|160|288|64)`), ohne eine
+      einzige modul-interne `static`-Funktion direkt anzufassen. Die rekonstruierten Frames
+      gegen eine unabhängig geschriebene zweite CRC-16-/Frame-Builder-Implementierung
+      geprüft (gleicher Algorithmus, strukturell andere Umsetzung: bitweise statt
+      Byte-Realignment). Drei Testläufe (je eine Chip-Variante, unterschiedliche
+      Nutzdaten): 9/9 Feld-Zyklen, 18/18 Frames bitgenau, Schreibreihenfolge
+      block0→block1→config aus dem tatsächlichen Aufruf bestätigt, Varianten-Tabelle und
+      CRC-Randfall (`bitlength==0`) geprüft. Differenzielle Gegenprobe: zwei mutierte
+      Kopien (vertauschtes CRC-Polynom, vertauschte Schreibreihenfolge) ließen das Repro
+      wie erwartet mit 57 bzw. 21 Prüfungen fehlschlagen — keine falsch-grüne Prüfung.
+      Unter `gcc -fsanitize=address,undefined` bei `-O0`/`-O1`: `ALLE CHECKS BESTANDEN` in
+      beiden Stufen, identischer Output, keine ASan-/UBSan-Meldungen (abgesehen von zwei
+      bereits dokumentierten harmlosen Compiler-Warnungen außerhalb des geprüften Pfads).
+- [x] Details, Kompatibilitätsprüfung, Fund, Patches, Host-Repro, Risiko, Port-Skizze,
+      Testhinweis in `firmware-mining/hitagmicro-lfrfid-tool-port.md` (Patches in
+      `firmware-mining/hitagmicro-lfrfid-tool-port/`, Host-Repro in
+      `firmware-mining/repro-hitagmicro-lfrfid-tool-port/`).
+- [ ] Lokal zu tun: beide Patches gegen die eigene `mntm-012`-Basis anwenden, mit
+      `ufbt`/`fbt firmware_all` bauen (reiner Compile-Test ohne Integrationsschicht — noch
+      kein Aufrufer); Host-Repro lokal nachvollziehen. Hardware-Test erst nach der
+      Integrationsschicht sinnvoll (siehe Port-Skizze).
+- [ ] Integrationsschicht bleibt jetzt gemeinsamer Rückstellpunkt für `hitags.c` UND
+      `hitagmicro.c` (dieselbe fehlende `LFRFIDWriteType`-Dispatch-Lücke, zwei Werkzeuge
+      warten jetzt darauf — siehe Abwägung in `hitagmicro-lfrfid-tool-port.md`), ebenso
+      `texkom` aus derselben `dev`-Branch-Restliste (größte, mehrteilige NFC-Protokollfamilie,
+      eigener Rückstellpunkt). Die übrigen seit längerem zurückgestellten Backlog-Punkte
+      (NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465) bleiben unverändert offen.
