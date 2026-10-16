@@ -278,6 +278,19 @@ Graph-Kopie entsteht.
     committen, **bevor** P1.3 draufgesetzt wird, sonst baut dieser Unterschritt auf einer von hier
     aus unsichtbaren Dateistruktur auf. Falls die Datei bewusst lokal-only bleiben soll: das explizit
     hier vermerken (Grund) statt es weiter stillschweigend als Repo-Artefakt zu führen.
+    **Konkretisiert (2026-10-16, Cloud):** `g4meover-deck` ist jetzt vollständig durchgesehen (jedes
+    Modul mindestens einmal gelesen, siehe `reports/2026-10-16-0026.md` der separaten
+    App-Verbesserungs-Routine — zuletzt `flipper_link.py`) und hat für fünf eigenständige Module
+    bereits real gegen frische Zweitkopien verifizierte Bugfix-Vorschläge erhalten (`ukfe_rf.py`,
+    `satellite_link.py`, `zigbee_link.py`, `dogytag_link.py`, `flipper_link.py` — alle unter
+    `app-improvements/g4meover-deck/`). Damit ist diese Frage nicht mehr symmetrisch offen:
+    **Empfehlung, lokal zu bestätigen statt neu abzuwägen** — `deck_ctl.py`/`deck_daemon.py` +
+    `FlipperLink`/`device_discovery.py` (mit den verlinkten Patches) als reale Integrationsschicht
+    für P1.3/P1.4 übernehmen, statt auf die nirgends auffindbaren `g4meover_control.py`/
+    `flipper_ctl.py` zu warten oder sie parallel neu zu bauen (doppelte Arbeit an denselben
+    Problemen, die `g4meover-deck` bereits löst und inzwischen sogar bugfixed hat). Falls
+    `g4meover_control.py`/`flipper_ctl.py` lokal tatsächlich existieren und weiter vorgezogen werden
+    sollen: das hier explizit begründen, sonst gilt diese Empfehlung als Entscheidung.
   - [ ] P1.3a Datenquelle: `ecosystem/devices.json` laden (Schema aus P0.2a/b bereits vorhanden) +
     Live-Probe je Gerät über denselben `get_device_port()`-Contract aus P0.2d/P1.2a — kein zweiter,
     paralleler Probe-Pfad im GUI-Code.
@@ -291,7 +304,10 @@ Graph-Kopie entsteht.
 - [ ] P1.4 Tab **Flipper**: alle Flipper-Funktionen (CLI + App-Katalog) inkl. **Raw-Command**-Feld.
   - [ ] P1.4.0 **Lokal, zuerst:** dieselbe Existenz-/Commit-Frage wie P1.3.0, hier für
     `ecosystem/flipper-ctl/flipper_ctl.py` (P2.0, ebenfalls ✅ mit Pfad vermerkt, ebenfalls nicht im
-    Repo auffindbar).
+    Repo auffindbar). **Dieselbe Konkretisierung/Empfehlung wie P1.3.0 (2026-10-16) gilt hier:**
+    `g4meover-deck` ist vollständig durchgesehen und gepatcht (`flipperbridge`-Wrapper über
+    `FlipperLink`/`device_discovery.py`) — als reale Basis für P1.4 übernehmen statt eines zweiten,
+    unauffindbaren Katalog-CLI-Stands.
   - [ ] P1.4a Sobald verfügbar: `flipper_ctl.py`s CLI-Funktionen (SubGHz/NFC/RFID/IR/GPIO/
     Storage/Loader/Apps laut P2.0-Beschreibung) als Aufrufe aus dem GUI-Tab verdrahten (Subprocess
     oder Modul-Import — je nachdem, wie `flipper_ctl.py` tatsächlich strukturiert ist, erst nach
@@ -1762,6 +1778,45 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   versehen, keine neue Eskalation nötig). Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben (der verlinkte Patch stammt aus der separaten
   App-Verbesserungs-Routine, nicht aus dieser Sitzung).
+- 2026-10-16 (Cloud-Heartbeat): keine weitere Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f (seit
+  2026-10-05 unverändert als ohne Mehrwert vermerkt). Stattdessen den seit 2026-09-13 offenen
+  Tool-Existenz-Blocker (P1.3.0/P1.4.0/P9.2: `g4meover_control.py`/`flipper_ctl.py`/
+  `g4meover_resume.py` nirgends im Repo auffindbar) mit einer echten neuen Tatsache weitergebracht
+  statt nur erneut zu beschreiben: die separate App-Verbesserungs-Routine dieses Repos hat laut
+  `reports/2026-10-16-0026.md` `g4meover-deck` soeben vollständig durchgesehen (letztes noch
+  ungelesenes Modul `flipper_link.py`, dabei ein eigenständiger Fund — ungeprüfter alphabetischer
+  `/dev/ttyACM*`-Fallback, falls `device_discovery` fehlschlägt — bereits gefixt und verifiziert,
+  siehe `app-improvements/g4meover-deck/flipper-link-unverified-fallback-fix.md`). Damit haben
+  jetzt fünf von `g4meover-deck`s Kernmodulen (`ukfe_rf.py`, `satellite_link.py`, `zigbee_link.py`,
+  `dogytag_link.py`, `flipper_link.py`) einen verifizierten Bugfix-Vorschlag erhalten, und jedes
+  Modul wurde mindestens einmal gelesen. P1.3.0/P1.4.0 (Abschnitt 4), PREP Punkt 0 und die
+  „Ergänzt (2026-10-12)"-Blocker-Notiz unten bekamen dementsprechend eine konkrete Empfehlung statt
+  einer weiterhin offenen Abwägung: `deck_ctl.py`/`deck_daemon.py` + `FlipperLink`/
+  `device_discovery.py` (gepatcht) als reale Integrationsschicht für P1.3/P1.4/P9.2 übernehmen,
+  statt auf die nirgends auffindbaren Tracker-Pfade zu warten oder sie parallel neu zu bauen.
+  Zweiter, kleiner Doku-Konsistenzfund: `SESSION-STATE.json` (Repo-Root) stand seit 2026-08-26
+  unverändert auf `"progress": "2 erledigt / 47 offen"` und referenzierte noch den ursprünglichen
+  Phase-0-Fokus — veraltet, seit die FORTSCHRITT/RESUME-Zeile oben längst Phase 1 als aktuellen
+  Fokus führt. Auf den aktuellen Fokus/nächsten Schritt nachgezogen, ohne die nicht neu geprüften
+  Hardware-Felder (`pc_devices`/`pi`, letzter echter Stand 2026-08-26) anzutasten oder eine
+  erfundene Fortschrittszahl einzusetzen — stattdessen ein Verweis auf den Log in Abschnitt 5 als
+  einzige Fortschrittsquelle (dieselbe Konsistenz-Regel, die diese Datei seit 2026-10-03 für ihr
+  eigenes Rollfeld anwendet). Übliche Repo-Hygiene vorab: Git-Identität dieses Checkouts stand
+  wieder auf dem Cloud-Default, vor dem ersten Commit auf `Yanis / G4MEOVER18
+  <g4me.over.18@gmail.com>` korrigiert; `HEAD` war losgelöst, aber deckungsgleich mit lokalem
+  `main`-Zeiger und `origin/main` (`0384351`) — keine Drift. Die seit dem letzten
+  Masterplan-Log-Eintrag (`1f22695`, 2026-10-15) gelandeten Commits gezielt gegen diese Datei/
+  `ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft: keine Überschneidung,
+  dieselbe separate Firmware-Mining-/App-Verbesserungs-/Ideen-Recherche-Routine.
+  `ecosystem/devices.json`/`ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide
+  gültig. Repo-Sichtbarkeit (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin `private`.
+  Pi-SSH-/LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 50 Tage)
+  — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert); die
+  beiden Tageszähler im PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 50
+  synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
+  Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben (der verlinkte `flipper_link.py`-Patch stammt aus der separaten
+  App-Verbesserungs-Routine, nicht aus dieser Sitzung).
 
 ## PREP für nächste lokale Session
 
@@ -1780,12 +1835,19 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    tatsächlichen Reifegrad an echter Hardware, der von hier nicht prüfbar ist): für P0.2d
    (`device_discovery.py`, jetzt exakt bezifferte Lücke: fehlt nur `dogytag`/`heltec-v4-hub`),
    P4.4/P5.1 (`lorix_link.py`/`dogytag_link.py`) und P10.1/P10.2 (`zigbee_link.py`) sowie für die
-   komplette Tool-Ebene (`deck_ctl.py`/`cockpit.py`/`webdeck.py` vs. die im Tracker als ✅
-   geführten, aber im Repo nicht auffindbaren `g4meover_control.py`/`flipper_ctl.py`, siehe
-   Blocker unten) weiterhin: **wiederverwenden/integrieren** statt neu entwerfen, oder bewusst
+   komplette Tool-Ebene (`deck_ctl.py`/`cockpit.py`/`webdeck.py`, seit 2026-10-16 vollständig
+   gelesen und mit fünf verifizierten Patches versehen, vs. die im Tracker als ✅ geführten, aber
+   im Repo nicht auffindbaren `g4meover_control.py`/`flipper_ctl.py`, siehe Blocker unten)
+   weiterhin: **wiederverwenden/integrieren** (jetzt die naheliegende Empfehlung, siehe P1.3.0/
+   P1.4.0 oben) statt neu entwerfen, oder bewusst
    **neu bauen**, falls der Deck-Stand (zuletzt 2026-08-15, nie auf echtem Pi gelaufen) inzwischen
    veraltet ist. Ohne diese Entscheidung droht weiterhin doppelte Arbeit an denselben Problemen in
-   zwei Repos.
+   zwei Repos. **Nicht mehr symmetrisch offen (2026-10-16):** `g4meover-deck` ist inzwischen
+   vollständig gelesen und für fünf Module real gegen frische Zweitkopien verifiziert gepatcht
+   (`ukfe_rf.py`/`satellite_link.py`/`zigbee_link.py`/`dogytag_link.py`/`flipper_link.py`, siehe
+   `app-improvements/g4meover-deck/` sowie P1.3.0/P1.4.0 oben) — das spricht klar für
+   „wiederverwenden/integrieren" statt Neubau, solange nicht lokal ein triftiger Gegengrund (z. B.
+   ein bereits weiter fortgeschrittener eigener Stand) genannt wird.
 0a. **Seit 2026-10-14 offen, Code-Teil seit 2026-10-15 erledigt — Sicherheitsrelevant, Rest nur
    lokal:** `g4meover-deck/deck/dogytag_link.py` hatte Klartext-Default-Zugangsdaten
    (`BROKER_USER`/`BROKER_PASS`) direkt im Quelltext eines **öffentlichen** Repos (siehe
@@ -1847,7 +1909,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 48 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 50 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1989,7 +2051,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 48 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 50 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -2064,6 +2126,13 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     Mechanismus trifft, hier nur mit `scenario_runner.py` statt eines neu zu bauenden
     Event-Erzeugers) und P10.1/P10.2 (`zigbee_link.py` bereits vorhanden). Ich habe dabei nur
     gelesen, keine der Sibling-/Firmware-Repos verändert, committet oder gepusht.
+  - **Ergänzt (2026-10-16):** `g4meover-deck` ist jetzt (laut separater App-Verbesserungs-Routine,
+    `reports/2026-10-16-0026.md`) vollständig durchgesehen — jedes Modul mindestens einmal gelesen,
+    zuletzt `flipper_link.py` (eigener Fund: ungeprüfter alphabetischer `/dev/ttyACM*`-Fallback bei
+    fehlgeschlagenem `device_discovery`-Import, bereits gefixt). Fünf Module haben damit einen
+    verifizierten Patch-Vorschlag. Das macht die „wiederverwenden vs. neu bauen"-Frage oben
+    praktisch entscheidbar: ohne einen lokal genannten Gegengrund ist **Wiederverwenden** die
+    naheliegende Wahl für P1.3/P1.4/P9.2, nicht mehr nur eine von zwei gleichwertigen Optionen.
 - **Sicherheitsrelevant, neu (2026-10-14), per Push-Notification eskaliert:** beim Gegenlesen von
   `g4meover-deck/deck/dogytag_link.py` (Sibling-Repo, **public**, siehe oben) gefunden:
   `BROKER_USER`/`BROKER_PASS` sind dort als `os.getenv(..., "yanis")` /

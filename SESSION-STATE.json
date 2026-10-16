@@ -1,8 +1,8 @@
 {
-  "updated": "2026-08-26T13:20:51",
-  "focus": "Phase 0 → **P0.1** (Pi-Flash-Workflow für V4 über SSH).",
-  "next_todo": "P0.2 Stabiles Geräte-/Port-/MAC-Mapping als JSON (`ecosystem/devices.json`) — Basis für alle Tools.",
-  "progress": "2 erledigt / 47 offen",
+  "updated": "2026-10-16T00:40:00",
+  "focus": "Phase 1 → Heltec/ukfe_rf-Tab in die Unified GUI überführen (Cockpit einbetten).",
+  "next_todo": "PREP Punkt 0 (Masterplan): Tool-Existenz-Entscheidung P1.3.0/P1.4.0 — g4meover-deck (deck_ctl.py/deck_daemon.py + FlipperLink/device_discovery.py, vollständig gelesen + gepatcht) als Integrationsschicht bestätigen statt g4meover_control.py/flipper_ctl.py neu zu bauen.",
+  "progress": "Hinweis: diese Datei wird vom lokal fehlenden `g4meover_resume.py` erzeugt (Blocker seit 2026-09-13, siehe Masterplan Risiken/Blocker) und seit 2026-08-26 nicht automatisch nachgeführt. Aktueller Tagesstand ausschließlich im Masterplan Abschnitt 5 (FORTSCHRITT/NÄCHSTER SCHRITT) — keine erfundene Fortschrittszahl hier.",
   "pc_devices": [
     {
       "port": "COM26",
