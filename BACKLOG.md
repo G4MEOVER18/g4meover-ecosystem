@@ -6542,3 +6542,71 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 - [ ] Lokal zu tun: App unverändert gegen die eigene `mntm-012`-Basis mit `ufbt`/`fbt` bauen
       (reiner Compile-Test). Funktionstest ausschließlich am eigenen Sentry-Safe-/Master-Lock-
       Tresor (autorisierter Eigentest, siehe Testhinweis im Dokument).
+
+## App-Verbesserung: g4meover-deck — wpa_crack.show_cracked() trunkiert Passwörter mit ':'
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (Sentry Safe Opener),
+      davor Firmware-Feature-Mining (`hitagmicro.c`/`.h`) und App-Verbesserung
+      (`g4meover-deck` `flipper_link.py`) — nach dem etablierten Rotationsmuster
+      (Firmware → Ideen → App → Firmware → Ideen → App → ...) war App-Verbesserung für
+      diese Sitzung an der Reihe. Von den in `dogytag-link-hardcoded-credentials-fix.md`
+      als Rückstellpunkt benannten, noch ungeprüften `g4meover-deck`-Modulen
+      (`device_discovery.py`, `handshake_capture.py`, `hackrf_link.py`, `lorix_link.py`,
+      `wpa_crack.py` — `flipper_link.py`/`zigbee_link.py`/`dogytag_link.py`/
+      `satellite_link.py` bereits geprüft) `wpa_crack.py` gewählt (schließt den
+      Handshake-Capture→Cracking-Kreis, höchste Sicherheitsrelevanz: ein falsch
+      gemeldetes "geknacktes" Passwort ist für ein Pentest-Werkzeug ein echter
+      Vertrauensbruch).
+- [x] Frische, unabhängige Zweitkopie von `G4MEOVER18/g4meover-deck` geklont (main, Commit
+      `b030e45` — identischer Stand wie bei der vorigen `zigbee_link.py`-Prüfung).
+      `deck/wpa_crack.py` (158 Zeilen) sowie `deck/handshake_capture.py` (97 Zeilen, direkter
+      Vorlieferant der `.pcap`-Dateien für `wpa_crack.py`) vollständig gelesen.
+      `handshake_capture.py` ohne Fund: `_pcap_global_header()`/`_pcap_record()` erzeugen ein
+      standardkonformes klassisches `.pcap` (Magic `0xA1B2C3D4`, Version 2.4,
+      `LINKTYPE_IEEE802_11`), `parse_hsraw()` filtert sinnvoll auf gerade, mindestens
+      24-stellige Hex-Strings.
+- [x] Fund in `wpa_crack.py::show_cracked()`: Extraktion des geknackten Klartext-Passworts
+      aus `hashcat -m 22000 ... --show` per `line.rsplit(":", 1)[-1]` — trennt am
+      **letzten** `:` der Zeile. Der Hash-Teil selbst (hc22000-Format, `*`-getrennte Felder)
+      enthält nie `:`, aber WPA-PSK-ASCII-Passphrasen dürfen laut IEEE 802.11i jedes
+      druckbare ASCII-Zeichen 0x20–0x7E (8–63 Zeichen) enthalten, Doppelpunkt eingeschlossen
+      — ein völlig gültiges, nicht einmal ungewöhnliches Passwortzeichen. Bei einem
+      Passwort mit `:` (z. B. `pass:word`, `a:b:c:super:geheim`) liefert `show_cracked()`
+      nur das Fragment hinter dem letzten `:` zurück (`"word"` bzw. `"geheim"`), ohne
+      jede Fehlermeldung — der Aufrufer (`crack_dictionary()`/`crack_mask()`, letztlich die
+      Dashboard-Anzeige) hält das Fragment für das vollständige Passwort. hashcat selbst
+      schneidet nichts ab (im Potfile bleibt der volle Treffer korrekt gespeichert) — der
+      Verlust passiert ausschließlich in dieser Python-Extraktion.
+- [x] Fix (additiv, eine Zeile): `line.rsplit(":", 1)[-1]` durch `line.split(":", 1)[1]`
+      ersetzt (Trennung am **ersten** `:` statt am letzten) — korrekt, weil der Hash-Teil
+      vor dem ersten `:` nie selbst `:` enthält, alles danach (inklusive weiterer `:`) ist
+      das vollständige Passwort. Für den Normalfall (Passwort ohne `:`) verhalten sich
+      `rsplit(":", 1)[-1]` und `split(":", 1)[1]` identisch — reine Erweiterung, kein
+      verändertes Verhalten im bisher korrekten Fall.
+- [x] Patch (`wpa_crack_py.patch`) gegen zwei frische, unabhängige Zweitkopien mit
+      `git apply --check` verifiziert, real angewendet, per `md5sum` abgeglichen —
+      identisch.
+- [x] Host-Repro (`repro.py`, ohne hashcat/hcxtools): `show_cracked()`s betroffene
+      Schleife 1:1 als `_parse_show_ALT()`/`_parse_show_NEU()` transkribiert, `_fmt_mac()`
+      unverändert aus der Originaldatei importiert. Eingabe ist exakt der Text, den
+      `hashcat --show` auf stdout schreibt. 13 Einzelprüfungen: Regression ohne `:`
+      (ALT/NEU identisch), Fund mit einem `:` (ALT trunkiert, NEU vollständig), verschärfter
+      Fall mit mehreren `:`, zwei Zeilen in einer `--show`-Ausgabe, `ssid`/`bssid`-
+      Extraktion über alle Fälle unverändert, Randfall ganz ohne `:` (kein Crash),
+      Mutationstest-Gegenprobe (mutierte NEU-Variante zurück auf `rsplit` reproduziert den
+      Fund erneut — Repro ist scharf). 13/13 bestanden, `ALLE CHECKS BESTANDEN`.
+- [x] Details, Fund, Patch, Host-Repro, Risiko, Testhinweis in
+      `app-improvements/g4meover-deck/wpa-crack-show-cracked-colon-password-truncated-fix.md`
+      (Patch in `wpa-crack-show-cracked-colon-password-truncated-fix/`, Host-Repro in
+      `repro-wpa-crack-show-cracked-colon-password-truncated/`).
+- [ ] Lokal zu tun: Patch gegen die eigene `g4meover-deck`-Kopie anwenden. Funktionstest mit
+      echtem hashcat (siehe Testhinweis im Dokument: `.hc22000`-Potfile-Eintrag mit `:` im
+      Passwort anlegen, `show_cracked()` vorher/nachher vergleichen) — keine Flipper-
+      Hardware nötig.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `device_discovery.py`,
+      `hackrf_link.py`, `lorix_link.py` aus derselben `g4meover-deck`-Modulliste noch
+      ungeprüft; Integrationsschicht für `hitags.c`/`hitagmicro.c`, `texkom`,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende FeliCa-Multisystem-
+      Teilfixe aus PR #4465.

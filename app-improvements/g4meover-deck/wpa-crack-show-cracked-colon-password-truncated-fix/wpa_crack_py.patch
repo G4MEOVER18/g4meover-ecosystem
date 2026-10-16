@@ -1,0 +1,16 @@
+--- a/deck/wpa_crack.py	2026-10-16 18:21:46.182619517 +0000
++++ b/deck/wpa_crack.py	2026-10-16 18:21:39.579281150 +0000
+@@ -106,8 +106,11 @@
+     for line in out.splitlines():
+         f = line.strip().split("*")
+         if len(f) >= 6 and f[0] == "WPA":
+-            # letztes Feld hinter dem letzten ':' ist das Passwort
+-            pw = line.rsplit(":", 1)[-1] if ":" in line else ""
++            # Hash-Teil (WPA*...*) enthaelt selbst nie ':' -- alles hinter dem
++            # ERSTEN ':' ist das Passwort, auch wenn es selbst ':' enthaelt
++            # (WPA-PSK-ASCII-Passphrasen duerfen jedes druckbare ASCII-Zeichen
++            # 0x20-0x7E enthalten, Doppelpunkt eingeschlossen)
++            pw = line.split(":", 1)[1] if ":" in line else ""
+             try:
+                 ssid = bytes.fromhex(f[5]).decode("utf-8", "replace")
+             except ValueError:
