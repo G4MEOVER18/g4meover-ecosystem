@@ -6503,3 +6503,42 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
       `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende
       FeliCa-Multisystem-Teilfixe aus PR #4465) bleiben unverändert offen.
+
+## Ideen-Recherche: Sentry Safe Opener (H4ckd4ddy) — elektronischer Tresor-Bypass
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (`hitagmicro.c`/`.h`),
+      davor App-Verbesserung (`g4meover-deck` `flipper_link.py`) und Ideen-Recherche
+      (TV Remote) — nach dem etablierten Rotationsmuster (Firmware → Ideen → App →
+      Firmware → Ideen → ...) war Ideen-Recherche für diese Sitzung an der Reihe.
+      `ideas/pentest-app-katalog.md` auf verbleibende ❓-Einträge geprüft: keine offen mehr
+      (vollständig durchgesehen) — stattdessen gezielt nach einer bislang komplett
+      fehlenden Kategorie gesucht (Schloss-/Aktuator-Seite der physischen Zutrittskontrolle,
+      Gegenstück zur bisher nur kartenleserseitig abgedeckten Wiegand-Reader-/H10301-
+      Writer-Kategorie).
+- [x] `H4ckd4ddy/flipperzero-sentry-safe-plugin` (MIT, `fap_version="2.0"`, bereits Teil der
+      Unleashed-/Xtreme-Standard-App-Sammlungen) gefunden und vollständig gelesen (einzige
+      Quelldatei `sentry_safe.c`, 333 Zeilen): GPIO-Bypass elektronischer Sentry-Safe-/
+      Master-Lock-Tresorschlösser über die intern abgegriffene 4800-Baud-Steuerleitung
+      (Weck-Puls + 8-Byte-Rahmen), überschreibt den hinterlegten Code ohne ihn zu kennen.
+      API-87-Status gegen einen frischen, unabhängigen Checkout von `G4MEOVER18/G4MEOVER-FW`
+      (Tag `v2.0.0`, Commit `b359f6f`, `mntm-012`) verifiziert: `gpio_ext_pc1` byteidentisch
+      vorhanden und zugleich firmwareseitig bereits als LPUART-TX-Pin hinterlegt — der
+      App-eigene Wechsel zwischen rohem GPIO- und UART-Peripherie-Modus auf demselben Pin ist
+      damit beabsichtigtes Pin-Mapping, kein Bug. `furi_hal_gpio_*`/`furi_hal_serial_*`/
+      `expansion_disable()`/`_enable()` byteidentisch vorhanden (dieselben bereits bei UART
+      Sniff/RS485 Modbus/SWD Probe/CAN Commander verifizierten Symbole bzw. — im Gegensatz zum
+      CAN-Commander-Fund — hier korrekt verwendet).
+- [x] Eine Code-Beobachtung notiert, aber bewusst **nicht** als Fund mit Host-Repro geführt:
+      doppelter `furi_mutex_release()`-Aufruf im Sende-Pfad. Gegen `furi/core/mutex.c` der
+      eigenen `mntm-012`-Basis geprüft — ein zweiter Aufruf auf einem bereits freigegebenen,
+      nicht-rekursiven Mutex liefert dort nur `errQUEUE_FULL` zurück (`xSemaphoreGive()` auf
+      volle Queue), kein `furi_check()`/`furi_crash()` auf diesem Pfad. Kein reproduzierbares
+      Fehlverhalten — daher ohne Fix-Vorschlag/Host-Repro dokumentiert, um keinen
+      unbestätigten Fund zu behaupten.
+- [x] Details, Quelle, Protokollbeschreibung, API-87-Status, Testhinweis, Sicherheitsrahmen in
+      `ideas/sentry-safe-electronic-lock-bypass-app-status.md`. Katalog-Zeile in
+      `ideas/pentest-app-katalog.md` (Abschnitt "Physical Access Control (Wiegand/GPIO)")
+      ergänzt.
+- [ ] Lokal zu tun: App unverändert gegen die eigene `mntm-012`-Basis mit `ufbt`/`fbt` bauen
+      (reiner Compile-Test). Funktionstest ausschließlich am eigenen Sentry-Safe-/Master-Lock-
+      Tresor (autorisierter Eigentest, siehe Testhinweis im Dokument).
