@@ -252,6 +252,16 @@ Graph-Kopie entsteht.
     Portauflösung **nicht** neu erfinden: denselben `get_device_port()`-Contract aus P0.2d nutzen,
     sobald der dort vorgeschlagene Helper lokal existiert — sonst driften zwei Port-Logiken
     (Cockpit vs. Flash-Tools) auseinander.
+    **Konkretisiert (2026-10-17, Cloud):** `g4meover-deck/deck/deck_daemon.py` ist bereits ein
+    laufender Transport-Layer, nur eben als lokaler stdlib-HTTP-Dienst (Port 8712) statt als
+    In-Process-`SerialTransport` — `POST /sat/send {cmd, args_hex, label}` nimmt exakt die Rohdaten
+    an, die P1.2a als `send_frame(bytes)` definieren will, und kapselt dabei bereits
+    `satellite_link.SatelliteLink`+Counter-Persistenz. Lokal zu entscheiden, bevor `SerialTransport`
+    neu geschrieben wird: **(a)** die Tkinter-GUI spricht per `urllib`/`requests` gegen
+    `deck_daemon.py`s HTTP-API statt eigenem pyserial-Code (kein zweiter Transport-Stack,
+    `deck_daemon.py` müsste dafür parallel zum Cockpit laufen), oder **(b)** `deck_daemon.py` wird
+    direkt als Backend-Prozess der „Unified GUI" übernommen und die GUI ist nur noch dessen
+    Frontend (siehe P6.1a/P7.1b unten — das spricht für dieselbe Richtung).
   - [x] P1.2b **Codec gegen die reale Firmware verifiziert ✅ (2026-10-13, Cloud):** die bisherige
     Einordnung „nur lokal verifizierbar, da `heltec-v4-hub`/`lora-ukfe`/`heltec-ukfe-rx` außerhalb
     des GitHub-Zugriffs-Scopes dieser Cloud-Sitzung liegen" stimmte nicht (mehr) — alle drei Repos
@@ -326,6 +336,11 @@ Graph-Kopie entsteht.
     Cockpit-Integration (reale Serial-Verbindung + reales Secret statt Platzhalter): ohne die
     bleibt kein sicherer Raw-Frame-Versand, nicht vorher als Freitext-Bytes ohne CRC/MAC
     durchreichen (würde von der Firmware ohnehin verworfen).
+    **Konkretisiert (2026-10-17, Cloud):** `deck_daemon.py`s `POST /sat/send {cmd, args_hex, label}`
+    ist bereits genau dieser Raw-Frame-Sender (Cmd-Byte + Hex-Args → `satellite_link.send()` →
+    CRC/MAC/Counter aus P1.2b) — fertig vorhanden, sofern P1.2a Entscheidung (a)/(b) oben für die
+    `deck_daemon.py`-Integration fällt. Nur noch mit echtem Secret (`secret_local.py`) statt
+    Platzhalter zu betreiben, kein zweiter Sender zu entwerfen.
   - [ ] P1.5c Ergebnis-Anzeige mit Quell-ID setzt v2-`SRC_ID`/`ORIGIN_ID` (P0.4f) voraus; bis dahin
     Fallback: Ergebnis ohne Quell-ID anzeigen (wie v1 es implizit über den Transport-Pfad macht),
     Feld erst nachrüsten sobald P0.4f live ist — kein Platzhalter-Wert erfinden.
@@ -538,6 +553,11 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
   - [ ] P4.1a Tab-Grundgerüst — **hängt am selben Blocker wie P1.3.0/P1.4.0** (`g4meover_control.py`
     im Repo nicht auffindbar): erst dort klären/committen, dann hier als weiteren `ttk.Notebook`-Tab
     im bestehenden Worker-Thread-Muster (P1.1) anlegen statt eines zweiten GUI-Grundgerüsts.
+    **Konkretisiert (2026-10-17, Cloud):** `deck_daemon.py`s `GET /lorawan` liefert bereits ein
+    fertiges Lagebild (LORIX-Gateway-Status + TTN-Flotte via `lorix_link.py`, DogyTag-Telemetrie via
+    `dogytag_link.summarize()`) in einem Aufruf — als Datenquelle für diesen Tab übernehmen (sofern
+    P1.2a's `deck_daemon.py`-Integration entschieden wird), statt die drei Quellen hier separat neu
+    zusammenzuführen.
   - [ ] P4.1b TTN-Zugriff für Join/Uplink/Downlink-Queue/Live-Events: TTN v3 bietet dafür einen MQTT-
     Broker pro Application (`eu1.cloud.thethings.network:8883`, Topics `v3/<app-id>/devices/<dev-id>/
     {up,down/push,down/queued,join}`) sowie eine HTTP-Application-API für einmalige Abfragen
@@ -668,6 +688,9 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     kein zweites GUI-Grundgerüst. `g4meover-deck`s eigenes `dogytag_link.py`
     (`detect()`/`snapshot()`/`summarize()`) kann als fertige Datenquelle für diesen Tab
     übernommen werden statt eines Neubaus (siehe P5.1a/b).
+    **Konkretisiert (2026-10-17, Cloud):** dieselbe `GET /lorawan`-Antwort aus `deck_daemon.py`
+    (siehe P4.1a) trägt das `telemetry`-Feld bereits fertig aufbereitet — kein zweiter,
+    DogyTag-eigener Endpunkt nötig, derselbe Tab-Grundriss wie P4.1 kann denselben Aufruf nutzen.
   - Verifikation: P5.1a/b (Cloud-Teil) — Topic-Schema und JSON-Felder gegen den echten
     `heltec-gateway`-Quellcode verifiziert (nicht nur vermutet) ✅ (2026-10-14); P5.1c nur lokal
     (echter Broker-Zugriff, echtes GUI-Grundgerüst).
@@ -714,6 +737,19 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     (zwei GUI-Toolkits parallel im selben Prozess), (d) den bisher aufgeschobenen Wechsel des
     gesamten Cockpits auf PySide6 jetzt vorziehen. Vor jeder weiteren P6.1-Umsetzung erst
     entscheiden, sonst entsteht doppelte GUI-Arbeit (ein Tab in fremdem Toolkit).
+    **Fünfte Option, neu (2026-10-17, Cloud), direkt gelesen statt vermutet:**
+    `g4meover-deck/deck/dashboard.html` (von `deck_daemon.py` als stdlib-`http.server`-Antwort auf
+    `GET /` ausgeliefert) ist reines HTML/CSS/Vanilla-JS ohne Framework — kein Qt, kein
+    `QWebEngine`, kein eingebettetes Webview: ein ganz normaler Browser-Tab zeigt es an. Wird
+    `deck_daemon.py` (statt eines neuen Tkinter-Backends) als Backend der „Unified GUI" übernommen
+    (siehe P1.2a oben), fällt die ganze Tkinter-vs-Qt-Spannung weg — Leaflet/D3 lassen sich als
+    normales `<script src="...">`-CDN-Tag direkt in `dashboard.html` einbinden, kein
+    `tkintermapview`/`pywebview`/PySide6 nötig. Das macht Option (e) **„bei `deck_daemon.py`
+    bleiben, `dashboard.html` um einen Karten-Abschnitt erweitern"** zur mit der 2026-10-16-
+    Empfehlung (P1.3.0/P1.4.0: `g4meover-deck` als reale Integrationsschicht übernehmen)
+    konsistentesten Wahl — weiterhin lokal zu bestätigen, aber nicht mehr gleichwertig zu den
+    anderen vier, da (a)-(d) alle einen zweiten, parallelen GUI-Unterbau zum ohnehin empfohlenen
+    `deck_daemon.py` voraussetzen würden.
   - [ ] P6.1b Datenquellen laut Geräte-Inventar (Abschnitt 1): **DogyTag** (LoRaWAN+GPS) über
     denselben MQTT-Subscribe-Pfad wie P5.1a (TTN-Application `dogytag-v1`) — der
     Payload-Decoder-Blocker aus P5.1b (lokal, nicht aus der Cloud lieferbar) gilt hier identisch,
@@ -752,6 +788,11 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     sondern beide Fragen zusammen: fällt die Wahl auf `pywebview`/QWebEngine/PySide6-Wechsel, teilen
     sich Karte (P6) und Visualizer (P7) denselben Web-Container statt zwei eigene Fenster/Engines zu
     laden.
+    **Konkretisiert (2026-10-17, Cloud):** fällt die Wahl stattdessen auf P6.1a-Option (e)
+    (`deck_daemon.py`+`dashboard.html` übernehmen statt neu bauen), ist dieselbe Frage für den
+    Visualizer bereits mitbeantwortet — D3 läuft dann ebenfalls als plain-JS in `dashboard.html`,
+    kein separater Web-Container für Karte und Visualizer nötig (deckt sich mit dem Ziel dieser
+    Zeile, „denselben Web-Container" zu teilen, nur eben `dashboard.html` statt `QWebEngine`).
   - [ ] P7.1c Datenquelle für die animierten Kanten: **kein** zweiter Event-Pfad neben dem in P1.6a
     bereits vorgesehenen Log-Queue-Mechanismus (`queue.Queue` aus dem Worker-Thread, `after()`-Poll
     im UI-Thread) — der Visualizer abonniert dieselbe Queue und mappt jeden Eintrag (Zeit/Quelle/
@@ -1817,6 +1858,43 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben (der verlinkte `flipper_link.py`-Patch stammt aus der separaten
   App-Verbesserungs-Routine, nicht aus dieser Sitzung).
+- 2026-10-17 (Cloud-Heartbeat): statt einer weiteren Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f
+  (seit 2026-10-05 ohne Mehrwert, siehe Log oben) die 2026-10-16-Empfehlung „g4meover-deck
+  wiederverwenden" von P1.3.0/P1.4.0/P9.2 auf die restlichen davon abhängigen TODOs ausgeweitet,
+  mit einem echten, direkt gelesenen Fund statt weiterer Vermutung: `g4meover-deck/deck/
+  deck_daemon.py` ist ein bereits laufendes stdlib-HTTP-Backend (Port 8712, kein Fremd-Dep), das
+  `GET /status` (Geräte+Counter), `POST /sat/send {cmd,args_hex,label}` (roher `ukfe_rf`-Befehl),
+  `GET /lorawan` (LORIX+TTN+DogyTag in einem Aufruf) und `GET /flipper/info` bündelt — genau das,
+  was P1.2a (Transport), P1.5b (Raw-Frame-Sender), P4.1a/P5.1c (LoRaWAN/DogyTag-Tab-Datenquelle)
+  noch als zu entwerfen führten. `deck/dashboard.html` (von `GET /` ausgeliefert) ist dabei reines
+  HTML/CSS/Vanilla-JS ohne Framework — kein Qt, kein `QWebEngine`. Das löst außerdem die seit
+  2026-09-22 offene P6.1a-Toolkit-Spannung (Tkinter vs. Leaflet-in-QWebEngine) praktisch auf: ein
+  normaler Browser-Tab zeigt `dashboard.html` an, Leaflet/D3 liefen dort als einfaches CDN-`<script>`-
+  Tag, kein `tkintermapview`/`pywebview`/PySide6 nötig — als fünfte, mit der 2026-10-16-Empfehlung
+  konsistenteste Option bei P6.1a/P7.1b/Abschnitt 6 ergänzt. Wirft dafür eine neue, bisher nicht
+  gestellte Architekturfrage auf (siehe „Offene Entscheidungen" unten): bleibt Tkinter/P1.1 das
+  Haupt-Cockpit mit `deck_daemon.py` nur als Tab-Datenquelle, oder wird `deck_daemon.py`+
+  `dashboard.html` komplett zum neuen GUI-Unterbau (P1.1/Tkinter entfiele dann als Basis) — bewusst
+  nicht vorentschieden, da das eine rein lokale Grundsatzentscheidung ist, die vor P1.2a/P6.1a/P7.1b
+  getroffen werden sollte. Nur gelesen (`deck_daemon.py`, `dashboard.html`), `g4meover-deck` nicht
+  verändert, committet oder gepusht (kein Push-Recht auf dieses Sibling-Repo, ohnehin nur additiv zu
+  bestätigen gewesen). Übliche Repo-Hygiene vorab: Git-Identität dieses Checkouts stand wieder auf
+  dem Cloud-Default `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor diesem
+  Commit auf `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert; der lokale `main`-Branch-
+  Zeiger lag 1 Commit hinter `origin/main`/`HEAD` (`6bbbc5a` vs. `ecd8587`) zurück — per
+  `git checkout -B main HEAD` nachgezogen, kein Datenverlust (reiner Fast-Forward). Die 4 seit dem
+  letzten Masterplan-Log-Eintrag (`0ac1526`, 2026-10-16) gelandeten Commits gezielt gegen diese
+  Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft: keine
+  Überschneidung, dieselbe separate Firmware-Mining-/App-Verbesserungs-/Ideen-Recherche-Routine.
+  Wiederkehrende Prüfungen, alle unverändert: Blocker „referenzierte Tool-Dateien fehlen im Repo"
+  (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut gegen
+  `git log --all --diff-filter=A` geprüft: weiterhin kein Treffer. `ecosystem/devices.json`/
+  `ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide gültig. Repo-Sichtbarkeit
+  (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin `private`. Pi-SSH-/LORIX-Zugangsdaten-
+  Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 51 Tage) — keine erneute
+  Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). DogyTag-Broker-
+  Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar, Rotation/Anwenden bleibt lokal.
+  Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1892,9 +1970,14 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Rückwärtskompatibilitäts-Strategie weiterhin offen zu entscheiden. Danach ersten, bewusst
    kleinen Firmware-Patch auf `heltec-v4-hub` umsetzen (P0.4e/f) — nur `SRC_ID`/Versionsbyte,
    BLE-Transport separat später.
-4. Sobald Zeit für Phase 1 (aktueller Fokus) ist: P1.2a/b/c oben (Abschnitt 4) sind jetzt
-   Unterschritte statt einer einzelnen Zeile. P1.2b (Frame-Codec) ist **seit 2026-10-13 bereits
-   gegen die echte Firmware-Quelle verifiziert** (Host-Repro siehe
+4. **Zuerst (neu, 2026-10-17)**: die unter „Offene Entscheidungen" neu aufgeworfene Frage lesen —
+   bleibt Tkinter/`g4meover_control.py` (P1.1) das Haupt-Cockpit mit `g4meover-deck/deck/
+   deck_daemon.py` nur als Datenquelle, oder wird `deck_daemon.py`+`dashboard.html` komplett zum
+   neuen GUI-Unterbau? Das entscheidet, wie P1.2a/P1.5b/P1.6/P4.1a/P5.1c/P6.1a/P7.1b unten konkret
+   umzusetzen sind (siehe die dort ergänzten „Konkretisiert (2026-10-17)"-Hinweise) — bewusst nicht
+   aus der Cloud vorentschieden. Danach, sobald Zeit für Phase 1 (aktueller Fokus) ist: P1.2a/b/c
+   oben (Abschnitt 4) sind jetzt Unterschritte statt einer einzelnen Zeile. P1.2b (Frame-Codec) ist
+   **seit 2026-10-13 bereits gegen die echte Firmware-Quelle verifiziert** (Host-Repro siehe
    [`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md)) — nur noch ins Cockpit mit realer
    Serial-Verbindung + realem Secret integrieren, kein Vermutungs-Codec mehr zu schreiben.
    **Davor** aber den neuen Blocker unten klären: `g4meover_control.py`/`flipper_ctl.py` existieren
@@ -1909,7 +1992,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 50 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 51 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -1948,11 +2031,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    `dogytag/#` umsetzen, nie `PUBLISH`.
 9. Phase 6 (Kartenansicht, P6.1/P6.2) ist jetzt ebenfalls in Unterschritte zerlegt. **Zuerst**
    P6.1a lesen: der Plan setzte bisher „Leaflet in QWebEngine" (Qt) voraus, obwohl der tatsächlich
-   gebaute Cockpit-Prototyp (P1.1) auf Tkinter läuft — vier Optionen stehen zur Wahl
-   (`tkintermapview`, `pywebview`-Fenster, paralleles PySide6-Fenster, oder Wechsel des ganzen
-   Cockpits auf PySide6), hier bewusst nicht vorentschieden; diese Wahl hängt mit der weiterhin
-   offenen „PySide6 vs. Web"-Frage unten zusammen und sollte zusammen mit ihr getroffen werden,
-   nicht isoliert für die Karte allein. Danach P6.1b (Datenquellen: DogyTag über P5.1a/b,
+   gebaute Cockpit-Prototyp (P1.1) auf Tkinter läuft — fünf Optionen stehen zur Wahl
+   (`tkintermapview`, `pywebview`-Fenster, paralleles PySide6-Fenster, Wechsel des ganzen Cockpits
+   auf PySide6, oder seit 2026-10-17 `deck_daemon.py`+`dashboard.html` aus `g4meover-deck`
+   übernehmen — reines HTML/JS, kein Qt nötig), hier bewusst nicht vorentschieden; diese Wahl hängt
+   mit der weiterhin offenen „PySide6 vs. Web"-Frage unten zusammen und sollte zusammen mit ihr
+   getroffen werden, nicht isoliert für die Karte allein. Danach P6.1b (Datenquellen: DogyTag über P5.1a/b,
    V4-Hub-GPS über den reservierten aber unbelegten `0x40`–`0x41`-Code) und P6.2 (Marker/Track,
    blockiert auf P6.1a plus eine offene Persistenz-Frage für die Track-Historie).
 10. Phase 7 (Szenario-Visualizer, P7.1/P7.2) ist jetzt ebenfalls in Unterschritte zerlegt, **und**
@@ -2020,7 +2104,14 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   geworden durch P6.1a (2026-09-22):** der Cockpit-Unterbau ist über P1.1 bereits faktisch auf
   Tkinter festgelegt; die Karten-Tab-Frage (P6.1) macht die Web/Qt-Entscheidung jetzt praktisch
   relevant statt rein akademisch — vier konkrete Optionen stehen dort zur Wahl, weiterhin nur
-  lokal zu treffen.
+  lokal zu treffen. **Fünfte Option seit 2026-10-17:** `deck_daemon.py` (stdlib-HTTP-Backend) +
+  `dashboard.html` (reines HTML/CSS/JS, kein Framework) aus `g4meover-deck` direkt übernehmen —
+  macht die Tkinter-vs-Qt-Frage für Karte/Visualizer gegenstandslos (normaler Browser-Tab statt
+  eingebettetes Webview), wirft aber eine neue, bisher nicht gestellte Frage auf: bleibt
+  `g4meover_control.py`/Tkinter (P1.1) das Haupt-Cockpit mit `deck_daemon.py` nur als
+  Datenquelle einzelner Tabs, oder wird `deck_daemon.py`+`dashboard.html` komplett zum neuen
+  Unified-GUI-Unterbau (dann entfiele P1.1/Tkinter als Basis)? Nicht hier vorentschieden — reine
+  Architekturfrage, die vor P1.2a/P6.1a/P7.1b lokal zu klären ist, bevor dort weitergebaut wird.
 - APK-Framework: Flutter vs. Kotlin-nativ — siehe Abschnitt 6, weiterhin offen.
 - ukfe_rf-v2: gestaffelter Firmware-Rollout (Vorschlag V4→V3→LilyGo→WROOM) vs. harter Cutover —
   siehe `UKFE-RF-V2-SPEC.md` Abschnitt 7.
@@ -2051,7 +2142,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 50 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 51 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -2133,6 +2224,21 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     verifizierten Patch-Vorschlag. Das macht die „wiederverwenden vs. neu bauen"-Frage oben
     praktisch entscheidbar: ohne einen lokal genannten Gegengrund ist **Wiederverwenden** die
     naheliegende Wahl für P1.3/P1.4/P9.2, nicht mehr nur eine von zwei gleichwertigen Optionen.
+  - **Ergänzt (2026-10-17):** die Empfehlung „wiederverwenden" oben bezog sich bisher nur auf
+    `flipperbridge`/`FlipperLink`/`device_discovery.py`. Jetzt direkt gelesen (nicht nur aus dem
+    ROADMAP zitiert): `g4meover-deck/deck/deck_daemon.py` (stdlib-`http.server`, Port 8712) ist ein
+    bereits laufendes Backend, das genau das bündelt, was P1.2a (Transport)/P1.5b (Raw-Frame-
+    Sender)/P4.1a+P5.1c (LoRaWAN/DogyTag-Tab-Datenquelle) noch entwerfen wollen: `GET /status`
+    (Geräte+Counter), `POST /sat/send {cmd,args_hex,label}` (roher `ukfe_rf`-Befehl über
+    `satellite_link.py`), `GET /lorawan` (LORIX+TTN+DogyTag in einem Aufruf), `GET /flipper/info`.
+    `deck/dashboard.html` (von `GET /` ausgeliefert) ist dazu ein reines HTML/CSS/Vanilla-JS-
+    Frontend ohne Framework — kein Qt, kein `QWebEngine`. Das erweitert die Wiederverwenden-
+    Empfehlung von „Integrationsschicht für P1.3/P1.4/P9.2" auf „möglicher Ersatz für den gesamten
+    Tkinter-Unterbau aus P1.1 inkl. Transport/Log/Tab-Datenquellen" — siehe die neuen
+    Unterpunkte bei P1.2a/P1.5b/P4.1a/P5.1c/P6.1a/P7.1b oben (Abschnitt 4) und die dadurch neu
+    aufgeworfene, aber nicht entschiedene Frage unten unter „Offene Entscheidungen". Nur gelesen,
+    `g4meover-deck` nicht verändert, committet oder gepusht (kein Push-Recht, ohnehin nur additiv zu
+    bestätigen gewesen).
 - **Sicherheitsrelevant, neu (2026-10-14), per Push-Notification eskaliert:** beim Gegenlesen von
   `g4meover-deck/deck/dogytag_link.py` (Sibling-Repo, **public**, siehe oben) gefunden:
   `BROKER_USER`/`BROKER_PASS` sind dort als `os.getenv(..., "yanis")` /
