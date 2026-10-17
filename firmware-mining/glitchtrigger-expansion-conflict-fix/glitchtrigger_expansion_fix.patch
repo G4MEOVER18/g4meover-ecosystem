@@ -1,0 +1,62 @@
+diff --git a/glitch_trigger.c b/glitch_trigger.c
+index 9bee5d5..20b88af 100644
+--- a/glitch_trigger.c
++++ b/glitch_trigger.c
+@@ -77,6 +77,16 @@ static GlitchApp* glitch_app_alloc(void) {
+     app->gui = furi_record_open(RECORD_GUI);
+     app->notifications = furi_record_open(RECORD_NOTIFICATION);
+ 
++    /* The Sweep screen's UART auto-hit (helpers/glitch_serial.c) acquires
++     * FuriHalSerialIdUsart on pins 13/14 - the same UART the stock Expansion
++     * system service watches by default. Hold it disabled for the app's whole
++     * life (not just while a UART sweep runs): the glitch-out/trigger-in/
++     * feedback pins already monopolise the expansion port for this app's own
++     * wiring, so co-existing with an official expansion module is not a case
++     * this app supports anyway. */
++    app->expansion = furi_record_open(RECORD_EXPANSION);
++    expansion_disable(app->expansion);
++
+     app->view_dispatcher = view_dispatcher_alloc();
+     app->scene_manager = scene_manager_alloc(&glitch_scene_handlers, app);
+ 
+@@ -162,6 +172,11 @@ static void glitch_app_free(GlitchApp* app) {
+     glitch_serial_free(app->serial);
+     glitch_engine_free(app->engine);
+ 
++    /* re-enable expansion detection only after the UART/GPIO it watches are
++     * both fully released above (glitch_serial_free()/glitch_engine_free()) */
++    expansion_enable(app->expansion);
++    furi_record_close(RECORD_EXPANSION);
++
+     furi_record_close(RECORD_NOTIFICATION);
+     furi_record_close(RECORD_GUI);
+ 
+diff --git a/glitch_trigger_i.h b/glitch_trigger_i.h
+index 0bc9998..077b121 100644
+--- a/glitch_trigger_i.h
++++ b/glitch_trigger_i.h
+@@ -11,6 +11,7 @@
+ #include <gui/modules/text_input.h>
+ #include <notification/notification.h>
+ #include <notification/notification_messages.h>
++#include <expansion/expansion.h>
+ 
+ #include "glitch_trigger_icons.h" // generated from icons/ by fbt
+ 
+@@ -25,7 +26,7 @@
+ #include "views/faultmap_view.h"
+ #include "scenes/glitch_scene.h"
+ 
+-#define GLITCH_VERSION "1.2"
++#define GLITCH_VERSION "1.3"
+ 
+ typedef enum {
+     GlitchViewSubmenu,
+@@ -43,6 +44,7 @@ typedef struct {
+     ViewDispatcher* view_dispatcher;
+     SceneManager* scene_manager;
+     NotificationApp* notifications;
++    Expansion* expansion; // held disabled for the app's lifetime, see glitch_app_alloc()
+ 
+     /* shared modules */
+     Submenu* submenu;

@@ -6672,3 +6672,91 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
       `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
       Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465.
+
+## Ideen-Recherche: Glitch Trigger (at0m-b0mb) — neue Kategorie "Fault Injection / Glitching"
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining ("Hitag S in den
+      LFRFID-Schreib-Dispatch eingehängt"), davor App-Verbesserung (`g4meover-deck`
+      `wpa_crack.py`) und Ideen-Recherche (Sentry Safe Opener) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → Ideen → ...) war Ideen-Recherche
+      für diese Sitzung an der Reihe. `ideas/pentest-app-katalog.md` auf verbleibende
+      ❓-Einträge geprüft: keine offen — stattdessen gezielt nach einer bislang komplett
+      fehlenden Kategorie gesucht. Alle bisherigen Hardware-Debug-/Bus-Funde (SWD Probe, GPIO
+      Logic Analyzer, i2c Tools, UART Sniff, RS485 Modbus, CAN-Bus-Cluster, SPI Flash Dump)
+      lesen/sprechen einen Ziel-Bus passiv/aktiv an — keiner deckt die aktive
+      Spannungsglitching-/Fault-Injection-Seite ab.
+- [x] `at0m-b0mb/GlitchTrigger-FlipperZero` (MIT, App-ID `glitch_trigger`, dieselbe Werkstatt
+      wie das bereits katalogisierte TSCM-Quartett Nyx/Specter/GhostTag/Argus) gefunden und
+      vollständig gelesen (36 Quelldateien, 3656 Zeilen: App-Lebenszyklus, DWT-Puls-Engine,
+      UART-Erfolgsstring-Watcher, SD-Profile/CSV-Log, Fault-Map-Grid, alle elf Szenen, alle
+      vier Custom-Views). Geprüfter Stand: Tag `v1.3`, HEAD-Commit `c40b64b` (zwei
+      Folgecommits betreffen nur README/Docs, kein Quelltext).
+- [x] Was/Nutzen: präziser GPIO-Impulsgenerator für die Trigger-Seite einer
+      Spannungsglitching-Kampagne (Manuell/Extern/Repeat, DWT-zyklusgenaues Timing
+      ~15,6 ns, 1D-/2D-Sweep mit Dwell/Linear-oder-Random, Auto-Hit über GPIO- oder
+      UART-Erfolgsstring-Feedback, Live-Fault-Map + CSV-Export, SD-Profile) — kein eigener
+      Glitcher, treibt eine externe MOSFET-/Gate-Driver-Crowbar an (README macht das
+      wiederholt und explizit klar). API-87-Status gegen eine frische, unabhängige
+      Zweitkopie von `G4MEOVER18/G4MEOVER-FW` (Tag `mntm-012`, Commit `b359f6f`) verifiziert:
+      alle sechs genutzten Erweiterungsport-Pins, `FURI_CRITICAL_ENTER/_EXIT`/`DWT->CYCCNT`
+      (STM32WB55), `furi_hal_serial_control_*`/`furi_hal_serial_*` sowie
+      `applications/services/expansion/expansion.h` byteidentisch vorhanden — dessen
+      Doc-Kommentar benennt die geforderte `expansion_disable()`-vor-/`expansion_enable()`-
+      nach-Acquire-Reihenfolge sogar normativ selbst.
+- [x] Quelltext bis auf den folgenden Fund durchgehend defensiv (wrap-sicheres
+      `glitch_delay_cycles()`, korrektes gleitendes Fenster in `glitch_serial.c` ohne
+      Off-by-one, durchgehend geprüfte Bit-Index-Grenzen in `glitch_map.c`, korrekte
+      Zielpuffergrößen in beiden Text-Eingabe-Szenen) — vergleichbar mit den bereits ohne
+      Speicherfehler-Fund geprüften `at0m-b0mb`-Werkzeugen (Nyx/Specter/GhostTag).
+- [x] Fund: `glitch_app_alloc()`/`glitch_app_free()` rufen nirgends
+      `expansion_disable()`/`_enable()` auf (per `grep -rn "expansion"` vor dem Fix bestätigt
+      — null Treffer), obwohl `helpers/glitch_serial.c` für die Sweep-Feedback-Quelle "UART"
+      `furi_hal_serial_control_acquire(FuriHalSerialIdUsart)` nutzt — exakt das UART, das der
+      Flipper-eigene Expansion-Systemdienst standardmäßig überwacht (identischer
+      Wirkmechanismus wie beim bereits dokumentierten CAN-Commander-Fund: Flanke auf der
+      RX-Leitung lässt den Expansion-Worker das Handle zuerst belegen,
+      `furi_hal_serial_control_acquire()` liefert danach `NULL`, `glitch_serial_start()` gibt
+      `false` zurück). Compoundierender, bewusst nicht gepatchter Zweitbefund: die Sweep-UI
+      zeigt das "A"-Auto-Hit-Abzeichen unverändert aus `app->params.auto_hit` (Nutzerabsicht)
+      statt aus dem tatsächlichen `s_uart`-Verbindungsstatus — eine unbeaufsichtigte Kampagne
+      kann dadurch unbemerkt mit Hit-Rate 0 % laufen, ohne dass der Nutzer den fehlenden
+      Feedback-Kanal erkennen kann.
+- [x] Unabhängiger Zweitfund per `git log -p` auf den exakten Release-Commit zurückverfolgt:
+      `GLITCH_VERSION` (`glitch_trigger_i.h`) blieb beim Release-Commit `7c03f73` ("Glitch
+      Trigger 1.3") auf `"1.2"` stehen, während `application.fam`s `fap_version` korrekt auf
+      `"1.3"` angehoben wurde (bei den drei vorherigen Releases wurden beide Stellen stets
+      synchron gebumpt) — derselbe Bug-Typ wie beim bereits katalogisierten
+      PINGEQUA-RF-Lab-Fund, hier aber auf den exakten Commit statt nur das ausgelieferte
+      Binary zurückgeführt.
+- [x] Fix (additiv: ein neues Feld, ein neuer Include, zwei neue Aufrufe, ein
+      Einzeiler-Versionsbump) gegen zwei frische, unabhängige Zweitkopien von
+      `at0m-b0mb/GlitchTrigger-FlipperZero` (Commit `c40b64b`) mit `git apply --check`
+      verifiziert, real angewendet, per `diff -r` byte-für-byte abgeglichen — identisch.
+      `expansion_disable()` bewusst für die gesamte App-Laufzeit (nicht nur während eines
+      laufenden UART-Sweeps), da die App den Erweiterungsport ohnehin durchgehend für ihre
+      eigenen Glitch-Out-/Trigger-In-/Feedback-Pins belegt — dieselbe bereits beim
+      CAN-Commander-Fix akzeptierte Abwägung.
+- [x] Details, Fund, Fix, API-87-Status, Quelltext-Review, Testhinweis, Sicherheitsrahmen in
+      `firmware-mining/glitchtrigger-expansion-conflict-fix.md` (Patch im gleichnamigen
+      Verzeichnis) sowie `ideas/glitchtrigger-fault-injection-app-status.md`. Neue
+      Katalog-Kategorie "Fault Injection / Glitching" in `ideas/pentest-app-katalog.md`
+      ergänzt.
+- [ ] Lokal zu tun: `glitch_trigger` (mit Patch) gegen die eigene `mntm-012`-Basis mit
+      `ufbt`/`fbt` bauen, `applications/external/glitch_trigger/` einbinden. Funktionstest
+      wie in `firmware-mining/glitchtrigger-expansion-conflict-fix.md` beschrieben (Expansion
+      aktiviert lassen, UART-Feedback-Sweep vor/nach Patch vergleichen; Regressionstest mit
+      einem echten Erweiterungsmodul nach App-Ende). Zusätzlich Beschaffung/Aufbau der
+      MOSFET-/Gate-Driver-Crowbar-Stufe für den eigentlichen Hardware-Glitch-Test weiterhin
+      offen.
+- [ ] Neuer eigener Rückstellpunkt: der compoundierende UI-Befund (kein sichtbarer
+      Unterschied zwischen "Auto-Hit angefordert" und "Auto-Hit-UART tatsächlich verbunden"
+      im Sweep-View) bleibt offen — würde einen neuen, von `s_uart` gespeisten Status im
+      Sweep-View erfordern, bewusst nicht in dieser Sitzung spekulativ gelöst.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `device_discovery.py`,
+      `hackrf_link.py`, `lorix_link.py` aus der `g4meover-deck`-Modulliste noch ungeprüft;
+      `texkom` (NFC-Protokollfamilie aus der `unlshd-093`→`dev`-Restliste), NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-
+      Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration
+      (blockiert an fehlender Config-Bitwert-Quelle).
