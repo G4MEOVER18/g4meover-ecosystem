@@ -6819,3 +6819,76 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration
       (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status
       (kein vom tatsächlichen UART-Verbindungsstatus gespeister Status im Sweep-View).
+
+## Firmware-Feature-Mining: Texkom-NFC-Protokollkern (Phase 1 von 5)
+
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (`g4meover-deck`
+      `lorix_link.py`-Pagination), davor Ideen-Recherche (Glitch Trigger) und
+      Firmware-Feature-Mining (Hitag S in den LFRFID-Schreib-Dispatch) — nach dem
+      etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war
+      Firmware-Feature-Mining für diese Sitzung an der Reihe. Git-Identität vor dem
+      ersten Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `texkom` stand seit der `unlshd-093`→`dev`-Diff-Sichtung als größte, mehrteilige
+      offene NFC-Protokollfamilie auf der Rückstellliste und wurde seither in praktisch
+      jeder Firmware-Feature-Mining-Sitzung zugunsten kleinerer, vollständig
+      abschließbarer Kandidaten zurückgestellt (`keyfinder2`/`hitags`/`hitagmicro` aus
+      derselben Diff-Restliste sind inzwischen alle bearbeitet). Statt erneut
+      zurückzustellen, diesmal vollständig gesichtet (Unleashed `dev`, Commit
+      `f62964cb8216c566cb3940992d0fea6bbe91d840`, 2026-10-16): 18 Dateien, 2040 Zeilen
+      über fünf Schichten (Protokollkern 798 Zeilen, Poller 167, Listener 122,
+      `DigitalSequence`-Signalpreset 261, Low-Level-RF `furi_hal` 527 — Texkom-Tags
+      nehmen an keinem ISO-Anticollision-/Befehlssatz teil, Transparent-Mode auf dem
+      STM32WB55 nötig —, App-UI-Anbindung 165).
+- [x] Protokollkern (`texkom.c/.h/_i.h`, 798 Zeilen) als einzige Schicht ohne jeden
+      `furi_hal`-Bezug identifiziert: reine Datenstruktur, drei CRC-Varianten (TK13
+      eigenes Poly-0x31-CRC-8, TK17 Dallas/Maxim-CRC-8, MMBIT genibbelter XOR),
+      Lade-/Speicherlogik (reiner `flipper_format_*`-Durchgriff) und drei
+      Intervall-Decoder (TK13/TK15/TK17) samt Dispatch — ausschließlich mit
+      `uint8_t`-Lückenlisten rechnend, vollständig host-testbar.
+- [x] Alle vier Abhängigkeiten geprüft und gegen eine frische, unabhängige
+      `G4MEOVER18/G4MEOVER-FW`-Zweitkopie (`main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`,
+      Tag `v2.0.0`/`mntm-012`) per `diff` Byte-für-Byte bestätigt: `nfc/protocols/
+      nfc_device_base_i.h`, `nfc/nfc_common.h` (inkl. `NFC_UNIFIED_FORMAT_VERSION`),
+      `one_wire/maxim_crc.{c,h}`, `flipper_format/flipper_format.h` — alle bereits
+      identisch vorhanden, kein Portierungshindernis. `lib/nfc/protocols/
+      nfc_protocol.c` als künftigen Phase-5-Integrationspunkt identifiziert (Texkom
+      dort bereits als eigenständiger Basisknoten ohne Kindprotokolle kartiert).
+- [x] Quelltext (614 Zeilen `texkom.c`) gezielt auf Speicherfehler/Off-by-one geprüft:
+      **kein eigener Fund** — alle Array-Zugriffe an zur Übersetzungszeit bekannte
+      Konstanten gebunden, die exakt den tatsächlichen Puffergrößen entsprechen, alle
+      `furi_check()`-Nullprüfungen korrekt. Reiner, sauberer Port ohne Bugfund in
+      dieser Sitzung.
+- [x] Host-Repro (acht Szenarien: TK13-Rundlauf über den öffentlichen Dispatch,
+      TK13→TK15-Rückstufung bei verrauschten Zeiten inkl. expliziter Gegenprobe, dass
+      `decode_tk13()` dabei tatsächlich fehlschlägt, TK17-Rundlauf, MMBIT-Nibble-Maske,
+      Negativtest korrupte Preamble mit Erholungsprobe, Negativtest Typ-/
+      Codierungs-Inkonsistenz, Negativtest TK17-Decoder außerhalb Band/Summe-0,
+      CRC-Konsistenz aller Varianten plus `Unknown`) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: 57 Prüfungen, alle bestanden,
+      identischer Output beider Optimierungsstufen, keine Compiler-Warnungen.
+- [x] Die drei Dateien (`texkom.c/.h/_i.h`) unverändert gegen eine zweite, unabhängige
+      Zweitkopie von Unleashed `dev` (Commit `f62964c`) per `diff` Byte-für-Byte
+      abgeglichen — identisch.
+- [x] Details, Schichtenübersicht, Verifikation, Risiko, fünfstufige Port-Skizze in
+      `firmware-mining/texkom-nfc-protocol-core-port.md` (fertige Dateien im
+      gleichnamigen Verzeichnis, Repro in
+      `firmware-mining/repro-texkom-nfc-protocol-core-port/`).
+- [ ] Lokal zu tun: `texkom.c/.h/_i.h` nach `lib/nfc/protocols/texkom/` kopieren, in die
+      `lib/nfc`-Build-Liste aufnehmen, mit `ufbt`/`fbt` bauen (baut eigenständig, wird
+      von nichts referenziert, keine Verhaltensänderung). Phase 2-5 (Poller, Listener,
+      Signalpreset, `furi_hal`-Low-Level-RF, Protokollbaum-Registrierung/UI) gemäß
+      Port-Skizze in künftigen, auf je eine Schicht fokussierten Sitzungen.
+- [ ] Neuer eigener Rückstellpunkt: Phase 4 (`furi_hal_nfc_texkom.c`, 527 Zeilen,
+      Transparent-Mode-Ansteuerung) als höchstes Risiko dieser Portierung markiert —
+      eigene, nur auf diese Datei fokussierte künftige Sitzung vorgesehen, Register-/
+      Timing-Konstanten gegen die eigenen `furi_hal_nfc_iso14443a.c`/
+      `furi_hal_nfc_iso15693.c` gegenzurechnen, bevor ein Patch vorgeschlagen wird.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-
+      Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s
+      restliche Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus
+      PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status (kein vom
+      tatsächlichen UART-Verbindungsstatus gespeister Status im Sweep-View).
