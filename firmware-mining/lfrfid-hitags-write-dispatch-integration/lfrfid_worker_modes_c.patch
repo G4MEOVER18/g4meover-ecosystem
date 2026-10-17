@@ -1,0 +1,28 @@
+diff --git a/lib/lfrfid/lfrfid_worker_modes.c b/lib/lfrfid/lfrfid_worker_modes.c
+index 036e9cf..6dcf253 100644
+--- a/lib/lfrfid/lfrfid_worker_modes.c
++++ b/lib/lfrfid/lfrfid_worker_modes.c
+@@ -3,6 +3,7 @@
+ #include <furi_hal.h>
+ #include "lfrfid_worker_i.h"
+ #include "tools/t5577.h"
++#include "tools/hitags.h"
+ #include <toolbox/pulse_protocols/pulse_glue.h>
+ #include <toolbox/buffer_stream.h>
+ #include "tools/varint_pair.h"
+@@ -552,6 +553,15 @@ static void lfrfid_worker_mode_write_process(LFRFIDWorker* worker) {
+                 t5577_write(&request->t5577);
+             } else if(request->write_type == LFRFIDWriteTypeEM4305) {
+                 em4305_write(&request->em4305);
++            } else if(request->write_type == LFRFIDWriteTypeHitagS) {
++                // Hitag S needs its own UID before SELECT can address it - unlike T5577/EM4305
++                // there is no blind write. A missing/unreadable UID means the presented tag is
++                // not a Hitag S (the common case when the blank is actually T5577/EM4305), so
++                // this is treated the same as "cannot be written", not an error.
++                uint8_t hitags_uid[LFRFID_HITAGS_UID_SIZE];
++                if(hitags_read_uid(hitags_uid, NULL, NULL)) {
++                    hitags_write(&request->hitags, hitags_uid);
++                }
+             } else {
+                 furi_crash("Unknown write type");
+             }

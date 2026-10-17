@@ -1,0 +1,19 @@
+diff --git a/lib/lfrfid/protocols/protocol_em4100.c b/lib/lfrfid/protocols/protocol_em4100.c
+index 9ff6724..ab0cdf2 100644
+--- a/lib/lfrfid/protocols/protocol_em4100.c
++++ b/lib/lfrfid/protocols/protocol_em4100.c
+@@ -365,6 +365,14 @@ bool protocol_em4100_write_data(ProtocolEM4100* protocol, void* data) {
+         request->em4305.word[6] = encoded_data_reversed >> 32;
+         request->em4305.mask = 0x70;
+         result = true;
++    } else if(request->write_type == LFRFIDWriteTypeHitagS) {
++        // page4/page5 are MSB-first, bits 63..32 / 31..0 of the same encoded_data T5577/EM4305
++        // above split into their own word layouts - see hitags.h for the page assignment.
++        for(uint8_t i = 0; i < LFRFID_HITAGS_PAGE_SIZE; i++) {
++            request->hitags.page4[i] = (protocol->encoded_data >> (56 - i * 8)) & 0xFF;
++            request->hitags.page5[i] = (protocol->encoded_data >> (24 - i * 8)) & 0xFF;
++        }
++        result = true;
+     }
+     return result;
+ }

@@ -6610,3 +6610,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
       `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende FeliCa-Multisystem-
       Teilfixe aus PR #4465.
+
+## Firmware-Feature-Mining: Hitag S (`hitags.c`) in den LFRFID-Schreib-Dispatch eingehängt
+
+- [x] Rückstellpunkt aus `hitags-lfrfid-magic-tag-port.md`/`hitagmicro-lfrfid-tool-port.md`
+      ("Integrationsschicht fehlt, Option (a) generisches Dispatch vs. (b) eigener Pfad")
+      am tatsächlichen Quelltext von `mntm-012` (frische Zweitkopie, `b359f6f`) geprüft statt
+      an der Erinnerung an den `dev`-Branch-Vorschlag: die generische Dispatch-
+      Infrastruktur (`LFRFIDWriteType`-Enum, `LFRFIDWriteRequest`-Union in
+      `lfrfid_protocols.h`, Mehrfachziel-Schleife in
+      `lfrfid_worker_modes.c::lfrfid_worker_mode_write_process()`) existiert bereits in der
+      eigenen Basis — Option (a) ist nicht nachzubauen, sondern nur um einen Eintrag zu
+      erweitern. Korrigiert die in den beiden vorigen Sitzungen dokumentierte Annahme.
+- [x] `LFRFIDWriteTypeHitagS` ergänzt (`lfrfid_protocols.h`: Enum-Eintrag, Union-Feld,
+      `#include` für `tools/hitags.h`), Dispatch in `lfrfid_worker_modes.c` ergänzt
+      (`hitags_read_uid()` vor `hitags_write()`, Fehlschlag wird wie "kann nicht geschrieben
+      werden" behandelt, kein Crash), `protocol_em4100.c::protocol_em4100_write_data()` um
+      die MSB-first-Zerlegung von `encoded_data` in `page4`/`page5` erweitert (gilt wegen
+      gemeinsamer Funktion auch für `EM410032`/`EM410016`).
+- [x] Jede der 20 anderen Protokoll-Dateien, die `LFRFIDWriteRequest`/`write_type` lesen,
+      einzeln gegen den neuen Enum-Wert geprüft: alle vergleichen per Namen mit
+      `result = false` als Vorgabe — keine verändert sich durch diesen Patch, keine
+      implizite Positionsannahme über die alte `LFRFIDWriteTypeMax`-Größe gefunden.
+- [x] Feldzustand zwischen den Dispatch-Zweigen direkt an `t5577_write()`/`em4305_write()`s
+      Quelltext nachvollzogen (nicht angenommen): beide hinterlassen das 125-kHz-Feld aus —
+      genau die von `hitags_read_uid()` dokumentierte Voraussetzung.
+- [x] Drei Patches (`lfrfid_protocols_h.patch`, `lfrfid_worker_modes_c.patch`,
+      `protocol_em4100_c.patch`) gegen zwei frische, unabhängige Zweitkopien (auf Basis der
+      bereits vorliegenden `hitags_h.patch`/`hitags_c.patch`) mit `git apply --check`
+      verifiziert, real angewendet, per `diff -r`/`md5sum` abgeglichen — identisch.
+- [x] Host-Repro: echte, unveränderte Header (`lfrfid_protocols.h` mit dieser Änderung,
+      `t5577.h`, `em4305.h`, `hitags.h`) zusammen übersetzt (`repro_main.c`) — keine
+      Namenskollision, `LFRFIDWriteTypeMax` wächst korrekt auf 3. Neue `page4`/`page5`-
+      Zerlegung gegen die bereits produktive T5577-Formel für 8 Testvektoren verglichen
+      (`bitcheck.c`), zwei Mutationstest-Gegenproben (vertauschte Shift-Reihenfolge,
+      vertauschte Seitenzuordnung) korrekt als Fehlschlag erkannt. `gcc -std=c17 -Wall
+      -Wextra -Wpedantic -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei
+      `-O0`/`-O1`: beide Prüfungen fehlerfrei in beiden Stufen.
+- [x] Details, Befund, Betroffene Dateien, Risiko (insbesondere die bei jedem Schreibzyklus
+      zusätzlich anfallende `hitags_read_uid()`-Latenz, auch wenn der aufgelegte Tag kein
+      Hitag S ist — aus dem tatsächlichen Schleifencode abgeleitet, nicht hypothetisch),
+      Port-Skizze, Host-Repro, Testhinweis in
+      `firmware-mining/lfrfid-hitags-write-dispatch-integration.md` (Patches im
+      gleichnamigen Verzeichnis, Host-Repro in
+      `firmware-mining/repro-lfrfid-hitags-write-dispatch-integration/`).
+- [ ] Lokal zu tun: alle fünf Patches (erst `hitags_h.patch`/`hitags_c.patch`, dann die drei
+      neuen) gegen die eigene `mntm-012`-Basis anwenden, mit `ufbt`/`fbt firmware_all`
+      bauen — jetzt ein echter Integrationstest (Werkzeug erstmals verlinkt), kein reiner
+      Compile-Test mehr. Hardware-Test an einem eigenen, leeren Hitag-S/ID8268-Rohling
+      (Proxmark3-Gegenprobe vorher/nachher, siehe Testhinweis im Dokument) sowie
+      Negativtest/Latenzmessung an einem T5577-/EM4305-Rohling.
+- [ ] Neuer eigener Rückstellpunkt: dieselbe Integration für `hitagmicro.c`/`.h` (drei
+      zusätzliche Enum-Werte, je einer pro `HitagMicroVariant`, kein UID-Preread nötig) ist
+      durch dasselbe Modell möglich, blockiert aber an einer fehlenden, verifizierten Quelle
+      für den `LFRFIDHitagMicro::config`-Bitwert (TTF/EM4100-Konfiguration der Zielseite
+      `0xFF`) — kein Patch ohne diese Klärung, um kein unbelegtes Magic-Konstant für eine
+      echte Hardware-Beschreibung vorzuschlagen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `device_discovery.py`,
+      `hackrf_link.py`, `lorix_link.py` aus der `g4meover-deck`-Modulliste noch ungeprüft;
+      `texkom` (NFC-Protokollfamilie aus der `unlshd-093`→`dev`-Restliste), NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465.
