@@ -1,0 +1,75 @@
+diff --git a/deck/lorix_link.py b/deck/lorix_link.py
+index 003c810..0ce2b84 100644
+--- a/deck/lorix_link.py
++++ b/deck/lorix_link.py
+@@ -46,6 +46,22 @@ def _get(path: str, key: str) -> tuple[int, dict | str]:
+         return -1, str(e)
+ 
+ 
++def _get_page(path: str, key: str) -> tuple[int, dict | str, int | None]:
++    """Wie _get(), liest zusaetzlich den X-Total-Count-Header (seitenbasierte
++    Pagination laut TTN-API-Dokumentation: limit/page-Parameter, X-Total-Count
++    als Gesamtzahl der fuer diesen Key sichtbaren Objekte)."""
++    req = urllib.request.Request(BASE + path)
++    req.add_header("Authorization", "Bearer " + key)
++    try:
++        with urllib.request.urlopen(req, timeout=15) as r:
++            total = r.headers.get("X-Total-Count")
++            return r.status, json.loads(r.read().decode()), (int(total) if total else None)
++    except urllib.error.HTTPError as e:
++        return e.code, e.read().decode(), None
++    except Exception as e:  # noqa: BLE001
++        return -1, str(e), None
++
++
+ def detect() -> dict:
+     """TTN erreichbar + Key gültig? Liefert {ready, app, error}."""
+     key = _key()
+@@ -74,17 +90,42 @@ def gateway_status() -> dict:
+     return {"gateway": GATEWAY, "error": f"TTN {st}: {str(body)[:100]}"}
+ 
+ 
++def _device_page_size() -> int:
++    return int(os.getenv("DOGYTAG_TTN_DEVICE_PAGE_SIZE", "50"))
++
++
+ def device_fleet() -> dict:
+     """Registrierte Geräte in der App + je Gerät Join/Session-Status (NS).
+-    Liefert {devices:[{id, dev_eui, joined, dev_addr}], count, error}."""
++    Liefert {devices:[{id, dev_eui, joined, dev_addr}], count, error}.
++    Liest alle Seiten (TTN-Listen-Endpunkte sind serverseitig paginiert; ohne
++    explizites limit/page wird nur die erste Seite zurückgegeben)."""
+     key = _key()
+     if not key:
+         return {"devices": [], "count": 0, "error": "kein TTN-Key"}
+-    st, body = _get(f"/api/v3/applications/{APP}/devices?field_mask=ids", key)
+-    if st != 200 or not isinstance(body, dict):
+-        return {"devices": [], "count": 0, "error": f"TTN {st}: {str(body)[:100]}"}
++    limit = _device_page_size()
++    end_devices: list[dict] = []
++    page = 1
++    while True:
++        st, body, total = _get_page(
++            f"/api/v3/applications/{APP}/devices?field_mask=ids&limit={limit}&page={page}", key)
++        if st != 200 or not isinstance(body, dict):
++            return {"devices": [], "count": 0, "error": f"TTN {st}: {str(body)[:100]}"}
++        batch = body.get("end_devices", [])
++        end_devices.extend(batch)
++        if not batch:
++            break
++        if total is not None:
++            if len(end_devices) >= total:
++                break
++        elif len(batch) < limit:
++            # kein X-Total-Count im Antwort-Header: nur dann als letzte Seite werten,
++            # wenn der Server selbst weniger als die angeforderte Seitengroesse
++            # zurueckgegeben hat (sonst liesse eine serverseitig gekappte, aber
++            # kleinere Seitengroesse die Schleife vor dem Ende abbrechen)
++            break
++        page += 1
+     out = []
+-    for d in body.get("end_devices", []):
++    for d in end_devices:
+         dev_id = d.get("ids", {}).get("device_id")
+         sst, sbody = _get(
+             f"/api/v3/ns/applications/{APP}/devices/{dev_id}?field_mask=session.dev_addr", key)

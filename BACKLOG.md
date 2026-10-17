@@ -6760,3 +6760,62 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-
       Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration
       (blockiert an fehlender Config-Bitwert-Quelle).
+
+## App-Verbesserung: g4meover-deck — lorix_link.device_fleet() liest nur die erste TTN-Seite
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (Glitch Trigger), davor
+      Firmware-Feature-Mining (Hitag S in den LFRFID-Schreib-Dispatch) und App-Verbesserung
+      (`wpa_crack.py`) — nach dem etablierten Rotationsmuster (Ideen → App → Firmware → Ideen →
+      ...) war App-Verbesserung für diese Sitzung an der Reihe. Von den zuletzt noch offenen
+      `g4meover-deck`-Modulen (`device_discovery.py`, `hackrf_link.py`, `lorix_link.py`)
+      `device_discovery.py` und `hackrf_link.py` mitgeprüft — ohne Fund (reine
+      VID:PID-Zuordnung bzw. CLI-Wrapper ohne eigene Parsing-/Zustandslogik mit
+      Fehlerpotenzial).
+- [x] `lorix_link.py` (TTN-HTTP-API-Anbindung der LORIX-One-Gateway: Erreichbarkeit,
+      Gateway-Verbindung, registrierte Geräte-Flotte) vollständig gelesen. Fund:
+      `device_fleet()` fragt `/api/v3/applications/{APP}/devices` ohne jedes `limit`/`page`
+      ab — die TTN-/The-Things-Stack-HTTP-API ist bei allen Listen-Endpunkten serverseitig
+      seitenbasiert paginiert (offizielle Pagination-Doku: `limit`/`page`-Query-Parameter,
+      `X-Total-Count`-Antwort-Header als Gesamtzahl), ohne explizites `limit` greift ein
+      serverseitiger Standardwert. Hat die eigene DogyTag-Flotte mehr Geräte registriert als
+      dieser Standardwert, liefert `device_fleet()` ohne jede Fehlermeldung nur die erste
+      Seite zurück — `count` zu klein, fehlende Geräte (inkl. Join/Session-Status) fehlen
+      komplett in `devices`. Für ein wachsendes Ökosystem (jeder neue Tracker landet in
+      derselben TTN-Application) kein Rand-, sondern ein mit der Zeit zwangsläufig
+      eintretender Fall.
+- [x] Fix (additiv: neue `_get_page()` liest zusätzlich den `X-Total-Count`-Header,
+      `device_fleet()` liest in einer Schleife `limit`/`page`-parametrisierte Seiten bis der
+      Total-Count-Stand erreicht ist bzw., ohne diesen Header, bis eine kürzere Seite als
+      angefordert zurückkommt). Eigene erste Fassung der Abbruchbedingung noch beim
+      Selbst-Review verworfen: `len(batch) < limit` als alleiniges Abbruchkriterium hätte bei
+      einem Server, der jede Seite serverseitig unter das angeforderte `limit` kappt, die
+      Schleife fälschlich vor dem tatsächlichen Flottenende abgebrochen — jetzt nur noch
+      Fallback, wenn kein `X-Total-Count` vorliegt. Patch gegen zwei frische, unabhängige
+      Zweitkopien (eine davon ein komplett neuer, dritter Checkout) von
+      `G4MEOVER18/g4meover-deck` (main, Commit `b030e45`) mit `git apply --check` verifiziert,
+      real angewendet, per `md5sum` abgeglichen — identisch. `python3 -m py_compile` danach
+      fehlerfrei.
+- [x] Host-Repro (kein TTN-Zugang/Netzwerk nötig): `device_fleet()` ALT/NEU 1:1 transkribiert,
+      `MockTTN` bildet nur das genutzte TTN-API-Verhalten nach (Pagination, Total-Count-Header,
+      Session-Lookup je Gerät) — 8 Szenarien: Regression ohne Fund, der Fund selbst
+      (47 Geräte, Standardseite 20 → ALT meldet 20, NEU meldet 47), exaktes Seitengrenzen-
+      Vielfaches ohne Off-by-one, Fallback ohne Total-Count-Header, serverseitig gekappte
+      Seitengröße trotz Total-Count (deckt genau den beim Selbst-Review verworfenen
+      Zwischenstand ab), leere Flotte ohne Endlos-Loop, Äquivalenz ALT==NEU für
+      Flottengrößen 0..20 — 8/8 bestanden.
+- [x] Details, Fund, Fix, Testhinweis, Risiko in
+      `app-improvements/g4meover-deck/lorix-link-device-fleet-pagination-fix.md`
+      (Patch im gleichnamigen Verzeichnis, Repro in
+      `repro-lorix-link-device-fleet-pagination/`).
+- [ ] Lokal zu tun: echten `DOGYTAG_TTN_KEY`/`DOGYTAG_TTN_APP` setzen, `python3 -m
+      deck.lorix_link` vor/nach dem Patch gegen die eigene TTN-Application laufen lassen.
+      `DOGYTAG_TTN_DEVICE_PAGE_SIZE` bewusst klein setzen (z. B. `1`), um das
+      Mehrseiten-Verhalten auch mit einer kleinen echten Testflotte zu beobachten.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom`
+      (NFC-Protokollfamilie aus der `unlshd-093`→`dev`-Restliste), NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-
+      Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration
+      (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status
+      (kein vom tatsächlichen UART-Verbindungsstatus gespeister Status im Sweep-View).
