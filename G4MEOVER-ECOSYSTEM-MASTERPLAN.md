@@ -1895,6 +1895,34 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert). DogyTag-Broker-
   Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar, Rotation/Anwenden bleibt lokal.
   Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-10-18 (Cloud-Heartbeat): Repo-Hygiene zuerst — derselbe Branch-Zeiger-Fund wie an den
+  meisten Vortagen: `HEAD` losgelöst, lokaler `main`-Zeiger lag 26 Commits zurück (seit dem letzten
+  Masterplan-Log-Eintrag `8c02ea6`, 2026-10-17); per `git checkout main && git merge --ff-only`
+  nachgezogen und geprüft, dass `origin/main` bereits auf demselben Stand war (reiner
+  Fast-Forward, kein Push nötig, kein Datenverlust). Git-Identität dieses Checkouts stand wieder auf
+  dem Cloud-Default `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem
+  ersten Commit auf `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Die 4 seit `8c02ea6`
+  gelandeten Commits gezielt gegen diese Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/
+  `WORKFLOW.md` geprüft: keine Überschneidung, dieselbe separate Firmware-Mining-/
+  App-Verbesserungs-/Ideen-Recherche-Routine (Glitch-Trigger-Recherche, `lorix_link.py`-Pagination-
+  Fix, Texkom-NFC-Protokollkern Phase 1, PromptZero-Recherche). `g4meover-deck` erneut geprüft
+  (frischer Shallow-Clone): `HEAD` weiterhin unverändert auf `b030e45` (2026-08-20) — keine neue
+  Sibling-Repo-Aktivität seit der letzten Prüfung, die „wiederverwenden"-Empfehlung bleibt
+  unverändert gültig. Statt einer weiteren Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f (seit
+  2026-10-05 ohne Mehrwert, siehe Log oben) der seit 2026-10-17 offenen, noch unentschiedenen
+  GUI-Architekturfrage (Tkinter/`g4meover_control.py` vs. `deck_daemon.py`+`dashboard.html` als
+  Unterbau) eine Entscheidungs-Hilfe beigelegt statt sie weiter nur zu beschreiben — siehe neuen
+  Unterpunkt unter „Offene Entscheidungen" unten: eine kompakte Vor-/Nachteil-Gegenüberstellung
+  beider Pfade, bewusst ohne Vorentscheidung (bleibt eine lokale Grundsatzentscheidung). Wiederkehrende
+  Prüfungen, alle unverändert: Blocker „referenzierte Tool-Dateien fehlen im Repo" erneut gegen
+  `git log --all --diff-filter=A` geprüft: weiterhin kein Treffer. `ecosystem/devices.json`/
+  `ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide gültig. Repo-Sichtbarkeit
+  (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin `private`. Pi-SSH-/LORIX-Zugangsdaten-
+  Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 52 Tage) — keine erneute
+  Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert); die beiden Tageszähler
+  im PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 52 synchronisiert.
+  DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar, Rotation/Anwenden
+  bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -1992,7 +2020,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 51 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 52 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2112,6 +2140,33 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Datenquelle einzelner Tabs, oder wird `deck_daemon.py`+`dashboard.html` komplett zum neuen
   Unified-GUI-Unterbau (dann entfiele P1.1/Tkinter als Basis)? Nicht hier vorentschieden — reine
   Architekturfrage, die vor P1.2a/P6.1a/P7.1b lokal zu klären ist, bevor dort weitergebaut wird.
+  - **Entscheidungs-Hilfe (2026-10-18), bewusst ohne Vorentscheidung:**
+    - **A. Tkinter/`g4meover_control.py` bleibt Unterbau, `deck_daemon.py` nur Tab-Datenquelle.**
+      Vorteil: kleinster Schnitt gegenüber dem bisherigen Plan (P1.1-P1.7 wie entworfen), volle
+      native Desktop-Optik/Kurzbefehle, kein Browser-Fenster nötig. Nachteil: Karte/Visualizer
+      (P6.1a/P7.1b) brauchen trotzdem eine Qt-/Webview-Einbettung oder ein zweites Fenster — die
+      PySide6-vs-Web-Frage (Abschnitt 6) bleibt dadurch zusätzlich offen, zwei UI-Stacks im selben
+      Cockpit (Tkinter-Tabs + eingebettetes Web für Karte).
+    - **B. `deck_daemon.py`+`dashboard.html` wird der komplette Unterbau, Tkinter entfällt.**
+      Vorteil: ein einziger UI-Stack (ein Browser-Tab statt Tkinter+Webview-Mischung), Karte/
+      Visualizer sind dann einfaches `<script>`-CDN (Leaflet/D3) ohne Qt/`tkintermapview`/
+      `pywebview`, Backend läuft bereits (Port 8712, stdlib, kein Fremd-Dep) und deckt schon
+      `/status`, `/sat/send`, `/lorawan`, `/flipper/info` ab. Nachteil: größerer Schnitt gegenüber
+      dem bisherigen Plan (P1.1-P1.7 müssten auf HTML/JS statt Tkinter umgeschrieben werden, dort
+      wo noch nicht umgesetzt), `deck_daemon.py` ist ein Sibling-Repo ohne Push-Recht von hier aus
+      (jede Erweiterung bräuchte dort einen eigenen PR), und sein Reifegrad ist laut
+      `g4meover-deck/ROADMAP.md` weiterhin „code-komplett … noch nicht auf echtem Pi" (Stand
+      2026-08-15, seither laut wiederholter Prüfung unverändert auf `b030e45`).
+    - **Dritter Weg (Hybrid), bisher nicht explizit genannt:** `deck_daemon.py` nur als
+      Transport-/Datenquellen-Backend laufen lassen (liefert `/status`/`/sat/send`/`/lorawan` an
+      Tkinter **und** optional an einen Browser-Tab für Karte/Visualizer), Tkinter bleibt
+      Haupt-Cockpit für alles, was keine Karte/Graph-Visualisierung ist. Vermeidet die
+      PySide6-vs-Web-Frage komplett (Karte lebt in einem normalen, separat geöffneten Browser-Tab,
+      kein Embedding), verlangt aber ein klares Zuständigkeits-Schnitt (welche Tabs Tkinter, welche
+      Browser) — diese Aufteilung selbst wäre die zu treffende lokale Entscheidung.
+    - Alle drei Pfade sind mit dem aktuellen Reifegrad von `g4meover-deck` (unverändert `b030e45`,
+      „code-komplett, nie auf echtem Pi gelaufen") vereinbar — der Pi-Hardware-Test (P0.2c-Tier)
+      bleibt unabhängig davon nötig, welcher Pfad gewählt wird.
 - APK-Framework: Flutter vs. Kotlin-nativ — siehe Abschnitt 6, weiterhin offen.
 - ukfe_rf-v2: gestaffelter Firmware-Rollout (Vorschlag V4→V3→LilyGo→WROOM) vs. harter Cutover —
   siehe `UKFE-RF-V2-SPEC.md` Abschnitt 7.
@@ -2142,7 +2197,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 51 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 52 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
