@@ -1,4 +1,4 @@
-# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern fehlt komplett
+# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller (Phase 1+2 von 5)
 
 ## Was
 
@@ -35,13 +35,20 @@ mehrteilige NFC-Protokollfamilien (MIFARE-Plus-/Ultralight-AES-Port):
 
 1. Diesen Port-Vorschlag mit vollständiger Bestandsaufnahme aller fünf Schichten, Risiko
    und gestufter Port-Skizze für die verbleibenden Sitzungen.
-2. Phase 1 — den vollständigen, unveränderten Protokollkern (`texkom.c/.h/_i.h`), als
-   fertig zum Übernehmen bereite Dateien in `firmware-mining/texkom-nfc-protocol-core-port/`,
-   host-verifiziert gegen eigene, aus der Header-Dokumentation abgeleitete Testvektoren
+2. Phase 1 (bereits in einer früheren Sitzung geliefert) — den vollständigen, unveränderten
+   Protokollkern (`texkom.c/.h/_i.h`), als fertig zum Übernehmen bereite Dateien in
+   `firmware-mining/texkom-nfc-protocol-core-port/`, host-verifiziert gegen eigene, aus der
+   Header-Dokumentation abgeleitete Testvektoren
    (Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro.c`).
+3. Phase 2 (diese Sitzung) — den vollständigen, unveränderten Poller
+   (`texkom_poller.c/.h/_defs.h/_i.h`), ebenfalls fertig zum Übernehmen in
+   `firmware-mining/texkom-nfc-protocol-core-port/`, host-verifiziert gegen den bereits
+   host-verifizierten Phase-1-Protokollkern mit einer gemockten `nfc_texkom_poller_rx()`
+   anstelle der noch nicht portierten Phase-4-`furi_hal`-Schicht
+   (Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_poller.c`).
 
-Poller, Listener, Signalerzeugung, Low-Level-RF und UI liefere ich bewusst **nicht** als
-Patch — siehe "Risiko" und "Port-Skizze".
+Listener, Signalerzeugung, Low-Level-RF und UI liefere ich bewusst **nicht** als Patch —
+siehe "Risiko" und "Port-Skizze".
 
 ## Nutzen
 
@@ -80,12 +87,22 @@ Patch — siehe "Risiko" und "Port-Skizze".
   `nfc/nfc_common.h` (inkl. `NFC_UNIFIED_FORMAT_VERSION`), `one_wire/maxim_crc.h/.c` und
   `flipper_format/flipper_format.h` sind bei mir bereits vorhanden und — Byte-für-Byte
   per `diff` gegen Unleashed `dev` geprüft — identisch.
+- `lib/nfc/protocols/texkom/texkom_poller.c` (104 Zeilen), `texkom_poller.h` (23 Zeilen),
+  `texkom_poller_defs.h` (13 Zeilen), `texkom_poller_i.h` (27 Zeilen) — zusammen 167
+  Zeilen, Poller-Zustandsautomat: `alloc/free/set_callback/get_data/run/detect`, reicht
+  jede erfolgreich abgetastete Lückenliste an `texkom_decode_intervals()` (Phase 1)
+  weiter. Unverändert gegen einen frischen `dev`-Stand übernommen (siehe "Quelle").
+  Nutzt zwei Symbole, die bei mir noch nicht existieren und erst mit Phase 4 real
+  implementiert sind — `NfcTechTexkom` (neuer `NfcTech`-Enum-Wert, `nfc/nfc.h`) und
+  `nfc_texkom_poller_rx()` (neue Funktion, `nfc/nfc.c`, intern nur ein Aufruf von
+  `furi_hal_nfc_poller_rx()` plus `bit_buffer_copy_bits()`) — ohne diese beiden
+  Anschlusspunkte compiliert diese Datei nicht im eigenen Baum, siehe "Risiko" und
+  "Port-Skizze". Die Poller-eigene Kontrolllogik selbst (welches Ereignis abgetastet
+  wird, wann der Callback aufgerufen wird, was bei Fehler/Timeout mit den vorherigen
+  Daten passiert) ist davon unabhängig und bereits jetzt host-verifiziert (siehe
+  "Verifikation").
 
-**Für künftige Sitzungen (Phase 2+, nicht Teil dieses Patches):**
-- `lib/nfc/protocols/texkom/texkom_poller.c/.h`, `texkom_poller_defs.h`,
-  `texkom_poller_i.h` (167 Zeilen) — Poller-Zustandsautomat; ruft `furi_hal_nfc_texkom_*`
-  (Phase 4) zum Abtasten auf und reicht die Lückenliste an `texkom_decode_intervals()`
-  (bereits Phase 1) weiter.
+**Für künftige Sitzungen (Phase 3+, nicht Teil dieses Patches):**
 - `lib/nfc/protocols/texkom/texkom_listener.c/.h`, `texkom_listener_defs.h`,
   `texkom_listener_i.h` (122 Zeilen) — Emulationsseite; baut aus `TexkomData` ein
   Sendesignal über die `texkom_signal`-Presets (Phase 3) und `furi_hal_nfc_texkom_*`
@@ -162,11 +179,65 @@ Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
    jedem Fall überein; `TexkomTypeUnknown` hat erwartungsgemäß keine bekannte CRC.
 
 **Nicht** durch diesen Host-Test abgedeckt (erfordert die noch nicht portierten
-Poller-/Listener-/`furi_hal`-Schichten bzw. echte Hardware, siehe "Risiko"): das
-tatsächliche Abtasten eines Feldes, die Signalerzeugung für die Emulation,
-`texkom_load()`/`texkom_save()` selbst (reiner `flipper_format_*`-Durchgriff ohne eigene
-Logik — dasselbe Muster, das bereits jedes andere bei mir portierte NFC-Protokoll nutzt,
-daher kein neues Risiko).
+Listener-/`furi_hal`-Schichten bzw. echte Hardware, siehe "Risiko"): das tatsächliche
+Abtasten eines Feldes selbst, die Signalerzeugung für die Emulation,
+`texkom_load()`/`texkom_save()` (reiner `flipper_format_*`-Durchgriff ohne eigene Logik —
+dasselbe Muster, das bereits jedes andere bei mir portierte NFC-Protokoll nutzt, daher
+kein neues Risiko).
+
+### Phase 2 — Poller (diese Sitzung)
+
+`texkom_poller.c` enthält reine Kontrolllogik ohne eigene Bit-/Byte-Mathematik: es ruft
+einmal `nfc_texkom_poller_rx()` auf, reicht das Ergebnis unverändert an
+`texkom_decode_intervals()` (Phase 1) weiter und entscheidet anhand von Erfolg/Fehler, ob
+der Callback ausgelöst wird. Die einzige Hardware-Grenze der Datei ist genau dieser eine
+Aufruf — für den Host-Test durch einen pro Szenario fest programmierten Mock ersetzt
+(entweder ein erfolgreicher Capture mit einer festen Lückenliste oder `NfcErrorTimeout`),
+exakt die in der vorherigen Sitzung in der Port-Skizze vorgesehene Technik.
+
+Host-Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_poller.c`
+(`texkom_poller.c/.h/_i.h` unverändert transkribiert, `furi_assert()` → `assert()`,
+`FURI_LOG_D` auf No-Op; der bereits in `repro.c` verifizierte Phase-1-Protokollkern ist
+zur eigenständigen Übersetzungseinheit erneut mit hineinkopiert, nicht neu geprüft),
+unter `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined
+-fno-sanitize-recover=undefined` bei `-O0`/`-O1`: **46 Prüfungen, alle bestanden**,
+identischer Output beider Optimierungsstufen, keine Compiler-Warnungen, keine
+Sanitizer-Befunde.
+
+1. **Alloc/Free-Lebenszyklus**: `nfc_config()` wird beim Allozieren genau einmal mit
+   `(nfc, NfcModePoller, NfcTechTexkom)` aufgerufen; frische Daten sind blank
+   (`TexkomTypeUnknown`); `general_event`/`texkom_event` sind bereits beim Allozieren
+   korrekt verdrahtet, bevor je ein Capture-Versuch stattfand; Alloc/Free sind ausgeglichen
+   (kein Leck, kein Doppel-Free — ASan hätte beides gemeldet).
+2. **Event-Filter**: ein Ereignis mit einem anderen Typ als `NfcEventTypePollerReady` lässt
+   `run()`/`detect()` sofort zurückkehren (`NfcCommandContinue`/`false`), ohne
+   `nfc_texkom_poller_rx()` oder den Callback je aufzurufen.
+3. **TK13 Ende-zu-Ende über `run()`**: ein erfolgreicher Capture löst den Callback genau
+   einmal aus, mit korrektem `NfcGenericEvent` (`protocol`/`instance`/`event_data`);
+   `get_data()` spiegelt den dekodierten Rahmen; `run()`s Rückgabewert ist exakt das, was
+   der Callback zurückgegeben hat (nicht hartkodiert) — belegt, dass das Kommando
+   durchgereicht, nicht synthetisiert wird.
+4. **TK17 über `detect()`**: derselbe Erfolgsfall, aber über `detect()` — liefert `true`,
+   `get_data()` spiegelt ihn, und anders als `run()` wird der Callback dabei nie
+   aufgerufen (kein Callback-Konzept in `detect()`).
+5. **Erfolgreicher Capture, aber von keinem Decoder akzeptierte Daten** (alle Lücken
+   gleich lang — reißt bereits `texkom_average_gaps()`s `max<=min`-Schutz): `read()`
+   schlägt fehl, `run()` bleibt bei `NfcCommandContinue`, `detect()` bei `false`, ohne den
+   Callback aufzurufen und ohne den vorherigen erfolgreichen Decode anzutasten.
+6. **`NfcErrorTimeout` bricht ab, bevor der Lückenpuffer überhaupt angesehen wird**: der
+   Mock liefert einen Timeout, während der Puffer noch gültig aussehende, decodierbare
+   Lücken aus einem früheren erfolgreichen Aufruf enthält — `get_data()` bleibt exakt
+   unverändert, belegt, dass die `if(error != NfcErrorNone) return false;`-Prüfung
+   tatsächlich zuerst greift statt in eine erneute Dekodierung der Altdaten
+   durchzufallen.
+7. **Alle vier Varianten (TK13, TK15-Kodierung, TK17, MMBIT) Ende-zu-Ende über
+   `run()`→Callback→`get_data()`**, jeweils mit denselben, bereits in `repro.c`
+   verifizierten Vektoren — der Poller behandelt keine Variante gesondert, er ruft immer
+   nur den einen Decode-Dispatch auf.
+8. **Zeiger-Identität von `general_event`/`texkom_event` bleibt über mehrere
+   aufeinanderfolgende erfolgreiche `run()`-Aufrufe stabil** (einmalig beim Allozieren
+   verdrahtet, nie pro Aufruf neu gebaut) — ein Dauerfeld-Tag sendet denselben Rahmen
+   wiederholt, der Poller baut dafür nicht jedes Mal ein neues Event-Objekt.
 
 ## Risiko
 
@@ -174,9 +245,18 @@ daher kein neues Risiko).
   neue Dateien, keine Änderung an einer bestehenden Datei, kein geteilter Zustand, keine
   Registrierung in der Protokoll-Registry (die kommt erst mit Phase 2+). Reine
   Bit-/Byte-Mathematik ohne Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge.
-- **Mittel** für Poller/Listener (Phase 2/3): neue, aber in sich abgeschlossene
-  Zustandsautomaten, die ausschließlich über die bereits verifizierten Phase-1-Funktionen
-  mit dem Protokollkern sprechen — das übliche Risiko eines neuen NFC-Zustandsautomaten
+- **Niedrig** für die gelieferte, host-verifizierte Phase-2-Poller-Kontrolllogik selbst:
+  rein additive neue Dateien, keine Änderung an einer bestehenden Datei, keine eigene
+  Bit-/Byte-Mathematik (reiner Dispatch auf den bereits verifizierten Phase-1-Kern).
+  **Mittel** bleibt nur die Integration in den eigenen Baum: `NfcTechTexkom` (neuer
+  `NfcTech`-Enum-Wert) und `nfc_texkom_poller_rx()` (neue Funktion in `nfc/nfc.c`) existieren
+  bei mir noch nicht — beide sind trivial additiv (ein Enum-Wert, eine
+  Dispatch-Tabellenzeile, eine Wrapper-Funktion), ihre tatsächliche Implementierung ruft
+  aber direkt in die noch nicht portierte Phase-4-`furi_hal`-Schicht hinein, landet also
+  sinnvollerweise erst zusammen mit Phase 4.
+- **Mittel** für Listener (Phase 3): neuer, aber in sich abgeschlossener
+  Zustandsautomat, der ausschließlich über die bereits verifizierten Phase-1-Funktionen
+  mit dem Protokollkern spricht — das übliche Risiko eines neuen NFC-Zustandsautomaten
   (falsch verdrahtete Übergänge zeigen sich meist erst an echter Hardware), aber ohne
   eigene Kryptografie oder Authentifizierung, die zusätzlich falsch sein könnte.
 - **Mittel-hoch** für die Low-Level-RF-Schicht (Phase 4, `furi_hal_nfc_texkom.c`):
@@ -200,15 +280,16 @@ daher kein neues Risiko).
 
 ## Port-Skizze (mehrteilig, für künftige Sitzungen gestuft)
 
-1. **Phase 1 (dieser Patch):** `texkom.c/.h/_i.h` unverändert nach
+1. **Phase 1 (geliefert):** `texkom.c/.h/_i.h` unverändert nach
    `lib/nfc/protocols/texkom/` übernehmen, als neue Quelldateien in die
    `SConscript`/Build-Liste von `lib/nfc` aufnehmen (reine Quelldatei-Ergänzung, kein
    neues Ziel). Baut eigenständig, wird von nichts referenziert, bis Phase 2 beginnt.
-2. **Phase 2:** `texkom_poller.c/.h/_defs.h/_i.h` — Poller-Zustandsautomat, ruft
-   `furi_hal_nfc_texkom_rx_start()`/-ähnliche Funktionen (Phase 4) zum Abtasten; bis
-   Phase 4 fertig ist, kann der Zustandsautomat selbst bereits gegen eine
-   host-generierte, feste Lückenliste durchgetestet werden (dieselbe Technik wie im
-   Phase-1-Host-Repro).
+2. **Phase 2 (geliefert, diese Sitzung):** `texkom_poller.c/.h/_defs.h/_i.h` unverändert
+   nach `lib/nfc/protocols/texkom/` übernehmen, ebenfalls in die Build-Liste aufnehmen.
+   Compiliert im eigenen Baum erst, sobald die zwei kleinen Phase-4-Anschlusspunkte
+   existieren (`NfcTechTexkom`-Enum-Wert, `nfc_texkom_poller_rx()`), ist aber bereits
+   jetzt — unabhängig von Phase 4 — host-seitig gegen eine feste, gemockte Lückenliste
+   durchgetestet (siehe "Verifikation"), exakt die hier zuvor vorgesehene Technik.
 3. **Phase 3:** `texkom_listener.c/.h/_defs.h/_i.h` plus `texkom_signal.c/.h` —
    Emulationsseite; die Signalerzeugung (Kehrfunktion zu den Phase-1-Decodern) lässt sich
    ebenfalls host-seitig gegen die Phase-1-Decoder differenziell prüfen (encode → decode
@@ -236,6 +317,18 @@ daher kein neues Risiko).
   (2026-10-16): `lib/nfc/protocols/texkom/`, `lib/digital_signal/presets/nfc/
   texkom_signal.{c,h}`, `targets/f7/furi_hal/furi_hal_nfc_texkom.c`,
   `applications/main/nfc/helpers/protocol_support/texkom/`.
+- Diese Sitzung erneut gegen einen frischen, unabhängigen `dev`-Stand geprüft, Commit
+  `b510f625dd5a8962d9129b6bb17dc8a73c90fa07` (2026-10-18): `texkom.c/.h/_i.h`
+  (Phase 1, bereits übernommen) per `diff` Byte-für-Byte weiterhin identisch zum oben
+  genannten Stand bestätigt — keine Änderung seit der letzten Sichtung. Die
+  Poller-Dateien (Phase 2, neu in dieser Sitzung) stammen von diesem frischen Stand:
+  `lib/nfc/protocols/texkom/texkom_poller.c/.h/_defs.h/_i.h`. Zusätzlich
+  `lib/nfc/nfc.h/.c` als Fundort von `NfcTechTexkom`/`nfc_texkom_poller_rx()` (Phase-4-
+  Anschlusspunkte, siehe "Betroffene Dateien") sowie `lib/nfc/protocols/nfc_generic_event.h`/
+  `nfc_poller_base.h` (gemeinsame, bei mir bereits unverändert vorhandene
+  Abstraktionsschicht, über die jeder Poller — nicht nur Texkom — an das `Nfc`-Objekt
+  angebunden wird) gelesen, um die Testumgebung für `repro_poller.c` exakt an den
+  tatsächlichen Signaturen auszurichten.
 - Eigene Firmware-Basis (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
   `b359f6fc32f282ce7217dd2d48a4e3478771852e`, Tag `v2.0.0`/Momentum `mntm-012`):
   `lib/nfc/protocols/nfc_device_base_i.h`, `nfc_common.h`, `lib/one_wire/maxim_crc.{c,h}`,

@@ -7052,3 +7052,75 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz.
       `lora-ukfe` (eigene App, nur die RF-Console-Teile bereits geprüft)
       weiterhin nicht vollständig durchgesehen.
+
+## Firmware-Feature-Mining: Texkom-NFC-Poller (Phase 2 von 5)
+
+- [x] Lokale `main`-Zweigspitze war beim Sitzungsstart detached und 28 Commits
+      hinter `origin/main` (reines Checkout-Problem dieses Containers, keine
+      Datenverlustgefahr — `origin/main` stand bereits auf dem aktuellen
+      Commit). Vor dem ersten eigenen Commit per Fast-Forward korrigiert,
+      lokal/`origin` jetzt wieder identisch. Git-Identität gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung
+      (`FlipperJammer`, Run-Scene-Ausgang-Fix), davor Ideen-Recherche
+      (PromptZero) und Firmware-Feature-Mining (Texkom-Protokollkern,
+      Phase 1 von 5) — nach dem etablierten Rotationsmuster (Firmware →
+      Ideen → App → Firmware → ...) war Firmware-Feature-Mining für diese
+      Sitzung an der Reihe. Phase 1 selbst (Protokollkern) stand laut
+      eigener Port-Skizze als nächster Schritt bereits fest, statt erneut
+      einen neuen Kandidaten zu suchen: Phase 2 (Poller) aufgegriffen.
+- [x] Poller-Quelle (`texkom_poller.c/.h/_defs.h/_i.h`, 167 Zeilen) erneut
+      gegen einen frischen, unabhängigen Unleashed-`dev`-Stand geholt
+      (Commit `b510f625dd5a8962d9129b6bb17dc8a73c90fa07`, 2026-10-18):
+      `texkom.c/.h/_i.h` (Phase 1) dabei per `diff` erneut Byte-für-Byte
+      identisch zum zuvor geprüften Stand bestätigt — keine Änderung seit
+      der letzten Sichtung.
+- [x] Poller-Logik gelesen: reine Kontrolllogik ohne eigene Bit-/
+      Byte-Mathematik — ein Aufruf von `nfc_texkom_poller_rx()`, Ergebnis
+      unverändert an `texkom_decode_intervals()` (Phase 1) weitergereicht,
+      Callback nur bei Erfolg ausgelöst. Zwei Symbole fehlen bei mir noch
+      (`NfcTechTexkom`-Enum-Wert, `nfc_texkom_poller_rx()`-Funktion) — beide
+      erst mit Phase 4 real implementiert, aber trivial additiv (ein
+      Enum-Wert, eine Dispatch-Tabellenzeile, eine Wrapper-Funktion). Gegen
+      eine frische, unabhängige `G4MEOVER18/G4MEOVER-FW`-Zweitkopie (`main`,
+      weiterhin `b359f6fc32f282ce7217dd2d48a4e3478771852e`) per `diff`
+      bestätigt: `lib/nfc/protocols/nfc_generic_event.h`/`nfc_poller_base.h`
+      (die restliche Abstraktionsschicht, über die jeder Poller ans `Nfc`-
+      Objekt angebunden wird) bereits byte-identisch vorhanden; `nfc/nfc.h`
+      unterscheidet sich exakt um die zwei genannten Texkom-Symbole plus
+      einen unabhängigen `NfcEventTypeListenerTick`-Wert (Listener-Pacing,
+      nicht Teil dieser Phase).
+- [x] Host-Repro (acht Szenarien: Alloc/Free-Lebenszyklus inkl.
+      `nfc_config()`-Aufrufprüfung, Event-Filter auf
+      `NfcEventTypePollerReady`, TK13 Ende-zu-Ende über `run()` inkl.
+      Prüfung dass der Rückgabewert exakt vom Callback stammt, TK17 über
+      `detect()` ohne Callback-Aufruf, erfolgreicher Capture mit von keinem
+      Decoder akzeptierten Daten ohne Antasten der vorherigen Daten,
+      `NfcErrorTimeout` mit explizite Gegenprobe gegen noch gültig
+      aussehende Altdaten im Puffer, alle vier Varianten Ende-zu-Ende,
+      Zeiger-Identität von `general_event`/`texkom_event` über mehrere
+      Aufrufe) unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei
+      `-O0`/`-O1`: 46 Prüfungen, alle bestanden, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] Die vier Dateien (`texkom_poller.c/.h/_defs.h/_i.h`) unverändert in
+      `firmware-mining/texkom-nfc-protocol-core-port/` übernommen, Repro in
+      `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_poller.c`.
+      Port-Vorschlag (`firmware-mining/texkom-nfc-protocol-core-port.md`)
+      entsprechend aktualisiert: Betroffene-Dateien-, Verifikations-,
+      Risiko- und Port-Skizze-Abschnitte auf Phase 2 erweitert.
+- [ ] Lokal zu tun: `texkom_poller.c/.h/_defs.h/_i.h` nach
+      `lib/nfc/protocols/texkom/` kopieren (neben die bereits übernommenen
+      Phase-1-Dateien), in dieselbe Build-Liste aufnehmen. Compiliert erst,
+      sobald `NfcTechTexkom` und `nfc_texkom_poller_rx()` existieren — beide
+      landen sinnvollerweise zusammen mit Phase 4.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom`
+      Phase 3-5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES
+      Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s
+      restliche Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe
+      aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz.
+      `lora-ukfe` weiterhin nicht vollständig durchgesehen.
