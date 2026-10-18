@@ -1,0 +1,23 @@
+diff --git a/scenes/scene_rfid_fuzzer.c b/scenes/scene_rfid_fuzzer.c
+index 5ced6b9..5dfc96a 100644
+--- a/scenes/scene_rfid_fuzzer.c
++++ b/scenes/scene_rfid_fuzzer.c
+@@ -52,7 +52,17 @@ bool jammer_scene_RfidFuzzerRun_on_event(void* context, SceneManagerEvent event)
+     if(event.type == SceneManagerEventTypeCustom && event.event == 0xDEAD) {
+         rfid_fuzzer_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* RfidFuzzerRun wird ausschliesslich ueber die Duration-Scene
++           erreicht (RfidMenu -> Duration -> RfidFuzzerRun, kein direkter
++           Start-Weg existiert) -- plain previous_scene() wuerde deshalb
++           bei JEDEM Lauf auf der Dauer-Auswahl statt im RFID/NFC-Menue
++           landen. Gezielt zur eigentlichen Elternscene zurueckspringen. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneRfidMenu);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneRfidMenu);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         rfid_fuzzer_update_widget(app);

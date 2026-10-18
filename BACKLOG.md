@@ -6962,3 +6962,93 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
       Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status (kein vom
       tatsächlichen UART-Verbindungsstatus gespeister Status im Sweep-View).
+
+## App-Verbesserung: FlipperJammer — Run-Scene-Ausgang landet auf der Dauer-Auswahl statt im Konfigurationsmenü
+- [x] `reports/` durchgesehen: letzte Sitzung war Ideen-Recherche (PromptZero),
+      davor Firmware-Feature-Mining (Texkom-NFC-Protokollkern) und
+      App-Verbesserung (`g4meover-deck` `lorix_link.py`-Pagination) — nach dem
+      etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → Ideen →
+      App → ...) war App-Verbesserung für diese Sitzung an der Reihe.
+      Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `g4meover-deck` ist bereits vollständig durchgesehen (siehe vorherige
+      Sitzung), ebenso `g4meover-magspoof` und `RollJam`. Von den eigenen
+      Apps mit noch offenem Durchsichts-Rest `FlipperJammer` gewählt: das
+      frühere Tiefenaudit deckte explizit nur `modules/*.c` und
+      `jammer_app.c` ab (siehe `em4100-encoder-data-independent-output-fix.md`,
+      `hw-detect-otg-leak-after-exit-fix.md`) — `scenes/` (18 Dateien,
+      ~1900 Zeilen, Scene-Manager-Navigation und Dauer-/Start-Flow) war nie
+      geprüft.
+- [x] **Fund**: Jeder Modus mit wählbarer Laufzeit schiebt dafür die
+      gemeinsame `Duration`-Scene zwischen Konfigurationsscene und Run-Scene
+      (`Config -> Duration -> Run`, per `scene_manager_next_scene()` jeweils
+      gepusht, nie ersetzt). Jede der zehn betroffenen Run-Scenes
+      (`SubGhzRun`/`Nrf24Run`/`BleRun`/`WifiRun`/`IrRun`/`UsbFuzzerRun`/
+      `RfidJamRun`/`NfcJamRun`/`RfidFuzzerRun`/`NfcFuzzerRun`) verlässt sich
+      beim automatischen Ausstieg (Timer-Ablauf, `0xDEAD`-Event) auf ein
+      einfaches `scene_manager_previous_scene()` — poppt immer nur eine
+      Ebene. Über den optionalen Direkt-Start-Weg (`Config -> Run`, ohne
+      Dauer-Auswahl) ist das zufällig richtig; über den Dauer-Weg landet man
+      auf der `Duration`-Scene selbst statt auf der Konfigurationsscene.
+      Für `RfidJamRun`/`NfcJamRun`/`RfidFuzzerRun`/`NfcFuzzerRun` gibt es
+      laut `scene_rfid_menu.c` **gar keinen** Direkt-Start-Weg — dort ist das
+      kein Rand-, sondern der Regelfall: jeder einzelne Lauf dieser vier
+      Modi endet unausweichlich auf der Dauer-Auswahl statt im RFID/NFC-Menü.
+      Dieselbe fehlende Behandlung des Back-Events (fällt auf den
+      Scene-Manager-Standard-Pop zurück) betrifft auch das Drücken der
+      Zurück-Taste während des Laufs.
+- [x] Fix (additiv, zehn Dateien): in jeder Run-Scene's `on_event()` ersetzt
+      `scene_manager_search_and_switch_to_previous_scene(app->scene_manager,
+      Scene<Parent>)` das bisherige `scene_manager_previous_scene(...)` im
+      `0xDEAD`-Zweig, plus neuer `SceneManagerEventTypeBack`-Zweig mit
+      demselben gezielten Sprung — sucht die genannte Elternscene rückwärts
+      im Navigationsstapel und kürzt ihn bis dorthin, unabhängig davon ob
+      die `Duration`-Scene dazwischenliegt. Zielscene: die jeweilige
+      `*Config`-Scene bei den sechs Modulen mit eigener Konfigurationsscene,
+      `RfidMenu` bei den vier Modulen ohne eigene (deren einziger Einstieg
+      bereits darüber läuft). `scene_duration.c` selbst unverändert — der
+      Fix sitzt bewusst auf der Ausgangsseite, da dort unabhängig vom
+      genommenen Eintrittsweg korrekt. `scene_rfid_spoofer.c`/
+      `scene_nfc_spoofer.c` (kein Dauer-/Run-Muster) und
+      `scene_nrf24_diag.c`/`scene_info.c` geprüft, kein Fund, bewusst nicht
+      angefasst.
+- [x] Host-Repro: die relevanten Scene-Manager-Funktionen
+      (`scene_manager_next_scene`/`scene_manager_previous_scene`/
+      `scene_manager_search_and_switch_to_previous_scene`) 1:1 als
+      Host-Modell nachgebaut (Push/Pop/Truncate-Semantik, gegen die
+      tatsächliche Flipper-Firmware-Quelle abgeglichen), für alle zehn
+      Module je Dauer-Weg und (soweit vorhanden) Direkt-Start-Weg
+      durchgespielt. Unter `gcc -std=c11 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei
+      `-O0`/`-O1`: 32 Einzelprüfungen, alle bestanden, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine
+      Sanitizer-Befunde — in
+      `app-improvements/FlipperJammer/repro-scene-run-exit-lands-on-duration-picker/repro.c`.
+- [x] Zehn Patches gegen zwei frische, unabhängige Zweitkopien von
+      `G4MEOVER18/FlipperJammer` (`6a3cd49`) mit `git apply --check`
+      verifiziert, real angewendet, je Datei per `md5sum` abgeglichen —
+      identisch, in
+      `app-improvements/FlipperJammer/scene-run-exit-lands-on-duration-picker-fix/`.
+- [x] Details, Fund, Fix, Host-Repro, Risiko, Testhinweis in
+      `app-improvements/FlipperJammer/scene-run-exit-lands-on-duration-picker-fix.md`.
+- [ ] Lokal zu tun: alle zehn Patches gegen die eigene `FlipperJammer`-Kopie
+      anwenden, mit `ufbt launch`/`fbt` bauen. Für jedes der zehn Module:
+      Dauer auf 10 Sekunden stellen, starten, Timer ablaufen lassen — muss
+      auf der Konfigurationsscene (bzw. bei RFID/NFC-Jammer/-Fuzzer im
+      RFID/NFC-Menü) landen statt auf der Dauer-Auswahl; zusätzlich Back
+      während des Laufs testen. Gegenprobe über den Direkt-Start-Weg (wo
+      vorhanden): keine Regression.
+- [ ] Mit diesem Fund ist `FlipperJammer` jetzt vollständig durchgesehen
+      (`modules/*.c`, `jammer_app.c` aus früheren Sitzungen, `scenes/*.c` aus
+      dieser Sitzung).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom`
+      Phase 2-5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES
+      Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s
+      restliche Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe
+      aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz.
+      `lora-ukfe` (eigene App, nur die RF-Console-Teile bereits geprüft)
+      weiterhin nicht vollständig durchgesehen.

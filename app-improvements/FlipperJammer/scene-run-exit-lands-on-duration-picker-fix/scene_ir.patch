@@ -1,0 +1,20 @@
+diff --git a/scenes/scene_ir.c b/scenes/scene_ir.c
+index b8beb92..c3185e4 100644
+--- a/scenes/scene_ir.c
++++ b/scenes/scene_ir.c
+@@ -141,7 +141,14 @@ bool jammer_scene_IrRun_on_event(void* context, SceneManagerEvent event) {
+     if(event.type == SceneManagerEventTypeCustom && event.event == 0xDEAD) {
+         ir_jam_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* Kann ueber die Duration-Scene erreicht worden sein -- gezielt
++           zur IrConfig zurueck statt nur eine Ebene zu poppen. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneIrConfig);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneIrConfig);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         ir_run_update_widget(app);

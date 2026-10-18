@@ -1,0 +1,23 @@
+diff --git a/scenes/scene_rfid_jammer.c b/scenes/scene_rfid_jammer.c
+index fc16125..990e9e8 100644
+--- a/scenes/scene_rfid_jammer.c
++++ b/scenes/scene_rfid_jammer.c
+@@ -49,7 +49,17 @@ bool jammer_scene_RfidJamRun_on_event(void* context, SceneManagerEvent event) {
+     if(event.type == SceneManagerEventTypeCustom && event.event == 0xDEAD) {
+         rfid_jam_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* RfidJamRun wird ausschliesslich ueber die Duration-Scene
++           erreicht (RfidMenu -> Duration -> RfidJamRun, kein direkter
++           Start-Weg existiert) -- plain previous_scene() wuerde deshalb
++           bei JEDEM Lauf auf der Dauer-Auswahl statt im RFID/NFC-Menue
++           landen. Gezielt zur eigentlichen Elternscene zurueckspringen. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneRfidMenu);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneRfidMenu);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         rfid_jam_update_widget(app);

@@ -1,0 +1,25 @@
+diff --git a/scenes/scene_subghz.c b/scenes/scene_subghz.c
+index 134ad90..b78eb8b 100644
+--- a/scenes/scene_subghz.c
++++ b/scenes/scene_subghz.c
+@@ -180,7 +180,19 @@ bool jammer_scene_SubGhzRun_on_event(void* context, SceneManagerEvent event) {
+         /* Timer expired */
+         subghz_jam_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* Diese Run-Scene kann sowohl direkt aus SubGhzConfig (START)
++           als auch ueber die zwischengeschaltete Duration-Scene erreicht
++           worden sein. scene_manager_previous_scene() poppt immer nur
++           eine Ebene und wuerde im zweiten Fall auf der Dauer-Auswahl
++           statt auf der eigentlichen Konfiguration landen -- gezielt zur
++           tatsaechlichen Elternscene zurueckspringen, unabhaengig vom
++           genommenen Weg. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneSubGhzConfig);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneSubGhzConfig);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         subghz_run_update_widget(app);

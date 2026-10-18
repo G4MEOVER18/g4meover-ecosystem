@@ -1,0 +1,20 @@
+diff --git a/scenes/scene_ble.c b/scenes/scene_ble.c
+index 8ab821c..ca20323 100644
+--- a/scenes/scene_ble.c
++++ b/scenes/scene_ble.c
+@@ -110,7 +110,14 @@ bool jammer_scene_BleRun_on_event(void* context, SceneManagerEvent event) {
+     if(event.type == SceneManagerEventTypeCustom && event.event == 0xDEAD) {
+         ble_jam_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* Kann ueber die Duration-Scene erreicht worden sein -- gezielt
++           zur BleConfig zurueck statt nur eine Ebene zu poppen. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneBleConfig);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneBleConfig);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         ble_run_update_widget(app);

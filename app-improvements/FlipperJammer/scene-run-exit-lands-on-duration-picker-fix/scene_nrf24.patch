@@ -1,0 +1,20 @@
+diff --git a/scenes/scene_nrf24.c b/scenes/scene_nrf24.c
+index 3defaf3..8faa7b5 100644
+--- a/scenes/scene_nrf24.c
++++ b/scenes/scene_nrf24.c
+@@ -158,7 +158,14 @@ bool jammer_scene_Nrf24Run_on_event(void* context, SceneManagerEvent event) {
+     if(event.type == SceneManagerEventTypeCustom && event.event == 0xDEAD) {
+         nrf24_jam_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* Kann ueber die Duration-Scene erreicht worden sein -- gezielt
++           zur Nrf24Config zurueck statt nur eine Ebene zu poppen. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneNrf24Config);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneNrf24Config);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         nrf24_run_update_widget(app);

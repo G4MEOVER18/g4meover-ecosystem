@@ -1,0 +1,20 @@
+diff --git a/scenes/scene_wifi.c b/scenes/scene_wifi.c
+index 36f2a93..0fdffc1 100644
+--- a/scenes/scene_wifi.c
++++ b/scenes/scene_wifi.c
+@@ -154,7 +154,14 @@ bool jammer_scene_WifiRun_on_event(void* context, SceneManagerEvent event) {
+     if(event.type == SceneManagerEventTypeCustom && event.event == 0xDEAD) {
+         wifi_jam_stop();
+         jammer_notify_stop(app);
+-        scene_manager_previous_scene(app->scene_manager);
++        /* Kann ueber die Duration-Scene erreicht worden sein -- gezielt
++           zur WifiConfig zurueck statt nur eine Ebene zu poppen. */
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneWifiConfig);
++        handled = true;
++    } else if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_search_and_switch_to_previous_scene(
++            app->scene_manager, SceneWifiConfig);
+         handled = true;
+     } else if(event.type == SceneManagerEventTypeTick) {
+         wifi_run_update_widget(app);
