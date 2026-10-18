@@ -7124,3 +7124,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
       PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz.
       `lora-ukfe` weiterhin nicht vollständig durchgesehen.
+
+## Ideen-Recherche: Nearby Files (Stichoza) — GPS-Datei-Browser, Zero-Koordinaten-Filter-Fund
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (Texkom-NFC-Poller,
+      Phase 2 von 5), davor App-Verbesserung (`FlipperJammer`, Run-Scene-Ausgang-Fix) und
+      Ideen-Recherche (PromptZero) — nach dem etablierten Rotationsmuster
+      (Firmware → Ideen → App → Firmware → Ideen → ...) war Ideen-Recherche für diese Sitzung
+      an der Reihe. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer Ergänzung für die bislang dünnste Katalog-Kategorie gesucht
+      ("Recon / GPS / Wardriving" — bisher nur reines Logging über `FlipDeFlock`/
+      `GPS (NMEA) + WigleCSV`, keine Auswertungsseite). **Nearby Files**
+      (`Stichoza/flipper-nearby-files`, aktueller Stand Commit `669a8c7`, `fap_version` 1.7)
+      gefunden und vollständig gelesen (`nearby_files.c`, `gps_reader.c`/`.h`, sechs Szenen):
+      GPS-gestützter Datei-Browser, der eigene SubGHz-/NFC-/RFID-/iButton-Captures nach
+      Entfernung zur aktuellen Position sortiert anzeigt, Klick startet die passende App direkt
+      mit der Datei.
+- [x] Kein neuer Port-Kandidat — die App liegt bereits in meinem eigenen `mntm-012`-Baum
+      (`applications/external`-Submodul, `Next-Flip/Momentum-Apps`, dort in meinem FW-Stand auf
+      Commit `85b0cdb4e7dec08d16db6ceea3ec3fc5078bedb4` gepinnt). Per direktem `curl` gegen genau
+      diesen gepinnten Commit (`raw.githubusercontent.com`, kein Firmware-Checkout nötig)
+      verifiziert: mein Stand führt `fap_version` 1.5 — zwei Versionsstufen hinter dem aktuellen
+      Upstream-`v1.7` (fehlend: `iButton`-Scan, persistente Baudraten-Konfiguration,
+      "Add GPS"-Schreibpfad, alle erst ab `v1.6`/`v1.7`).
+- [x] Fund in der bei `v1.5` und `v1.7` identischen Funktion
+      `nearby_files_process_gps_coordinates()` (Zeile 487 in meiner `v1.5`, Zeile 728 in
+      Upstream-`v1.7`): der "ist das kein `(0,0)`-Sentinel"-Check verwendet `&&` statt `||` —
+      `if((float)latitude != 0.0f && (float)longitude != 0.0f)`. Das verwirft nicht nur den
+      echten `(0,0)`-Nullwert, sondern jede Datei, deren Koordinate auf **einer einzigen** Achse
+      exakt `0.0` ist. Ein echter, von "SubGHz Wardriving" automatisch eingetragener Capture auf
+      dem Äquator oder dem Nullmeridian (Breite oder Länge exakt `0.0`, die andere Achse ganz
+      normal) verschwindet dadurch ohne jede Fehlermeldung aus der Liste, obwohl er gültige
+      GPS-Daten trägt — kein konstruierter Randfall, da Greenwich/London und weite Teile
+      Spaniens/Frankreichs/Algeriens/Ghanas auf dem Nullmeridian liegen.
+- [x] Additiver Ein-Operator-Fix (`&&` → `||`) in
+      `ideas/nearby-files-zero-coordinate-filter-fix/nearby_files_c.patch`, gegen zwei frische,
+      unabhängige Zweitkopien der exakten `v1.5`-Quelle (direkt vom gepinnten
+      Momentum-Apps-Commit geladen) mit `git apply --check` verifiziert, real angewendet, beide
+      Endstände per `md5sum` byte-für-byte identisch. Gilt unverändert auch für Upstream-`v1.7`.
+- [x] Host-Repro (`ideas/repro-nearby-files-zero-coordinate-filter/repro.c`, acht Prüfgruppen:
+      Regression, echter `(0,0)`-Sentinel, Fund auf Nullmeridian, Fund auf Äquator, Nahe-Null-
+      Sanity-Check, explizite Abweichungs-/Übereinstimmungsprüfung, 1521-Punkte-
+      Äquivalenz-Sweep über das gesamte Lat/Lon-Gitter ohne Null-Achse, Gegenprobe mit
+      absichtlich zurückgesetztem Fix) unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: 3352
+      Prüfungen, beide Durchläufe bestanden, identischer Output, keine Compiler-Warnungen, keine
+      Sanitizer-Befunde.
+- [x] Details, Fund, Fix, Testhinweis, Versions-Rückstellpunkt in
+      `ideas/nearby-files-gps-app-status.md`. Neue Katalog-Zeile unter
+      "Recon / GPS / Wardriving" in `ideas/pentest-app-katalog.md` ergänzt, Recherche-Narrativ im
+      Katalog fortgeschrieben.
+- [ ] Lokal zu tun: Patch gegen `applications/external/nearby_files/nearby_files.c` im eigenen
+      Firmware-Baum anwenden, mit `fbt`/`ufbt` bauen und flashen. Funktionstest: eine `.sub`-Datei
+      von Hand mit `Lat: 51.507400`/`Lon: 0.000000` (oder umgekehrt mit Breite `0.0`) versehen,
+      App mit gültigem GPS-Fix starten — vor dem Fix fehlt die Datei in der Liste, nach dem Fix
+      erscheint sie mit korrekter Entfernungsangabe.
+- [ ] Separater Rückstellpunkt (eigene Sitzung wert, sobald Firmware-Feature-Mining an der Reihe
+      ist): Versionslücke `v1.5` → `v1.7` nachziehen (Submodul-Pin-Bump in `G4MEOVER-FW` auf
+      einen Momentum-Apps-Stand mit `v1.7`), inklusive Prüfung der drei neuen Funktionen
+      (`iButton`-Scan, Baudraten-Persistenz, "Add GPS"-Schreibpfad) auf eigene Fehler.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 3-5 (Listener,
+      Signalpreset, `furi_hal`-Low-Level-RF als höchstes Risiko, Protokollbaum-Registrierung/UI),
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      PSA-Bruteforce-Krypto-Konstanten, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz. `lora-ukfe` weiterhin
+      nicht vollständig durchgesehen.
