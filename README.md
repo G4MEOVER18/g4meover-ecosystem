@@ -43,6 +43,7 @@ Interaktive Kontroll-Karte: alle Geräte, **farbcodierte Transporte** (UART · U
 - [`heltec-ukfe-rx`](https://github.com/G4MEOVER18/heltec-ukfe-rx) — Heltec V3 (868-FSK + ESP-NOW)
 - [`lilygo-ukfe-rx`](https://github.com/G4MEOVER18/lilygo-ukfe-rx) — LilyGo T-Dongle S3 (ESP-NOW + USB-HID + TFT)
 - [`g4meover-wifi-relay`](https://github.com/G4MEOVER18/g4meover-wifi-relay) — ESP32-WROOM ESP-NOW-Koordinator
+- [`dogytag-firmware`](https://github.com/G4MEOVER18/dogytag-firmware) — DogyTag-Firmware-Familie (xiao-tag/heltec-tag/heltec-gateway/cubecell-433modem); eigener Datenpfad per lokalem MQTT über `heltec-gateway`, kein `ukfe_rf`/TTN-Transport
 
 ### 🧠 Deck & Koordination
 - [`g4meover-deck`](https://github.com/G4MEOVER18/g4meover-deck) — Raspberry-Pi-4-Ökosystem-OS (Gehirn) + **[ROADMAP.md](https://github.com/G4MEOVER18/g4meover-deck/blob/main/ROADMAP.md)** (Master-Handoff)
