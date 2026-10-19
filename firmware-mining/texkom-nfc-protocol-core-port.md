@@ -1,4 +1,4 @@
-# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller (Phase 1+2 von 5)
+# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal (Phase 1-3 von 5)
 
 ## Was
 
@@ -40,15 +40,24 @@ mehrteilige NFC-Protokollfamilien (MIFARE-Plus-/Ultralight-AES-Port):
    `firmware-mining/texkom-nfc-protocol-core-port/`, host-verifiziert gegen eigene, aus der
    Header-Dokumentation abgeleitete Testvektoren
    (Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro.c`).
-3. Phase 2 (diese Sitzung) — den vollständigen, unveränderten Poller
+3. Phase 2 (vorherige Sitzung) — den vollständigen, unveränderten Poller
    (`texkom_poller.c/.h/_defs.h/_i.h`), ebenfalls fertig zum Übernehmen in
    `firmware-mining/texkom-nfc-protocol-core-port/`, host-verifiziert gegen den bereits
    host-verifizierten Phase-1-Protokollkern mit einer gemockten `nfc_texkom_poller_rx()`
    anstelle der noch nicht portierten Phase-4-`furi_hal`-Schicht
    (Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_poller.c`).
+4. Phase 3 (diese Sitzung) — den vollständigen, unveränderten Listener
+   (`texkom_listener.c/.h/_defs.h/_i.h`) sowie den vollständigen, unveränderten
+   `DigitalSequence`-Signalpreset (`texkom_signal.c/.h`), ebenfalls fertig zum Übernehmen
+   in `firmware-mining/texkom-nfc-protocol-core-port/`. Beide host-verifiziert — der
+   Signalpreset differentiell gegen den bereits host-verifizierten Phase-1-Decoder
+   (encode → gemessene Lückenliste → decode → muss den Ausgangsrahmen ergeben, exakt die
+   seit Phase 1 vorgesehene Technik), der Listener gegen ein gemocktes
+   `Nfc`/`BitBuffer`/`nfc_listener_tx()` (Repro in
+   `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_listener.c`).
 
-Listener, Signalerzeugung, Low-Level-RF und UI liefere ich bewusst **nicht** als Patch —
-siehe "Risiko" und "Port-Skizze".
+Low-Level-RF und UI liefere ich bewusst **nicht** als Patch — siehe "Risiko" und
+"Port-Skizze".
 
 ## Nutzen
 
@@ -101,15 +110,34 @@ siehe "Risiko" und "Port-Skizze".
   wird, wann der Callback aufgerufen wird, was bei Fehler/Timeout mit den vorherigen
   Daten passiert) ist davon unabhängig und bereits jetzt host-verifiziert (siehe
   "Verifikation").
-
-**Für künftige Sitzungen (Phase 3+, nicht Teil dieses Patches):**
-- `lib/nfc/protocols/texkom/texkom_listener.c/.h`, `texkom_listener_defs.h`,
-  `texkom_listener_i.h` (122 Zeilen) — Emulationsseite; baut aus `TexkomData` ein
-  Sendesignal über die `texkom_signal`-Presets (Phase 3) und `furi_hal_nfc_texkom_*`
-  (Phase 4).
+- `lib/nfc/protocols/texkom/texkom_listener.c` (72 Zeilen), `texkom_listener.h` (17 Zeilen),
+  `texkom_listener_defs.h` (12 Zeilen), `texkom_listener_i.h` (19 Zeilen) — zusammen 120
+  Zeilen, Emulations-Zustandsautomat: `alloc/free/set_callback/get_data/run`. `run()`
+  reagiert ausschließlich auf `NfcEventTypeListenerTick`, kopiert dabei `data->frame`
+  (die rohen 8 Rahmen-Byte, unabhängig von Variante/Codierung) in einen eigenen
+  `BitBuffer` und übergibt ihn unverändert an die generische `nfc_listener_tx()`.
+  Bemerkenswert und für Phase 4 vorgemerkt (siehe "Risiko"): diese Datei ruft
+  `texkom_signal_tx()` **nicht** selbst auf und übergibt auch nirgends eine
+  `TexkomCoding`/`TexkomSignalCoding` — die beiden hier gelieferten Dateien
+  (Listener, Signalpreset) sind in diesem Entwicklungsstand strukturell unabhängig
+  und treffen sich erst innerhalb der noch nicht portierten Phase-4-Schicht
+  (`furi_hal_nfc_texkom.c`), die aus den rohen Bytes, die `nfc_listener_tx()`
+  entgegennimmt, offenbar selbst wieder die Codierung ableiten muss (zum Beispiel über
+  denselben Rahmen-Typbyte-Blick, den `texkom_type_from_frame()` in Phase 1 schon nutzt) —
+  unverändert gegen einen frischen `dev`-Stand übernommen (siehe "Quelle").
 - `lib/digital_signal/presets/nfc/texkom_signal.c` (196 Zeilen) / `.h` (65 Zeilen) —
-  `DigitalSequence`-Preset, das einen `TexkomData`-Rahmen in eine Impuls-Zeitfolge für die
-  Emulation umsetzt (Kehrfunktion zu den Phase-1-Decodern).
+  `DigitalSequence`-Preset, das einen 8-Byte-Rahmen in eine Impuls-Zeitfolge für die
+  Emulation umsetzt (Kehrfunktion zu den Phase-1-Decodern): zwei fest kodierte Symbol-Sätze
+  (TK13: zwei Lückenlängen je nach Bitwert; TK17: vier Lückenpaare je nach Zweibit-Wert),
+  je ein Abschlusssymbol pro Codierung. Nimmt einen `GpioPin` direkt entgegen (kein
+  `Nfc`-Objekt) — bestätigt, dass diese Schicht von der Low-Level-RF-Schicht (Phase 4)
+  aus aufgerufen wird, nicht vom Listener selbst. Unverändert gegen einen frischen
+  `dev`-Stand übernommen (siehe "Quelle").
+- Keine Abhängigkeit zu einer bei mir fehlenden Datei für beide: `nfc/protocols/
+  nfc_listener_base.h`, `nfc/nfc_listener.h`, `digital_signal/digital_sequence.h`,
+  `furi_hal_resources.h` sind bei mir bereits vorhanden.
+
+**Für künftige Sitzungen (Phase 4+, nicht Teil dieses Patches):**
 - `targets/f7/furi_hal/furi_hal_nfc_texkom.c` (527 Zeilen) — Low-Level-RF: fährt den
   STM32WB55-NFC-Analogfrontend im "Transparent Mode" (digitaler Framing-Pfad umgangen,
   MISO/MOSI direkt verdrahtet), eigener 64-MHz-Timer für eine 500-ksps-Abtastrate beim
@@ -239,6 +267,102 @@ Sanitizer-Befunde.
    verdrahtet, nie pro Aufruf neu gebaut) — ein Dauerfeld-Tag sendet denselben Rahmen
    wiederholt, der Poller baut dafür nicht jedes Mal ein neues Event-Objekt.
 
+### Phase 3 — Listener und Signalpreset (diese Sitzung)
+
+Beide gelieferten Dateien sind, wie in "Betroffene Dateien" benannt, in diesem
+Entwicklungsstand strukturell unabhängig voneinander: `texkom_listener.c` reicht nur die
+rohen Rahmen-Byte an die generische `nfc_listener_tx()` weiter, ohne `texkom_signal_tx()`
+je selbst aufzurufen oder eine Codierung zu übergeben; `texkom_signal.c` nimmt einen
+`GpioPin` direkt entgegen, nicht das `Nfc`-Objekt des Listeners. Beide host-verifiziert,
+aber als zwei getrennte Testgruppen, weil das exakt die tatsächliche Code-Struktur ist —
+keine künstliche Kopplung, die es im portierten Code so nicht gibt.
+
+**Signalpreset, differentiell gegen den Phase-1-Decoder:** `texkom_signal_tx()` ist die
+Kehrfunktion zu den in Phase 1 bereits host-verifizierten Dekodierfunktionen — ein Rahmen
+hineingegeben, muss nach dem erneuten Decodieren der erzeugten Lückenfolge byte-exakt
+wieder herauskommen. Die eine Hardware-Grenze der Datei (`DigitalSignal`/
+`DigitalSequence`, `GpioPin`) ist für den Host-Test durch einen Mock ersetzt, der nur
+`(Pegel, Dauer-in-Takt-Einheiten)` pro hinzugefügter Periode aufzeichnet — die reale
+`TEXKOM_SIGNAL_FC_64`-Skalierung (Takt-Einheiten auf die von `DigitalSignal` erwartete
+10-ps-Auflösung) bleibt im transkribierten Code unverändert; der Mock rechnet sie beim
+Aufzeichnen nur zurück, da für den Soll-Ist-Vergleich mit dem Decoder (der auf
+`uint8_t`-Takt-Einheiten arbeitet) ausschließlich die Verhältnisse zwischen den Lücken
+zählen, nicht die reale GPIO-Zeitbasis.
+
+Dabei ergab das Zusammenlesen von `texkom_signal.c` (diese Sitzung) mit dem bereits
+bekannten `texkom_i.h`-Kommentar "TK13 sends 128 impulses, TK17 sends 65" (Phase 1,
+seinerzeit als gegebene Tatsache übernommen) eine Erklärung, die ich vorher nicht hatte:
+`texkom_signal_fill()` hängt an das TK17-Abschlusssymbol (anders als an das TK13-Symbol)
+einen zusätzlichen Impuls *vor* die Park-Periode. Genau dieser eine zusätzliche Impuls ist
+es, der die letzte Lücke des letzten TK17-Symbolpaars überhaupt erst messbar macht (sie
+bekommt dadurch ein definiertes Ende statt im unbegrenzten Sendepausenbereich zu verlaufen)
+— weshalb TK17 alle 64 Lücken verwertet (`TEXKOM_TK17_INTERVALS`), während TK13 ohne dieses
+zusätzliche Abschlusssymbol die letzte der 128 Lücken verwerfen muss (`TEXKOM_TK13_INTERVALS
+= 127`). Beide Zahlen waren seit Phase 1 als Konstanten bekannt; der Grund für ihre
+Asymmetrie ergab sich erst jetzt aus dem Signalpreset.
+
+Host-Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_listener.c`,
+Szenarien 1-5 (Signalpreset):
+
+1. **TK13-Rundlauf**, 8 UIDs (Null, Eins, sechs gemischte Muster):
+   `make_blank`+`set_uid` → `texkom_signal_tx(Tk13)` → die ersten 127 Low-Perioden als
+   gemessene Lücken → `texkom_decode_intervals()` → Rahmen und Typ (`TexkomTypeTk13`, nicht
+   `Tk15` — saubere Zeiten bleiben auf dem Schwellwert-Pfad) stimmen exakt.
+2. **TK17-Rundlauf**, dieselben 8 UIDs: `texkom_signal_tx(Tk17)` → die ersten 64
+   Low-Perioden → decodiert → Rahmen und Typ (`TexkomTypeTk17`) stimmen exakt.
+3. **MMBIT-Rundlauf**, 8 Drei-Byte-UIDs: MMBIT nutzt dieselbe TK13-Codierung
+   (`texkom_features[Mmbit].coding`) → `texkom_signal_tx(Tk13)` → dieselbe 127-Lücken-
+   Extraktion → decodiert → Rahmen und Typ (`TexkomTypeMmbit`) stimmen exakt; da
+   `set_uid()` dabei auch die CRC neu setzt, wäre ein falsch mitkodiertes CRC-Byte
+   ebenfalls aufgefallen.
+4. **Negativ** (prüft das Testgeschirr selbst): eine aufgezeichnete Lücke wird vor dem
+   Decodieren auf einen bewusst mehrdeutigen Wert (exakt zwischen Kurz- und Langschwelle)
+   gesetzt — `texkom_decode_intervals()` muss ablehnen; ein zweiter, unveränderter
+   Rundlauf direkt danach muss unverändert gelingen (kein Zustand bleibt zwischen Aufrufen
+   hängen).
+5. **Alloc/Free-Lebenszyklus**: zwei unabhängige `TexkomSignal`-Instanzen, verschachtelt
+   gesendet (inklusive einem zweiten Sendevorgang auf derselben Instanz), in umgekehrter
+   Reihenfolge freigegeben — ASan hätte ein Leck, ein Doppel-Free oder eine
+   Use-after-free-Referenz auf eine registrierte Signal-Instanz gemeldet.
+
+Szenarien 6-8 (Listener, gemocktes `Nfc`/`BitBuffer`/`nfc_listener_tx()`):
+
+6. **Alloc/Free**: `nfc_config()` wird beim Allozieren genau einmal mit
+   `(nfc, NfcModeListener, NfcTechTexkom)` aufgerufen; `get_data()` liefert exakt den beim
+   Allozieren übergebenen Datenzeiger zurück, unverändert; `set_callback()` übernimmt
+   Callback und Kontext unverändert.
+7. **`run()` bei `NfcEventTypeListenerTick`** sendet die 8 Rahmen-Byte byte-exakt genau
+   einmal über `nfc_listener_tx()` (unabhängig von Variante/Codierung — diese Schicht sieht
+   keine von beiden); ein Ereignis eines anderen Typs sendet nicht; der Rückgabewert ist in
+   beiden Fällen `NfcCommandContinue`.
+8. **`run()` bei einem gemeldeten Sendefehler** (`NfcErrorTimeout`) sendet trotzdem genau
+   einmal, protokolliert nur (No-Op-Mock für `FURI_LOG_E`) und liefert unverändert
+   `NfcCommandContinue` — kein Wiederholungs- oder Abbruchpfad, den ein Test übersehen
+   könnte, weil die Quelle selbst keinen hat.
+
+Unter `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+bei `-O0`/`-O1`: **178 Prüfungen, alle bestanden**, identischer Output beider
+Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde. Gegenprobe zur
+Absicherung des Repros selbst: eine mutierte Kopie mit vertauschter Null-/Eins-Symbolwahl
+in `texkom_signal_fill()` lässt 53 der 178 Prüfungen scheitern (die Rundlauf- und
+Lebenszyklus-Szenarien, die tatsächlich eine korrekte Bitzuordnung voraussetzen) — das
+Repro ist also empfindlich für genau die Fehlerklasse, die ein Portierungsfehler in dieser
+Datei wäre. Eine zweite, geringwertigere Mutation (TK13-Langlücke um 1 Takt-Einheit
+verändert, bei unveränderter Kurzlücke) lässt dagegen alle 178 Prüfungen weiterhin
+bestehen — erwartungsgemäß, da `texkom_average_gaps()` seine Schwellwerte selbst aus den
+gemessenen Lücken herleitet und daher gegen eine konsistent falsche, aber in sich
+proportionale absolute Taktrate unempfindlich ist; dieselbe Selbstkalibrierung, die eine
+echte Marke bei leicht abweichender Taktrate noch lesbar macht. Beide Gegenproben
+bestätigen, dass dieses Repro echte Bitzuordnungsfehler fängt, ohne bei belanglosen
+Konstantenabweichungen falsch auszuschlagen — keine der beiden Mutationen ist Teil des
+gelieferten Repros, nur zur Absicherung dieser Sitzung durchgeführt und verworfen.
+
+**Nicht** durch diesen Host-Test abgedeckt: die tatsächliche GPIO-Zeitbasis
+(`TEXKOM_SIGNAL_FC_64`-Skalierung auf echte 10-ps-Perioden), `digital_sequence_transmit()`
+selbst (reine Hardware-Ausgabe, kein eigener Code in `texkom_signal.c`), sowie alles, was
+über `nfc_listener_tx()` hinaus tatsächlich Hochfrequenz erzeugt — das ist durchgängig
+Phase 4.
+
 ## Risiko
 
 - **Niedrig** für den gelieferten, host-verifizierten Phase-1-Protokollkern: rein additive
@@ -254,11 +378,18 @@ Sanitizer-Befunde.
   Dispatch-Tabellenzeile, eine Wrapper-Funktion), ihre tatsächliche Implementierung ruft
   aber direkt in die noch nicht portierte Phase-4-`furi_hal`-Schicht hinein, landet also
   sinnvollerweise erst zusammen mit Phase 4.
-- **Mittel** für Listener (Phase 3): neuer, aber in sich abgeschlossener
-  Zustandsautomat, der ausschließlich über die bereits verifizierten Phase-1-Funktionen
-  mit dem Protokollkern spricht — das übliche Risiko eines neuen NFC-Zustandsautomaten
-  (falsch verdrahtete Übergänge zeigen sich meist erst an echter Hardware), aber ohne
-  eigene Kryptografie oder Authentifizierung, die zusätzlich falsch sein könnte.
+- **Niedrig** für den gelieferten, host-verifizierten Phase-3-Listener und -Signalpreset
+  selbst: rein additive neue Dateien, keine Änderung an einer bestehenden Datei, kein
+  geteilter Zustand, der Signalpreset ist reine, differentiell gegen Phase 1 geprüfte
+  Bit-/Byte-Mathematik ohne Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge,
+  der Listener reiner Dispatch ohne eigene Logik. **Mittel** bleibt die Integration: wie
+  bei Phase 2 fehlt `NfcTechTexkom`; zusätzlich noch offen (siehe "Betroffene Dateien"),
+  *wie* die Phase-4-Schicht, die `nfc_listener_tx()`s rohe Byte letztlich entgegennimmt,
+  an die für die Sendung nötige `TexkomCoding`/`TexkomSignalCoding` kommt, da der Listener
+  selbst keine mitführt — das ist ein offener Klärungspunkt für Phase 4, keiner, der sich
+  aus dem hier gelieferten Code selbst beantworten lässt, und kein Fehler in den beiden
+  jetzt gelieferten Dateien (beide sind für sich genommen vollständig und korrekt, wie die
+  Verifikation zeigt).
 - **Mittel-hoch** für die Low-Level-RF-Schicht (Phase 4, `furi_hal_nfc_texkom.c`):
   einziger Teil, der den STM32WB55-NFC-Analogfrontend direkt im "Transparent Mode"
   ansteuert (digitaler Framing-Pfad umgangen) — ein Fehler hier wirkt sich potenziell auf
@@ -290,10 +421,14 @@ Sanitizer-Befunde.
    existieren (`NfcTechTexkom`-Enum-Wert, `nfc_texkom_poller_rx()`), ist aber bereits
    jetzt — unabhängig von Phase 4 — host-seitig gegen eine feste, gemockte Lückenliste
    durchgetestet (siehe "Verifikation"), exakt die hier zuvor vorgesehene Technik.
-3. **Phase 3:** `texkom_listener.c/.h/_defs.h/_i.h` plus `texkom_signal.c/.h` —
-   Emulationsseite; die Signalerzeugung (Kehrfunktion zu den Phase-1-Decodern) lässt sich
-   ebenfalls host-seitig gegen die Phase-1-Decoder differenziell prüfen (encode → decode
-   → muss den Ausgangsrahmen ergeben), bevor sie an echte Hardware geht.
+3. **Phase 3 (geliefert, diese Sitzung):** `texkom_listener.c/.h/_defs.h/_i.h` plus
+   `texkom_signal.c/.h` unverändert nach `lib/nfc/protocols/texkom/` bzw.
+   `lib/digital_signal/presets/nfc/` übernehmen, in die jeweilige Build-Liste aufnehmen.
+   Der Listener compiliert im eigenen Baum erst mit demselben fehlenden
+   `NfcTechTexkom`-Anschlusspunkt wie Phase 2; der Signalpreset ist davon unabhängig und
+   bräuchte nur ein `GpioPin`. Beide bereits jetzt — unabhängig von Phase 4 — host-seitig
+   verifiziert (siehe "Verifikation"), der Signalpreset per differentiellem Encode/Decode
+   gegen Phase 1, exakt die seit Phase 1 vorgesehene Technik.
 4. **Phase 4:** `furi_hal_nfc_texkom.c` — eigene, auf diese eine Datei fokussierte
    Sitzung; Register-/Timing-Konstanten (64-MHz-Timer, 500-ksps-Abtastrate,
    Transparent-Mode-Konfiguration) Zeile für Zeile gegen meine bereits vorhandene
@@ -317,11 +452,11 @@ Sanitizer-Befunde.
   (2026-10-16): `lib/nfc/protocols/texkom/`, `lib/digital_signal/presets/nfc/
   texkom_signal.{c,h}`, `targets/f7/furi_hal/furi_hal_nfc_texkom.c`,
   `applications/main/nfc/helpers/protocol_support/texkom/`.
-- Diese Sitzung erneut gegen einen frischen, unabhängigen `dev`-Stand geprüft, Commit
+- Vorherige Sitzung erneut gegen einen frischen, unabhängigen `dev`-Stand geprüft, Commit
   `b510f625dd5a8962d9129b6bb17dc8a73c90fa07` (2026-10-18): `texkom.c/.h/_i.h`
   (Phase 1, bereits übernommen) per `diff` Byte-für-Byte weiterhin identisch zum oben
   genannten Stand bestätigt — keine Änderung seit der letzten Sichtung. Die
-  Poller-Dateien (Phase 2, neu in dieser Sitzung) stammen von diesem frischen Stand:
+  Poller-Dateien (Phase 2) stammen von diesem Stand:
   `lib/nfc/protocols/texkom/texkom_poller.c/.h/_defs.h/_i.h`. Zusätzlich
   `lib/nfc/nfc.h/.c` als Fundort von `NfcTechTexkom`/`nfc_texkom_poller_rx()` (Phase-4-
   Anschlusspunkte, siehe "Betroffene Dateien") sowie `lib/nfc/protocols/nfc_generic_event.h`/
@@ -329,6 +464,15 @@ Sanitizer-Befunde.
   Abstraktionsschicht, über die jeder Poller — nicht nur Texkom — an das `Nfc`-Objekt
   angebunden wird) gelesen, um die Testumgebung für `repro_poller.c` exakt an den
   tatsächlichen Signaturen auszurichten.
+- Diese Sitzung erneut gegen einen frischen, unabhängigen `dev`-Stand geprüft, Commit
+  `3c6d6fa34f0be567d49a61a4c4c04dc2eb98f2d7` (2026-10-19, per `git ls-remote` auf den
+  aktuellen `dev`-Zweigkopf bestimmt): `texkom.c/.h/_i.h` (Phase 1) und
+  `texkom_poller.c/.h/_defs.h/_i.h` (Phase 2) per `diff` Byte-für-Byte weiterhin identisch
+  zu den oben genannten Ständen bestätigt — keine Änderung seit der letzten Sichtung. Die
+  Listener-/Signalpreset-Dateien (Phase 3, neu in dieser Sitzung) stammen von diesem
+  Stand: `lib/nfc/protocols/texkom/texkom_listener.c/.h/_defs.h/_i.h`,
+  `lib/digital_signal/presets/nfc/texkom_signal.{c,h}` — jeweils zweimal unabhängig
+  geladen und per `diff`/`md5sum` byte-für-byte identisch bestätigt.
 - Eigene Firmware-Basis (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
   `b359f6fc32f282ce7217dd2d48a4e3478771852e`, Tag `v2.0.0`/Momentum `mntm-012`):
   `lib/nfc/protocols/nfc_device_base_i.h`, `nfc_common.h`, `lib/one_wire/maxim_crc.{c,h}`,

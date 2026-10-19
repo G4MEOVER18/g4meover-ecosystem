@@ -7260,3 +7260,79 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `lora-ukfe` damit bis auf den neu benannten Protokollerweiterungs-Rückstellpunkt
       (`lora_rx`/`wifi_ap`/`error` ohne Binär-Äquivalent, braucht Hub-Gegenstück) und die
       veraltete `README.md` vollständig durchgesehen.
+
+## Firmware-Feature-Mining: Texkom-NFC-Listener/Signalpreset (Phase 3 von 5)
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      App-Verbesserung (lora-ukfe), davor Ideen-Recherche (Nearby Files), davor
+      Firmware-Feature-Mining (Texkom-Poller Phase 2) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war Firmware-Feature-Mining
+      für diese Sitzung an der Reihe. Lokale `main`-Zweigspitze war zu Sitzungsbeginn
+      erneut 32 Commits hinter `origin/main` (reines Checkout-Problem dieses Containers,
+      `origin/main` bereits aktuell) — per Fast-Forward korrigiert, keine
+      Datenverlustgefahr. Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Den seit Phase 1/2 in der Port-Skizze vorgesehenen nächsten Schritt aufgegriffen:
+      Listener (`texkom_listener.c/.h/_defs.h/_i.h`) und Signalpreset
+      (`texkom_signal.c/.h`) von Unleashed (`DarkFlippers/unleashed-firmware`, `dev`,
+      aktueller Zweigkopf `3c6d6fa34f0be567d49a61a4c4c04dc2eb98f2d7`, per `git ls-remote`
+      bestimmt) geholt, jede Datei zweimal unabhängig geladen und per `diff`/`md5sum`
+      byte-für-byte identisch bestätigt. Die bereits übernommenen Phase-1/2-Dateien
+      (`texkom.c/.h/_i.h`, `texkom_poller.c/.h/_defs.h/_i.h`) gegen diesen frischen Stand
+      erneut per `diff` geprüft — unverändert.
+- [x] Fund beim Zusammenlesen von `texkom_signal.c` (neu) mit dem bereits aus Phase 1
+      bekannten `texkom_i.h`-Kommentar "TK13 sends 128 impulses, TK17 sends 65": der
+      Grund für die Asymmetrie der beiden Intervall-Konstanten (127 vs. 64) liegt im
+      TK17-Abschlusssymbol, das — anders als das TK13-Abschlusssymbol — vor der
+      Park-Periode einen zusätzlichen Impuls sendet und dadurch die letzte Lücke des
+      letzten Symbolpaars überhaupt erst messbar macht. Beide Zahlen waren seit Phase 1
+      als Konstanten bekannt, ihre Begründung ergab sich erst jetzt aus dem Signalpreset —
+      kein Fehler, sondern ein Erkenntnisgewinn, der die Phase-1/2-Verifikation nachträglich
+      besser erklärt.
+- [x] Zweiter Fund (für Phase 4 vorgemerkt, siehe "Risiko" im Port-Vorschlag):
+      `texkom_listener.c` ruft `texkom_signal_tx()` nirgends selbst auf und übergibt auch
+      nirgends eine `TexkomCoding`/`TexkomSignalCoding` — Listener und Signalpreset sind in
+      diesem Entwicklungsstand strukturell unabhängig und treffen sich erst innerhalb der
+      noch nicht portierten Phase-4-Schicht (`furi_hal_nfc_texkom.c`). Wie diese Schicht aus
+      den rohen, über `nfc_listener_tx()` entgegengenommenen Bytes die Codierung ableitet,
+      ist noch offen und als eigener Klärungspunkt für die Phase-4-Sitzung dokumentiert,
+      nicht unterstellt.
+- [x] Beide Dateigruppen unverändert nach
+      `firmware-mining/texkom-nfc-protocol-core-port/` übernommen. Host-Repro in
+      `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_listener.c`: Signalpreset
+      differentiell gegen den bereits host-verifizierten Phase-1-Decoder (TK13-/TK17-/
+      MMBIT-Rundlauf über je 8 UIDs, ein Negativ-Szenario, Alloc/Free-Lebenszyklus), Listener
+      gegen ein gemocktes `Nfc`/`BitBuffer`/`nfc_listener_tx()` (Alloc/Free inkl.
+      `nfc_config()`-Aufrufprüfung, `run()` bei Tick-Event sendet die exakten Rahmen-Byte
+      genau einmal, `run()` bei Fremdereignis sendet nicht, `run()` bei gemeldetem
+      Sendefehler bleibt unverändert robust). Unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: 178
+      Prüfungen, alle bestanden, identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde. Gegenprobe zur Absicherung des Repros
+      selbst: eine mutierte Kopie mit vertauschter Null-/Eins-Symbolwahl lässt 53 der 178
+      Prüfungen scheitern (Repro ist für echte Bitzuordnungsfehler empfindlich); eine
+      zweite Mutation (Langlücke um 1 Takt-Einheit verändert) lässt alle 178 weiterhin
+      bestehen (erwartungsgemäß, da `texkom_average_gaps()` seine Schwellwerte selbst aus
+      den gemessenen Lücken herleitet) — beide Mutationen nur zur Absicherung durchgeführt,
+      nicht Teil des gelieferten Repros.
+- [x] Port-Vorschlag `firmware-mining/texkom-nfc-protocol-core-port.md` um Phase 3
+      erweitert (Betroffene Dateien, Verifikation, Risiko, Port-Skizze, Quelle).
+- [ ] Lokal zu tun: beide Dateigruppen gegen den eigenen Firmware-Baum anwenden, in die
+      jeweilige Build-Liste (`lib/nfc`, `lib/digital_signal`) aufnehmen. Der Listener
+      compiliert erst, sobald `NfcTechTexkom` existiert (kommt mit Phase 4, wie bei
+      Phase 2); der Signalpreset ist davon unabhängig und bräuchte nur einen `GpioPin`.
+- [ ] Phase 4 (nächster, mit Abstand größter Rückstellpunkt dieser Portierung):
+      `furi_hal_nfc_texkom.c` — Low-Level-RF, Transparent-Mode auf dem STM32WB55, höchstes
+      Risiko dieser gesamten Portierung (siehe "Risiko"), plus die neu benannte offene
+      Frage, wie diese Schicht die Codierung aus den rohen Listener-Bytes ableitet.
+- [ ] Phase 5 (danach): `NfcProtocolTexkom`-Registrierung im Protokollbaum, UI-Anbindung.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung
+      vor lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`) und veraltete
+      `README.md`.
