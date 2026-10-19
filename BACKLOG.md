@@ -7408,7 +7408,7 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       übernehmen.
 - [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 4-5 (`furi_hal`-
       Low-Level-RF als höchstes Risiko, Protokollbaum-Registrierung/UI), NFC/RFID-Parser-
-      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
       `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
       Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
       LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
@@ -7416,3 +7416,44 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
       Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
       (`lora_rx`/`wifi_ap`/`error`) und veraltete `README.md`.
+
+## ProtoPirate — PSA: manuelle Neu-Codierung nutzte nach BF2-Fund den falschen Bruteforce-Kernel
+
+- [x] Rückstellpunkt "PSA-Bruteforce-Kernel" vollständig abgeschlossen: nach dem bereits
+      dokumentierten BF2-Counter/CRC-Konflationsfund (`psa-bf2-counter-crc-buffer8-
+      conflation-fix.md`, Decoder-/Erfolgspfad-Seite) jetzt die Gegenrichtung geprüft — was
+      passiert, wenn ein Bruteforce-Fund später für manuelle Codeerzeugung/erneuten Versand
+      genutzt wird (`protocols/psa.c`, Encoder-Seite).
+- [x] Fund: `psa_brute_force_run()` hat zwei Kernel mit grundverschiedener Schlüsselableitung
+      (BF1: TEA-Zwischenverschlüsselung fester Konstanten; BF2: Schlüsselplan XOR Counter,
+      16-Bit- statt 8-Bit-CRC), markiert beide Erfolgsfälle aber mit identischem
+      `decrypted_type = 0x36`. `subghz_protocol_encoder_psa_deserialize()`/
+      `psa_encoder_build_upload()` kennen für `Type:0x36` nur den BF1-Pfad
+      (`psa_build_buffer_mode36()`) — jeder BF2-Fund erzeugt beim manuellen Neu-Erzeugen/
+      erneuten Senden damit einen am echten Empfänger ungültigen Key1/Key2. Algebraisch
+      hergeleitet, dass BF2 (wie bereits BF1) seinen Such-Counter allein aus dem Serial
+      rekonstruieren kann (`PSA_CRYPTO_BF2_START | (serial & 0xFFFFFF)`) — der Fix braucht
+      also nur einen neuen Typ-Marker (`0x37`) und eine zweite Encoder-Funktion, keine neue
+      Persistenz.
+- [x] Host-Repro (`repro-psa-bf-mode36-wrong-kernel-reencode/repro.c`): 120 synthetische
+      BF1- und 120 BF2-Fälle, "echter Sender" per Vorwärts-TEA-Verschlüsselung simuliert,
+      gegen die wörtlich unveränderte BF1/BF2-Erfolgsprüfung aus `psa_brute_force_run()`
+      verifiziert, dann durch ALT- (Status quo) und NEU-Encoder-Pfad zurückgeführt und
+      byteweise verglichen. BF1 rundet in 120/120 Fällen korrekt (Regression), BF2 mit ALT in
+      0/120, mit NEU in 120/120. Mutationsprobe (BF2-Schlüssel-XOR → AND) lässt gezielt genau
+      die 480 BF2/NEU-spezifischen Prüfungen scheitern, keine BF1-Prüfung. Unter
+      `gcc -fsanitize=address,undefined` bei `-O0`/`-O1`, exit 0.
+- [x] `app-improvements/ProtoPirate/psa-bf-mode36-wrong-kernel-reencode-fix.md` angelegt
+      (Was, Nutzen, betroffene Dateien, vollständiger Patch, Risiko, Testhinweis, Zusätzlich
+      geprüft, Quelle) plus Patches (`psa_crypto_bf_c.patch`, `psa_c.patch`) und Host-Repro.
+      Nebenfund dokumentiert: `ENABLE_EMULATE_FEATURE` ist in der eigenen `defines.h`
+      entgegen einer Angabe der vorherigen Sitzung tatsächlich aktiv — der Encoder-Pfad ist
+      live kompilierter Code, keine tote Funktion.
+- [ ] Lokal zu tun: beide Patches gegen den eigenen `ProtoPirate`-Stand anwenden, bauen
+      (`ufbt`), und — sobald lokal ein per BF2 entschlüsselter Fund vorliegt — dessen
+      manuelle Neu-Codierung gegen eine Gegenstelle mit bekanntem Schlüssel prüfen (vor dem
+      Fix abgelehnt, danach akzeptiert).
+- [ ] Die reverse-engineerten TEA-Schlüsselplan-Konstanten selbst (`psa_crypto_bf1_key_
+      schedule`/`psa_crypto_bf2_key_schedule`, `PSA_CRYPTO_BF1_CONST_U4/U5`) bleiben bewusst
+      zurückgestellt — eigener, als riskant eingestufter Bereich, kein offener Fix-Punkt
+      dieser beiden Sitzungen, sondern separat zu bewertendes Kryptografie-Risiko.

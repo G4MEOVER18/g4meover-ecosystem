@@ -1,0 +1,37 @@
+diff --git a/protocols/psa_crypto_bf.c b/protocols/psa_crypto_bf.c
+index bb13280..d871038 100644
+--- a/protocols/psa_crypto_bf.c
++++ b/protocols/psa_crypto_bf.c
+@@ -54,6 +54,23 @@ static void psa_bf_fill_state_from_buffer(PsaBfState* state, uint8_t* buffer) {
+     state->decrypted_type = 0x36;
+ }
+ 
++// BF2 success case: buffer[8] is here the upper byte of the actually-checked 16-bit CRC
++// (see expected_crc = dec_v1 & 0xFFFF below), not counter payload like in the BF1 case --
++// own field split instead of reusing the BF1 function. Also marks the result with the new
++// Type 0x37 (instead of 0x36) so the encoder can later tell which bruteforce kernel (and
++// therefore which key schedule) actually produced this result -- see
++// psa-bf-mode36-wrong-kernel-reencode-fix.md for why that distinction matters.
++static void psa_bf_fill_state_from_buffer_bf2(PsaBfState* state, uint8_t* buffer) {
++    state->decrypted_button = (buffer[5] >> 4) & 0xF;
++    state->decrypted_serial = ((uint32_t)buffer[3] << 8) | ((uint32_t)buffer[2] << 16) |
++                              (uint32_t)buffer[4];
++    state->decrypted_counter = ((uint32_t)buffer[7] << 8) | ((uint32_t)buffer[6] << 16) |
++                               (((uint32_t)buffer[5] & 0xF) << 24);
++    state->decrypted_crc = ((uint16_t)buffer[8] << 8) | (uint16_t)buffer[9];
++    state->decrypted_seed = state->decrypted_serial;
++    state->decrypted_type = 0x37;
++}
++
+ void psa_brute_force_run(PsaBfState* state) {
+     uint8_t buffer[48] = {0};
+     psa_crypto_setup_byte_buffer(buffer, state->key1_low, state->key1_high, state->key2_low);
+@@ -136,7 +153,7 @@ void psa_brute_force_run(PsaBfState* state) {
+             uint16_t crc16 = psa_crypto_crc16_bf2(crc_buffer, 6);
+             uint16_t expected_crc = (uint16_t)(dec_v1 & 0xFFFF);
+             if(crc16 == expected_crc) {
+-                psa_bf_fill_state_from_buffer(state, buffer);
++                psa_bf_fill_state_from_buffer_bf2(state, buffer);
+                 state->progress_current = (PSA_CRYPTO_BF1_END - PSA_CRYPTO_BF1_START) +
+                                           (counter - PSA_CRYPTO_BF2_START);
+                 state->status = PSA_BF_STATUS_FOUND;

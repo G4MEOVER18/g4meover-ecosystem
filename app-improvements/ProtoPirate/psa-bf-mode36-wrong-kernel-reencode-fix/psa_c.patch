@@ -1,0 +1,122 @@
+diff --git a/protocols/psa.c b/protocols/psa.c
+index 22c1f5a..ee9b8d7 100644
+--- a/protocols/psa.c
++++ b/protocols/psa.c
+@@ -390,6 +390,99 @@ static void psa_build_buffer_mode36(
+         buffer[9]);
+ }
+ 
++// Mode 0x37: manual-generation/replay re-encode for a key that was recovered via the
++// SECOND bruteforce kernel (BF2), as opposed to psa_build_buffer_mode36() above, which is
++// the BF1-kernel re-encode. Needed because mode36's key derivation (BF1 TEA schedule,
++// 8-bit CRC in v1's low byte) produces a WRONG Key1/Key2 for any Serial/Btn/Cnt/CRC that
++// actually came out of the BF2 kernel (BF2's working key is schedule XOR counter, and its
++// CRC is a 16-bit CRC16 occupying v1's full low 16 bits) -- see
++// psa-bf-mode36-wrong-kernel-reencode-fix.md for the derivation and host-verified proof.
++// bf_counter is reconstructed the same way mode36 reconstructs its own: both bruteforce
++// loops' match condition is "(counter & 0xFFFFFF) == (dec_v0 >> 8)", and dec_v0 >> 8 is
++// exactly the serial field, so "kernel_START | (serial & 0xFFFFFF)" recovers the original
++// search counter for either kernel without needing to persist it separately.
++static void psa_build_buffer_mode37(
++    SubGhzProtocolEncoderPSA* instance,
++    uint8_t* buffer,
++    uint8_t* preserve_buffer01) {
++    FURI_LOG_I(TAG, "=== MODE 0x37 ENCRYPTION (BF2 kernel) ===");
++    FURI_LOG_I(
++        TAG,
++        "Input: Ser:%06lX Cnt:%08lX CRC:%04X Btn:%01X",
++        (unsigned long)instance->serial,
++        (unsigned long)instance->counter,
++        (unsigned int)instance->crc,
++        (unsigned int)instance->button);
++
++    memset(buffer, 0, PSA_BUFFER_SIZE);
++
++    uint32_t v0 = ((instance->serial & 0xFFFFFF) << 8) | ((instance->button & 0xF) << 4) |
++                  ((instance->counter >> 24) & 0xF);
++    uint32_t v1 = ((instance->counter >> 8) & 0xFFFF) << 16;
++
++    uint8_t crc_buffer[6] = {
++        (uint8_t)((v0 >> 24) & 0xFF),
++        (uint8_t)((v0 >> 8) & 0xFF),
++        (uint8_t)((v0 >> 16) & 0xFF),
++        (uint8_t)(v0 & 0xFF),
++        (uint8_t)((v1 >> 24) & 0xFF),
++        (uint8_t)((v1 >> 16) & 0xFF),
++    };
++    uint16_t crc16 = psa_crypto_crc16_bf2(crc_buffer, 6);
++    v1 |= crc16;
++
++    FURI_LOG_D(
++        TAG, "Calculated CRC16: 0x%04X, v1 after CRC: 0x%08lX", (unsigned int)crc16, (unsigned long)v1);
++
++    uint32_t bf_counter = PSA_CRYPTO_BF2_START | (instance->serial & 0xFFFFFF);
++    FURI_LOG_D(TAG, "BF counter: 0x%08lX (BF2_START | serial)", (unsigned long)bf_counter);
++
++    uint32_t working_key[4] = {
++        psa_crypto_bf2_key_schedule[0] ^ bf_counter,
++        psa_crypto_bf2_key_schedule[1] ^ bf_counter,
++        psa_crypto_bf2_key_schedule[2] ^ bf_counter,
++        psa_crypto_bf2_key_schedule[3] ^ bf_counter,
++    };
++
++    psa_crypto_tea_encrypt(&v0, &v1, working_key);
++
++    FURI_LOG_D(TAG, "TEA encrypted v0:0x%08lX v1:0x%08lX", (unsigned long)v0, (unsigned long)v1);
++    FURI_LOG_D(
++        TAG,
++        "Working key: %08lX %08lX %08lX %08lX",
++        (unsigned long)working_key[0],
++        (unsigned long)working_key[1],
++        (unsigned long)working_key[2],
++        (unsigned long)working_key[3]);
++
++    psa_crypto_unpack_tea_result_to_buffer(buffer, v0, v1);
++
++    if(preserve_buffer01 != NULL) {
++        buffer[0] = preserve_buffer01[0];
++        buffer[1] = preserve_buffer01[1];
++        FURI_LOG_D(
++            TAG, "Preserved buffer[0-1] from original Key1: %02X %02X", buffer[0], buffer[1]);
++    } else {
++        buffer[0] = buffer[2] ^ buffer[6];
++        buffer[1] = buffer[3] ^ buffer[7];
++        FURI_LOG_D(TAG, "Derived buffer[0-1]: %02X %02X", buffer[0], buffer[1]);
++    }
++
++    FURI_LOG_I(
++        TAG,
++        "Encrypted buffer[0-9]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
++        buffer[0],
++        buffer[1],
++        buffer[2],
++        buffer[3],
++        buffer[4],
++        buffer[5],
++        buffer[6],
++        buffer[7],
++        buffer[8],
++        buffer[9]);
++}
++
+ static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
+     furi_check(instance);
+ 
+@@ -430,6 +523,8 @@ static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
+         psa_build_buffer_mode23(instance, buffer, preserve_ptr);
+     } else if(instance->mode == 0x36) {
+         psa_build_buffer_mode36(instance, buffer, preserve_ptr);
++    } else if(instance->mode == 0x37) {
++        psa_build_buffer_mode37(instance, buffer, preserve_ptr);
+     } else {
+         FURI_LOG_E(TAG, "Unknown mode: 0x%02X", instance->mode);
+         return;
+@@ -585,7 +680,7 @@ SubGhzProtocolStatus
+     }
+     instance->seed = (uint8_t)(seed_val & 0xFFU);
+ 
+-    instance->mode = (instance->type == 0x36) ? 0x36 : 0x23;
++    instance->mode = (instance->type == 0x36) ? 0x36 : ((instance->type == 0x37) ? 0x37 : 0x23);
+ 
+     psa_encoder_build_upload(instance);
+     instance->is_running = true;
