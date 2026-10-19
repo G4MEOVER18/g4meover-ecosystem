@@ -7194,3 +7194,69 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
       PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz. `lora-ukfe` weiterhin
       nicht vollständig durchgesehen.
+
+## App-Verbesserung: lora-ukfe — json_parse.c vollständig toter Code (Entfernung), Protokolllücke für drei Event-Typen dokumentiert
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Ideen-Recherche (Nearby Files), davor Firmware-Feature-Mining (Texkom-NFC-Poller
+      Phase 2), davor App-Verbesserung (FlipperJammer) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → ...) war App-Verbesserung für diese
+      Sitzung an der Reihe. Git-Identität gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`);
+      lokale `main`-Zweigspitze war zu Sitzungsbeginn erneut detached (reines
+      Checkout-Problem dieses Containers, `origin/main` bereits aktuell) — vor dem ersten
+      eigenen Commit per `git checkout -B main origin/main` korrigiert.
+- [x] Den zuletzt in den "Offen"-Abschnitten von `payload-list-response-dispatch-fix.md`
+      und `scanhit-response-decode-fix.md` zurückgestellten Punkt aufgegriffen:
+      "`json_parse.c`/`ukfe_json_handle()` bleiben toter Code — Entfernen oder
+      Reaktivieren ist eine separate Entscheidung." Frischen Klon von
+      `G4MEOVER18/lora-ukfe` (`0dba410a`, unverändert) gezogen, per
+      `grep -rn "json_parse\|ukfe_json_handle"` über den gesamten Baum bestätigt: die
+      Funktion hat weiterhin keinen Aufrufer außer ihrer eigenen Definition und der
+      Deklaration in `lora_ukfe.h` — nicht nur `handle_payload_list()` (bereits bekannt),
+      sondern alle fünf Event-Handler der Datei (`handle_status`/`handle_trigger_ack`/
+      `handle_payload_list`/`handle_lora_rx`/`handle_wifi_ap`/`handle_error`).
+      Zusatzbefund beim Abgleich aller fünf JSON-Event-Typen gegen das aktuelle
+      `UkfeRfResp`-Enum (`rf/ukfe_rf.h`): zwei haben inzwischen ein Binär-Äquivalent
+      (`status`/`payload_list`), für die restlichen drei (`lora_rx`, `wifi_ap`, `error`)
+      existiert **kein** passender Response-Code im Enum — anders als bei
+      `UkfeRfRespPayload`/`UkfeRfRespScanHit` (Enum-Wert vorhanden, nur `case` gefehlt) ist
+      das hier keine reine Flipper-seitige Verdrahtungslücke, sondern bräuchte eine
+      koordinierte Protokollerweiterung mit Gegenstück auf der Hub-Firmware (separates
+      Repo) — bewusst nicht unilateral als neuer Wire-Code erfunden, sondern als eigener
+      Rückstellpunkt dokumentiert.
+- [x] `command_catalog.h` sowie alle Scenes (`scene_handlers.c`, `scene_menu.c`,
+      `scene_mode_menu.c`, `scene_status.c`, `scene_settings.c`, `scene_log.c`,
+      `scene_payload_list.c`) im Rahmen dieser Sitzung erneut gegen den frischen Klon
+      abgeglichen — unverändert gegenüber der bereits abgeschlossenen Vorsitzung (Fund dort:
+      `catalog-trigger-arg-format-mismatch-fix.md`/`trigger-catalog-number-input-port.md`),
+      kein neuer Fund in diesem Teil. `rf/rf_comm.c`/`rf/ukfe_rf.c` (Kernprotokoll,
+      CRC/MAC/Anti-Replay) ebenfalls gegenkontrolliert — identisch zum in mehreren
+      Schwester-Apps (`heltec-v4-hub`, `usb-army-penetrator`, `heltec-ukfe-rx`) bereits
+      geprüften Referenzstand, keine neue Abweichung.
+- [x] Fix (rein subtraktiv): `json_parse.c` vollständig entfernt, zweizeilige Deklaration
+      aus `lora_ukfe.h` entfernt. Patch gegen zwei frische, unabhängige Zweitkopien der
+      unveränderten `G4MEOVER18/lora-ukfe`-Basis (`0dba410a`) mit `git apply --check`
+      verifiziert, real angewendet, Ergebnis per `md5sum` abgeglichen — identisch;
+      anschließend erneut `grep -rn "json_parse\|ukfe_json_handle"` über den gepatchten
+      Baum (`.c`/`.h`/`.fam`) bestätigt keine verbleibende Referenz mehr. Details, Fund,
+      Nutzen, Risiko, Testhinweis, Offen-Punkte (Protokollerweiterung `lora_rx`/`wifi_ap`/
+      `error`, veraltete `README.md` auf altem JSON-Protokoll-Stand) in
+      `app-improvements/lora-ukfe/json-parse-dead-code-removal.md`, Patch in
+      `app-improvements/lora-ukfe/json-parse-dead-code-removal/json_parse_dead_code_removal.patch`.
+- [ ] Lokal zu tun: Patch gegen die eigene `lora-ukfe`-Kopie anwenden, mit `ufbt build`
+      bauen (muss unverändert erfolgreich sein, da der entfernte Code nie aufgerufen
+      wurde), danach App auf dem Gerät wie gewohnt starten/bedienen — identisches
+      Verhalten vor/nach dem Patch erwartet.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, plus neu benannt): `texkom`
+      Phase 3-5 (Listener, Signalpreset, `furi_hal`-Low-Level-RF als höchstes Risiko,
+      Protokollbaum-Registrierung/UI), NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung
+      vor lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump).
+      `lora-ukfe` damit bis auf den neu benannten Protokollerweiterungs-Rückstellpunkt
+      (`lora_rx`/`wifi_ap`/`error` ohne Binär-Äquivalent, braucht Hub-Gegenstück) und die
+      veraltete `README.md` vollständig durchgesehen.
