@@ -7336,3 +7336,83 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       vor lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
       lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`) und veraltete
       `README.md`.
+
+## Ideen-Recherche: CCID Emulator (PentestSuite & barkandbite) — neue Kategorie USB Smartcard (CCID/ISO 7816-4)
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Firmware-Feature-Mining (Texkom-NFC-Listener/Signalpreset, Phase 3 von 5), davor
+      App-Verbesserung (lora-ukfe), davor Ideen-Recherche (Nearby Files) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war Ideen-Recherche für diese
+      Sitzung an der Reihe. Lokale `main`-Zweigspitze war zu Sitzungsbeginn erneut hinter
+      `origin/main` angezeigt (reines Checkout-Problem dieses Containers nach einem Fetch stellte
+      sich heraus: `origin/main` war nach einem `git fetch` tatsächlich bereits identisch mit dem
+      zuvor detachten `HEAD` — per Fast-Forward des lokalen `main`-Zeigers auf `HEAD` korrigiert,
+      keine Datenverlustgefahr). Git-Identität vor dem ersten Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer bislang komplett fehlenden Katalog-Kategorie gesucht: USB-seitige
+      Smartcard-*Emulation* (Gegenstück zu den bestehenden NFC/RFID-*Lesegerät*-Funden wie
+      PicoPass/Seader/NFC Magic/MFKey). Erfolglos recherchiert: Zigbee/802.15.4-Sniffer (kein
+      Flipper-FAP gefunden, nur die rohe BLE-genutzte STM32WB55-802.15.4-Hardwarefähigkeit ohne
+      Firmware-Anbindung), GPS-Spoofing-/Jamming-Detektor (keine Flipper-App gefunden), POCSAG als
+      eigenständige App (existiert nur als SubGHz-Protokolldecoder, kein Ideen-Recherche-Fall).
+      Über die RogueMaster-Bündel-Verzeichnisliste (`applications/external`, sparse abgefragt)
+      **CCID Emulator** (`ccid_emulator`, Autor laut `application.fam`: `PentestSuite &
+      barkandbite/flipper_suite`) gefunden.
+- [x] Sparse geklonter `RogueMaster/flipperzero-firmware-wPlugins` (Branch `420`,
+      `applications/external/ccid_emulator/`): sieben Quelldateien (`ccid_emulator.c/.h`,
+      `ccid_handler.c/.h`, `ccid_usb.c/.h`, `card_parser.c/.h`), 2822 Zeilen, vollständig gelesen.
+      Zusätzlich das Ursprungsrepo `barkandbite/flipper_suite` separat geklont zum Abgleich — dort
+      fehlen `ccid_usb.c/.h`/`card_parser.c/.h` (nur Teilbestand), dafür sieben statt zwei
+      mitgelieferte Beispielprofile unter `ccid_emulator_sample_cards/`. Die
+      RogueMaster-Fassung ist der vollständigere, eigenständig baubare Stand und damit als
+      Grundlage der Prüfung gewählt.
+- [x] API-87-Status verifiziert, dabei ein bemerkenswerter Herkunftsfund: der von der App
+      benötigte `usb_ccid.h`-Header (keine der beiden Quellen liefert ihn selbst mit) kommt aus
+      dem `lib/libusb_stm32`-Submodul. RogueMasters Pin dieses Submoduls (Commit `6ca2857`, "CCID:
+      code formatting and doxygen docs") ist ein Commit auf dem offiziellen, upstream
+      `flipperdevices/libusb_stm32`-Repo selbst (direkt auf "Add CCID support") — **exakt
+      derselbe Commit**, den mein eigenes `G4MEOVER18/G4MEOVER-FW` (`main`, `b359f6f`) für
+      `lib/libusb_stm32` pinnt (per `git ls-tree` auf beiden Seiten verglichen). CCID-Unterstützung
+      ist damit kein RogueMaster-Fork-Sonderfall, sondern bereits Teil des offiziellen
+      USB-Stack-Submoduls, den ich selbst führe. Zusätzlich in `targets/f7/api_symbols.csv`
+      bestätigt: sowohl `lib/libusb_stm32/inc/usb_ccid.h` als auch `.../usbd_core.h` (die beiden
+      Header, über die `ccid_usb.c` den USB-Gerätestack direkt anspricht) sind bei mir als
+      freigegebene App-SDK-Header (`Header,+`) gelistet — keine Firmware-Änderung nötig.
+- [x] Zweiter Herkunftsfund (folgenlos, nur dokumentiert): mein API-87.1-Stand führt noch eine
+      ältere, native Firmware-HAL-Anbindung für CCID (`targets/furi_hal_include/furi_hal_usb_ccid.h`,
+      Funktionen `furi_hal_usb_ccid_insert_smartcard()`/`_remove_smartcard()`/`_set_callbacks()`,
+      Variable `usb_ccid`), die ein eigener Kommentar in `ccid_usb.h` der App selbst als "used to
+      live in the firmware HAL" beschreibt. RogueMasters eigener, neuerer Firmwarestand (API 88.21)
+      hat diese native Anbindung bereits entfernt, nur der rohe `usb_ccid.h`-Header bleibt. Für
+      mich folgenlos, da die App ausschließlich ihren eigenen SDK-Header-basierten Pfad nutzt und
+      keine `furi_hal_usb_ccid_*`-Funktion aufruft.
+- [x] Quelltext-Review (Speichersicherheit): `card_parser.c` (Hex-/Wildcard-Parser mit explizitem
+      Abbruch statt stiller Kürzung bei Überlauf, bereits aus einer früheren eigenen
+      Fehlerkorrekturrunde der Autoren selbst, "issue #59"), `ccid_handler.c` (Antwortlängen vor
+      `memcpy()` zusätzlich gegen die USB-Transportpuffergröße geklemmt), `ccid_emulator.c`
+      (ATR-/Log-/Pfad-Pufferbau durchweg mit vorab berechneten Maximalgrößen,
+      Divisionsschutz im Scroll-Balken) — kein eigener Speicherfehler gefunden. Eine zunächst wie
+      Totlogik wirkende USB-VID/PID-Preset-Auswahl (`ccid_usb_presets[]`) bei genauerem Blick als
+      bereits selbst ehrlich gemachte, dokumentierte Einschränkung identifiziert (Settings-Seite
+      zeigt dafür nur ein festes "Default (SDK fixed)"-Label), kein Fund. Einzige
+      Doku-Ungenauigkeit (kein Code-Fehler): README nennt `piv_emulator.ccid` als mitgeliefertes
+      Beispielprofil, tatsächlich beim ersten Start erzeugt wird `piv_card.ccid`.
+- [x] `ideas/ccid-emulator-usb-smartcard-app-status.md` angelegt (Quelle, Was, Nutzen, API-87-
+      Status inkl. beider Herkunftsfunde, Quelltext-Review, Aufwand, Sicherheitsrahmen, Offen).
+      Neue Katalog-Kategorie "USB Smartcard (CCID/ISO 7816-4)" in `ideas/pentest-app-katalog.md`
+      ergänzt (Tabellenzeile plus Eintrag unter "Nächste Recherche-Aufträge").
+- [ ] Lokal zu tun: Bauprobe (`ufbt` gegen die eigene Firmware-Basis) und Test gegen eine echte
+      PC/SC-fähige Gegenstelle (`pcsc_scan`/`opensc-tool`), erwartete Kartenerkennung mit dem
+      mitgelieferten `test_card.ccid`. Bei Bedarf die sieben zusätzlichen Beispielprofile aus
+      `barkandbite/flipper_suite` (`ccid_emulator_sample_cards/`) manuell auf die SD-Karte
+      übernehmen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 4-5 (`furi_hal`-
+      Low-Level-RF als höchstes Risiko, Protokollbaum-Registrierung/UI), NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, PSA-Bruteforce-Krypto-Konstanten,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, `usb-army-penetrator`s restliche
+      Ducky-Handler, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-
+      Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`) und veraltete `README.md`.
