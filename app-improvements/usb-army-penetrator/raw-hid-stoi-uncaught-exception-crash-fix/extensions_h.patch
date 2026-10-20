@@ -1,0 +1,31 @@
+diff --git a/src/Attacks/Ducky/Extensions.h b/src/Attacks/Ducky/Extensions.h
+index 9e5bd28..848493c 100644
+--- a/src/Attacks/Ducky/Extensions.h
++++ b/src/Attacks/Ducky/Extensions.h
+@@ -28,6 +28,8 @@
+ 
+ #include "DuckyPayload.h"
+ 
++#include <stdexcept>
++
+ // For VID and PID str handling
+ static std::string vidStr;
+ static const std::string Constant_VID = "#_VID_";
+@@ -623,7 +625,16 @@ static int handleRawHid(const std::string &str, const std::unordered_map<std::st
+ 
+     if (hidStr.rfind("0x", 0) == 0)
+     {
+-        auto tempInt = std::stoi(hidStr, nullptr, 16);
++        int tempInt = 0;
++        try
++        {
++            tempInt = std::stoi(hidStr, nullptr, 16);
++        }
++        catch (const std::exception &)
++        {
++            Debug::Log.error(LOG_DUCKY, "Invalid value, not a valid hex integer");
++            return false;
++        }
+         if (tempInt <= static_cast<int>(UINT8_MAX) && tempInt >= 0)
+         {
+             uint8_t uint8Value = 0;
