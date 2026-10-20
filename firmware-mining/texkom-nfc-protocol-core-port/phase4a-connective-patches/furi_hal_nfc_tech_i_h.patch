@@ -1,0 +1,13 @@
+diff --git a/targets/f7/furi_hal/furi_hal_nfc_tech_i.h b/targets/f7/furi_hal/furi_hal_nfc_tech_i.h
+index 4a62f67..d59e0c4 100644
+--- a/targets/f7/furi_hal/furi_hal_nfc_tech_i.h
++++ b/targets/f7/furi_hal/furi_hal_nfc_tech_i.h
+@@ -152,6 +152,8 @@ extern const FuriHalNfcTechBase furi_hal_nfc_iso14443b;
+ extern const FuriHalNfcTechBase furi_hal_nfc_iso15693;
+ /** @brief Technology declaration for FeliCa. */
+ extern const FuriHalNfcTechBase furi_hal_nfc_felica;
++/** @brief Technology declaration for Texkom. */
++extern const FuriHalNfcTechBase furi_hal_nfc_texkom;
+ /* Declare new tehcnologies here. */
+ 
+ /**

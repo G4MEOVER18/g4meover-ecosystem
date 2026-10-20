@@ -1,4 +1,4 @@
-# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal (Phase 1-3 von 5)
+# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal + Phase-4-Anschlussstücke (Phase 1-3 + 4a von 5)
 
 ## Was
 
@@ -55,9 +55,34 @@ mehrteilige NFC-Protokollfamilien (MIFARE-Plus-/Ultralight-AES-Port):
    seit Phase 1 vorgesehene Technik), der Listener gegen ein gemocktes
    `Nfc`/`BitBuffer`/`nfc_listener_tx()` (Repro in
    `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_listener.c`).
+5. Phase 4a (diese Sitzung) — die bisher nicht erkannten Voraussetzungen von Phase 4 selbst
+   geklärt und als eigene, additive/verhaltenserhaltende Patches ausgeliefert, bevor ich
+   mich wie vorgesehen an `furi_hal_nfc_texkom.c` (jetzt Phase 4b) setze. Die ursprüngliche
+   Port-Skizze ging davon aus, Phase 4 bestünde nur aus dieser einen Datei; die für diese
+   Sitzung vorgesehene Zeile-für-Zeile-Registerprüfung hat stattdessen drei vorgelagerte
+   Lücken offengelegt, ohne die `furi_hal_nfc_texkom.c` bei mir nicht einmal baut (siehe
+   "Betroffene Dateien" und "Verifikation"):
+   - `NfcTechTexkom`/`FuriHalNfcTechTexkom` (zwei neue Enum-Werte) und
+     `nfc_texkom_poller_rx()` (neue Funktion) — exakt die beiden in Phase 2/3 schon benannten
+     Anschlusspunkte, jetzt tatsächlich geliefert.
+   - `furi_hal_nfc_transparent_mode_enter/_exit` — bei mir existierten diese Funktionen
+     bislang nur ISO15693-Listener-lokal (`static`, in `furi_hal_nfc_iso15693.c`); Texkom
+     braucht sie aber generisch (Poller *und* Listener). Verallgemeinert als Patch: Körper
+     unverändert nach `furi_hal_nfc.c` gehoben, `furi_hal_nfc_iso15693.c` ruft jetzt die
+     generische Fassung.
+   - `lib/signal_reader/signal_reader.c` unterstützt freilaufendes Abtasten
+     (`SignalReaderTriggerNone`, von Texkom für das unaufgefordert sendende Tag benötigt)
+     bei mir zwar im Enum, aber `start()`/`stop()` schalten trotzdem immer in den
+     EXTI-getriggerten Pfad — bei mir unbemerkt, weil `signal_reader` aktuell von keinem
+     einzigen eigenen Aufrufer genutzt wird (siehe "Verifikation"). Patch macht den
+     freilaufenden Pfad tatsächlich frei laufend.
 
-Low-Level-RF und UI liefere ich bewusst **nicht** als Patch — siehe "Risiko" und
-"Port-Skizze".
+   Alle drei sind rein additiv bzw. nachweislich verhaltenserhaltend (siehe "Verifikation"),
+   gegen zwei bzw. drei frische, unabhängige Zweitkopien meiner eigenen Basis per
+   `git apply --check`/`git apply`/`md5sum` bestätigt — identisch.
+
+`furi_hal_nfc_texkom.c` selbst (Phase 4b) liefere ich weiterhin bewusst **nicht** als
+Patch — siehe "Risiko" und "Port-Skizze". Die UI-Anbindung (Phase 5) ebenfalls nicht.
 
 ## Nutzen
 
@@ -137,7 +162,52 @@ Low-Level-RF und UI liefere ich bewusst **nicht** als Patch — siehe "Risiko" u
   nfc_listener_base.h`, `nfc/nfc_listener.h`, `digital_signal/digital_sequence.h`,
   `furi_hal_resources.h` sind bei mir bereits vorhanden.
 
-**Für künftige Sitzungen (Phase 4+, nicht Teil dieses Patches):**
+**Jetzt geliefert (Phase 4a, diese Sitzung) — additive/verhaltenserhaltende
+Voraussetzungen für Phase 4b, keine eigene Protokolldatei:**
+- `lib/nfc/nfc.h/.c` — neuer Enum-Wert `NfcTechTexkom` (Dispatch-Tabellen `nfc_tech_table`
+  für Poller *und* Listener), neuer Enum-Wert `NfcEventTypeListenerTick` (bewusst ans Ende
+  von `NfcEventType` angehängt, da exportierter Header — eine frühere Einfügestelle hätte
+  die Werte einer bereits gebauten Anwendung verschoben) plus Weiterleitung im
+  Listener-Event-Loop, neue Funktion `nfc_texkom_poller_rx()` (ein Aufruf von
+  `furi_hal_nfc_poller_rx()`, Timeout-Fall auf `NfcErrorTimeout` abgebildet, Rest auf
+  `nfc_process_hal_error()`, plus eine Zielpuffer-Größenprüfung vor `bit_buffer_copy_bits()`)
+  — rein additiv, genau die beiden in Phase 2/3 bereits als "erst mit Phase 4 real
+  implementiert" benannten Anschlusspunkte.
+- `targets/furi_hal_include/furi_hal_nfc.h` — neuer Enum-Wert `FuriHalNfcTechTexkom`
+  (`FuriHalNfcTech`) und `FuriHalNfcEventListenerTick` (`FuriHalNfcEvent`), die Gegenstücke
+  der beiden vorigen auf der `furi_hal`-Schicht — ebenfalls rein additiv.
+- `targets/f7/furi_hal/furi_hal_nfc_i.h`/`furi_hal_nfc.c` — neue, generische Funktionen
+  `furi_hal_nfc_transparent_mode_enter()`/`_exit()` (Deklaration bzw. Definition) plus die
+  neue Dispatch-Tabellenzeile `[FuriHalNfcTechTexkom] = &furi_hal_nfc_texkom`. Die beiden
+  Funktionskörper sind unverändert aus den zwei weiter unten entfernten
+  `furi_hal_nfc_iso15693_listener_transparent_mode_enter/_exit`-Funktionen übernommen —
+  keine neue Logik, nur eine neue, höhere Sichtbarkeit für denselben Code (siehe
+  "Verifikation").
+- `targets/f7/furi_hal/furi_hal_nfc_tech_i.h` — neue `extern`-Deklaration
+  `furi_hal_nfc_texkom` (Gegenstück zu `furi_hal_nfc_iso15693`/`furi_hal_nfc_felica` usw.),
+  rein additiv.
+- `targets/f7/furi_hal/furi_hal_nfc_iso15693.c` — die beiden oben genannten, bislang
+  Listener-lokalen `static`-Funktionen entfernt, ihre zwei Aufrufstellen
+  (`furi_hal_nfc_iso15693_listener_init/_deinit`) rufen jetzt die neue generische Fassung.
+  Byte-für-Byte dieselbe Abfolge von `st25r3916_direct_cmd()`/
+  `furi_hal_spi_bus_handle_(de)init()`/`furi_hal_nfc_(de)init_gpio_isr()` wie vorher, nur an
+  anderer Stelle definiert — kein Verhaltensunterschied für ISO15693 (siehe "Verifikation").
+  Eine im selben Unleashed-`dev`-Diff mitgekommene, zu Texkom unabhängige Funktionsgruppe
+  (`furi_hal_nfc_iso15693_detect_mode/_force_1outof4/_force_1outof256`, ISO15693-Parser-
+  Modusauswahl) nehme ich bewusst **nicht** mit — siehe "Risiko".
+- `lib/signal_reader/signal_reader.c/.h` — `SignalReaderTriggerNone` existierte bei mir
+  bereits als Enum-Wert, aber `signal_reader_start()`/`_stop()` haben ihn bislang ignoriert
+  und immer den EXTI-getriggerten Pfad (Interrupt-Leitung, DMA-Resync-Kanal, Request-
+  Generator) scharfgeschaltet — für ein Signal, das nie eine Rahmenflanke zum Resynchen hat
+  (wie Texkoms frei sendender Tag), unnötig und laut neuem Kommentar bei einem 212-kHz-
+  Subträger sogar potenziell überlastend (Tausende Anfragen pro Rahmen). Patch fügt ein
+  `started_trigger`-Feld hinzu (merkt sich, was `start()` tatsächlich scharfgeschaltet hat,
+  damit `stop()` exakt das wieder abschaltet und nicht einen zwischenzeitlich per
+  `set_trigger()` geänderten Modus) und verzweigt `start()`/`stop()` jetzt tatsächlich nach
+  `SignalReaderTriggerNone` (reiner `GpioModeInput` ohne Interrupt/Resync) gegenüber
+  getriggert (unverändertes Verhalten). Keine Abhängigkeit zu einer bei mir fehlenden Datei.
+
+**Für künftige Sitzungen (Phase 4b+, nicht Teil dieses Patches):**
 - `targets/f7/furi_hal/furi_hal_nfc_texkom.c` (527 Zeilen) — Low-Level-RF: fährt den
   STM32WB55-NFC-Analogfrontend im "Transparent Mode" (digitaler Framing-Pfad umgangen,
   MISO/MOSI direkt verdrahtet), eigener 64-MHz-Timer für eine 500-ksps-Abtastrate beim
@@ -361,7 +431,101 @@ gelieferten Repros, nur zur Absicherung dieser Sitzung durchgeführt und verworf
 (`TEXKOM_SIGNAL_FC_64`-Skalierung auf echte 10-ps-Perioden), `digital_sequence_transmit()`
 selbst (reine Hardware-Ausgabe, kein eigener Code in `texkom_signal.c`), sowie alles, was
 über `nfc_listener_tx()` hinaus tatsächlich Hochfrequenz erzeugt — das ist durchgängig
-Phase 4.
+Phase 4b.
+
+### Phase 4a — Register-/Abhängigkeitsprüfung und Anschlussstücke (diese Sitzung)
+
+Für diese Sitzung war laut Port-Skizze eine auf `furi_hal_nfc_texkom.c` fokussierte
+Register-/Timing-Prüfung gegen meine eigene `furi_hal_nfc_iso14443a.c`/
+`furi_hal_nfc_iso15693.c` vorgesehen, bevor ein Patch für Phase 4 überhaupt sinnvoll
+vorschlagbar wäre. Durchgeführt — mit einem Ergebnis, das die Port-Skizze selbst
+verändert: die Datei hängt an drei Stellen von Code ab, der bei mir noch nicht existiert
+und auch nicht Teil der ursprünglich als "Phase 4" benannten einen Datei ist. Ohne diese
+drei Stellen würde `furi_hal_nfc_texkom.c` bei mir schlicht nicht bauen, unabhängig davon,
+wie sorgfältig die Register-Werte selbst geprüft sind.
+
+**Treiberbasis unverändert:** `lib/drivers/st25r3916.c/.h/_reg.c/.h` — alle vier Dateien
+gegen den unten genannten Unleashed-`dev`-Stand per `diff -q` Byte-für-Byte identisch
+bestätigt. Jedes einzelne von `furi_hal_nfc_texkom.c` verwendete Register-/Bit-Symbol
+(`ST25R3916_REG_MODE_*`, `_STREAM_MODE_*`, `_RX_CONF1-4_*`, `_CORR_CONF1-2_*`,
+`_AUX_MOD_*`, `_OP_CONTROL_rx_en`, `_CMD_TRANSPARENT_MODE`, `_CMD_UNMASK_RECEIVE_DATA`) ist
+bei mir bereits vorhanden — keine einzige fehlende Registerdefinition, kein neues Register.
+
+**Registerwerte gegen vorhandene Pfade gegengerechnet** (eigene
+`furi_hal_nfc_iso15693.c`/`furi_hal_nfc_iso14443a.c`, Poller- *und* Listener-Konfiguration):
+
+| Register | Texkom (Poller-RX) | ISO15693-Poller | ISO14443A-Poller | Befund |
+|---|---|---|---|---|
+| `MODE` (om/tr_am) | `om_subcarrier_stream\|tr_am_ook` | `om_subcarrier_stream\|tr_am_ook` | `om_iso14443a\|tr_am_ook` | **Exakt** wie ISO15693 — gleicher Betriebsmodus. |
+| `STREAM_MODE` | `scf_sc212\|stx_106\|scp_1pulse` | `scf_sc424\|stx_106\|scp_8pulses` | — | `stx_106` gleich; `scf`/`scp` bewusst anders (212 statt 424 kHz, andere Kodierung) — deckt sich mit dem eigenen Dateikommentar. |
+| `RX_CONF1` | `z12k\|h80\|lp_600khz` | `z12k\|h80\|lp_600khz` | `z600k` | **Exakt** wie ISO15693. |
+| `RX_CONF2` | `agc6_3\|agc_m\|agc_en\|sqm_dyn` | identisch | identisch | **Exakt** wie beide. |
+| `RX_CONF3` | `rg1_am1\|rg1_am0` (3/7 Dämpfung) | `0x00` (offen) | `0x00` (offen) | **Einzige echte Abweichung** — selbst im Dateikommentar als beim Hardware-Bringup empirisch ergänzt benannt (Digitizer lag ohne Dämpfung an einer Schiene fest). Nicht durch Quelltextvergleich verifizierbar, siehe "Risiko". |
+| `RX_CONF4` | `0x00` | `0x00` | `0x00` | **Exakt**. |
+| `CORR_CONF1` | `corr_s0\|corr_s1\|corr_s4` | identisch | `corr_s0\|corr_s4\|corr_s6` | **Exakt** wie ISO15693 (ISO14443A nutzt ein anderes Korrelatorprofil, erwartungsgemäß). |
+| `CORR_CONF2` | `0x00` (`corr_s8` gelöscht) | `corr_s8` gesetzt | `0x00` | Spiegelbildlich zu ISO15693: `corr_s8` erweist sich so als der 212-/424-kHz-Auswahlbit, passend zu `scf_sc212` oben — in sich konsistent. |
+| `AUX_MOD` | `dis_reg_am\|res_am` | identisch | — | **Exakt** wie ISO15693. |
+
+Für die Listener-Seite (`furi_hal_nfc_texkom_listener_init`): `MODE` auf
+`targ_targ\|om_targ_nfca\|tr_am_ook` gesetzt — **exakt** dieselben Bits wie
+`furi_hal_nfc_iso15693_listener_init()`, passend zum eigenen Kommentar ("Passive target,
+OOK... nur den Zielzustand setzen").
+
+**Ergebnis:** von acht geprüften Registern ist eines (`RX_CONF3`) eine neue, empirisch
+begründete Abweichung, alle anderen sind wortwörtliche Wiederverwendung der bereits in
+meiner eigenen Firmware gebauten und (implizit über den produktiven ISO15693-Betrieb)
+getesteten Konfiguration. Das deckt sich mit der ursprünglichen Risikoeinschätzung und
+verschiebt sie nicht — `RX_CONF3` bleibt der eine Punkt, der nur an echter Hardware mit
+Oszilloskop/Spektrumanalysator zu prüfen ist (siehe "Risiko").
+
+**Drei vorgelagerte Abhängigkeitslücken gefunden** (keine davon in der Register-Tabelle
+oben, da sie nicht in `furi_hal_nfc_texkom.c` selbst, sondern in von ihr vorausgesetztem
+Code liegen):
+
+1. `furi_hal_nfc_transparent_mode_enter/_exit` — Texkom ruft diese generisch für Poller
+   *und* Listener auf. Bei mir existiert dieselbe Logik nur Listener-lokal unter anderem
+   Namen (`furi_hal_nfc_iso15693_listener_transparent_mode_enter/_exit`, `static` in
+   `furi_hal_nfc_iso15693.c`). Per `diff` bestätigt: die beiden Funktionskörper sind
+   Zeichen-für-Zeichen identisch zu den neuen generischen Funktionen im Unleashed-`dev`-
+   Stand — eine reine Hochzieh-Refaktorierung, keine neue Logik.
+2. `NfcTechTexkom`/`FuriHalNfcTechTexkom`/`nfc_texkom_poller_rx()` — bereits in Phase 2/3
+   als "kommt erst mit Phase 4" benannt, jetzt per `diff` gegen den exakten Unleashed-
+   `dev`-Quelltext identifiziert und übernommen.
+3. `signal_reader_start()`/`_stop()` behandeln `SignalReaderTriggerNone` nicht gesondert
+   — obwohl der Enum-Wert bei mir bereits existiert, schalten beide Funktionen
+   unverändert immer den EXTI-/DMA-Resync-Pfad scharf. Geprüft, ob das bei mir schon
+   irgendwo auffällt: `signal_reader_alloc()` hat bei mir aktuell **keinen einzigen
+   Aufrufer** außerhalb von `lib/signal_reader/` selbst (per `grep` über den gesamten
+   eigenen Baum bestätigt, ebenso im Unleashed-`dev`-Stand außer `furi_hal_nfc_texkom.c`
+   selbst) — die fehlende Abzweigung hat bislang niemanden gestört, weil niemand den
+   freilaufenden Pfad bei mir je benutzt hat. Texkom wäre der erste tatsächliche
+   Aufrufer. Ändern dieser Datei trägt deshalb kein Regressionsrisiko für einen
+   bestehenden Aufrufer.
+
+**Eine vierte, bewusst nicht übernommene Änderung:** derselbe Unleashed-`dev`-Diff bringt
+in `furi_hal_nfc_iso15693.c`/`furi_hal_nfc.h` zusätzlich eine komplett unabhängige
+ISO15693-Funktionsgruppe mit (`furi_hal_nfc_iso15693_detect_mode/_force_1outof4/
+_force_1outof256`, Parser-Modusauswahl zwischen den beiden ISO15693-Kodierungen) sowie
+eine Konstanten-Umbenennung (`FURI_HAL_NFC_ISO15693_BIT_LEN`). Beides hat nichts mit
+Texkom zu tun — reine parallele Weiterentwicklung desselben Dateibestands seit meinem
+letzten Firmware-Abgleich. Nicht mitgenommen, um diesen Patch auf Texkom beschränkt zu
+halten.
+
+**Verifikation der drei Patches:** je zwei bzw. drei frische, unabhängige Zweitkopien
+meiner eigenen Firmware-Basis geklont (`G4MEOVER18/G4MEOVER-FW`, `main`, unverändert
+`b359f6f`). Alle neun betroffenen Dateien nach der Bearbeitung per `diff` gegen den
+Unleashed-`dev`-Stand verglichen — für jede der neun Dateien **exakt keine Abweichung**
+außer der oben benannten, bewusst ausgeschlossenen vierten Änderung (nur in
+`furi_hal_nfc_iso15693.c`/`furi_hal_nfc.h` relevant). Die neun Einzelpatches
+(`firmware-mining/texkom-nfc-protocol-core-port/phase4a-connective-patches/`) sowohl
+einzeln als auch als ein zusammengefasster Diff mit `git apply --check` gegen beide
+Zweitkopien gegengeprüft, real angewendet, und alle neun Zieldateien per `md5sum` über
+vier unabhängig angewendete Kopien (eine davon Datei-für-Datei statt als ein Block
+angewendet) verglichen — durchgängig identisch. Diese Dateien enthalten keine neue
+Bit-/Byte-Mathematik (reine Enum-Werte, Dispatch-Tabellenzeilen, eine Dispatch-Funktion,
+eine Hochzieh-Refaktorierung, eine Pfadverzweigung) — anders als Phase 1-3 ist ein
+Host-Repro mit synthetischen Testvektoren hier nicht der richtige Prüfmaßstab; der exakte
+Quelltextabgleich gegen einen unabhängig geprüften, vorhandenen Referenzstand ist es.
 
 ## Risiko
 
@@ -371,39 +535,51 @@ Phase 4.
   Bit-/Byte-Mathematik ohne Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge.
 - **Niedrig** für die gelieferte, host-verifizierte Phase-2-Poller-Kontrolllogik selbst:
   rein additive neue Dateien, keine Änderung an einer bestehenden Datei, keine eigene
-  Bit-/Byte-Mathematik (reiner Dispatch auf den bereits verifizierten Phase-1-Kern).
-  **Mittel** bleibt nur die Integration in den eigenen Baum: `NfcTechTexkom` (neuer
-  `NfcTech`-Enum-Wert) und `nfc_texkom_poller_rx()` (neue Funktion in `nfc/nfc.c`) existieren
-  bei mir noch nicht — beide sind trivial additiv (ein Enum-Wert, eine
-  Dispatch-Tabellenzeile, eine Wrapper-Funktion), ihre tatsächliche Implementierung ruft
-  aber direkt in die noch nicht portierte Phase-4-`furi_hal`-Schicht hinein, landet also
-  sinnvollerweise erst zusammen mit Phase 4.
+  Bit-/Byte-Mathematik (reiner Dispatch auf den bereits verifizierten Phase-1-Kern). Die
+  damals offene Integrationslücke (`NfcTechTexkom`, `nfc_texkom_poller_rx()`) ist mit
+  Phase 4a jetzt geschlossen (siehe unten) — diese Datei compiliert bei mir damit, sobald
+  nur noch Phase 4b fehlt.
 - **Niedrig** für den gelieferten, host-verifizierten Phase-3-Listener und -Signalpreset
   selbst: rein additive neue Dateien, keine Änderung an einer bestehenden Datei, kein
   geteilter Zustand, der Signalpreset ist reine, differentiell gegen Phase 1 geprüfte
   Bit-/Byte-Mathematik ohne Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge,
-  der Listener reiner Dispatch ohne eigene Logik. **Mittel** bleibt die Integration: wie
-  bei Phase 2 fehlt `NfcTechTexkom`; zusätzlich noch offen (siehe "Betroffene Dateien"),
-  *wie* die Phase-4-Schicht, die `nfc_listener_tx()`s rohe Byte letztlich entgegennimmt,
-  an die für die Sendung nötige `TexkomCoding`/`TexkomSignalCoding` kommt, da der Listener
-  selbst keine mitführt — das ist ein offener Klärungspunkt für Phase 4, keiner, der sich
-  aus dem hier gelieferten Code selbst beantworten lässt, und kein Fehler in den beiden
-  jetzt gelieferten Dateien (beide sind für sich genommen vollständig und korrekt, wie die
+  der Listener reiner Dispatch ohne eigene Logik. Die `NfcTechTexkom`-Lücke ist wie bei
+  Phase 2 mit Phase 4a geschlossen; weiterhin offen (siehe "Betroffene Dateien"), *wie*
+  Phase 4b, die `nfc_listener_tx()`s rohe Byte letztlich entgegennimmt, an die für die
+  Sendung nötige `TexkomCoding`/`TexkomSignalCoding` kommt, da der Listener selbst keine
+  mitführt — das ist ein offener Klärungspunkt für Phase 4b, keiner, der sich aus dem hier
+  gelieferten Code selbst beantworten lässt, und kein Fehler in den beiden jetzt
+  gelieferten Dateien (beide sind für sich genommen vollständig und korrekt, wie die
   Verifikation zeigt).
-- **Mittel-hoch** für die Low-Level-RF-Schicht (Phase 4, `furi_hal_nfc_texkom.c`):
+- **Niedrig** für die in dieser Sitzung gelieferten Phase-4a-Anschlussstücke (siehe
+  "Verifikation"): zwei der drei Änderungsgruppen sind rein additiv (`lib/nfc/nfc.h/.c`,
+  `furi_hal_nfc.h`, `furi_hal_nfc_tech_i.h`); die beiden Änderungen an bestehenden Dateien
+  sind beide nachweislich verhaltenserhaltend für ihren jeweils einzigen bisherigen
+  Verwender — die `transparent_mode`-Hochzieh-Refaktorierung in `furi_hal_nfc_iso15693.c`
+  bewegt einen Byte-für-Byte identischen Funktionskörper nur an eine andere Stelle, und
+  `signal_reader.c`s neue Pfadverzweigung betrifft einen Modus
+  (`SignalReaderTriggerNone`), den bei mir aktuell kein einziger Aufrufer nutzt (siehe
+  "Verifikation") — es gibt also niemanden, dessen Verhalten sich ändern könnte.
+- **Mittel-hoch** für die Low-Level-RF-Schicht (Phase 4b, `furi_hal_nfc_texkom.c`):
   einziger Teil, der den STM32WB55-NFC-Analogfrontend direkt im "Transparent Mode"
   ansteuert (digitaler Framing-Pfad umgangen) — ein Fehler hier wirkt sich potenziell auf
-  die HF-Erzeugung selbst aus, nicht nur auf die Dekodierung, und ist nicht durch reine
-  Quelltextprüfung abschließend bewertbar, sondern nur an echter Hardware mit einem
-  Spektrumanalysator/Oszilloskop zur Kontrolle der tatsächlichen Feldcharakteristik. Die
-  bei mir bereits vorhandenen Grundlagen dafür (`furi_hal_nfc_i.h`, `furi_hal_nfc_tech_i.h`,
-  `lib/signal_reader/signal_reader.h`, Transparent-Mode bereits für ISO14443A/ISO15693
-  genutzt) sind vorhanden, was eine künftige Portierung grundsätzlich machbar macht, aber
-  die genauen Register-/Timing-Sequenzen müssen in einer eigenen, auf diese eine Datei
-  fokussierten Sitzung sorgfältig gegen meine Basis gegengerechnet werden, bevor ein Patch
-  sinnvoll ist — das ist nach meiner Einschätzung der eigentliche Grund, warum dieser
-  Punkt bislang in jeder Sitzung zugunsten kleinerer, risikoärmerer Kandidaten
-  zurückgestellt wurde.
+  die HF-Erzeugung selbst aus, nicht nur auf die Dekodierung. Die Phase-4a-Registerprüfung
+  (siehe "Verifikation") hat das auf einen einzigen konkreten Punkt eingegrenzt statt es
+  nur allgemein zu benennen: von acht geprüften Registern ist `RX_CONF3` (AM-Kanal-
+  Dämpfung auf der Poller-RX-Seite, 3 von 7 Stufen) die einzige nicht aus einer bereits
+  bei mir produktiv laufenden Konfiguration wiederverwendete, sondern eine neue, laut
+  eigenem Quelltextkommentar beim Hardware-Bringup empirisch ergänzte Abweichung — nur
+  dieser eine Wert ist nicht durch Quelltextvergleich abschließend bewertbar, sondern nur
+  an echter Hardware mit einem Spektrumanalysator/Oszilloskop zu prüfen. Alle anderen
+  Registerwerte sind jetzt bit-exakt gegen meine eigene, bereits gebaute und produktiv
+  genutzte ISO15693-/ISO14443A-Konfiguration bestätigt (siehe Tabelle in "Verifikation").
+  Richtigstellung zur vorherigen Fassung dieses Punkts: "Transparent Mode bereits für
+  ISO14443A/ISO15693 genutzt" war so nicht korrekt — bei mir nutzt ihn bislang nur der
+  ISO15693-*Listener*; ISO14443A verwendet an keiner Stelle `transparent_mode`
+  (per `grep` über den gesamten eigenen Baum bestätigt, siehe "Verifikation" zu Phase 4a).
+  Mit den jetzt gelieferten, verallgemeinerten `furi_hal_nfc_transparent_mode_enter/_exit`-
+  Funktionen und der geklärten Registerlage ist Phase 4b für eine künftige, weiterhin auf
+  diese eine Datei fokussierte Sitzung deutlich enger umrissen als zuvor.
 - **Kein zusätzliches Missbrauchsrisiko**: Texkom kennt kein Authentifizierungsgeheimnis;
   Lesen und Emulieren eines bekannten/eigenen Schlüssels ist strukturell identisch zum
   bereits unterstützten 125-kHz-Zutrittsformat-Modell (EM-Marin/Cyfral/Hitag), nur auf
@@ -415,33 +591,45 @@ Phase 4.
    `lib/nfc/protocols/texkom/` übernehmen, als neue Quelldateien in die
    `SConscript`/Build-Liste von `lib/nfc` aufnehmen (reine Quelldatei-Ergänzung, kein
    neues Ziel). Baut eigenständig, wird von nichts referenziert, bis Phase 2 beginnt.
-2. **Phase 2 (geliefert, diese Sitzung):** `texkom_poller.c/.h/_defs.h/_i.h` unverändert
+2. **Phase 2 (geliefert):** `texkom_poller.c/.h/_defs.h/_i.h` unverändert
    nach `lib/nfc/protocols/texkom/` übernehmen, ebenfalls in die Build-Liste aufnehmen.
-   Compiliert im eigenen Baum erst, sobald die zwei kleinen Phase-4-Anschlusspunkte
-   existieren (`NfcTechTexkom`-Enum-Wert, `nfc_texkom_poller_rx()`), ist aber bereits
-   jetzt — unabhängig von Phase 4 — host-seitig gegen eine feste, gemockte Lückenliste
-   durchgetestet (siehe "Verifikation"), exakt die hier zuvor vorgesehene Technik.
-3. **Phase 3 (geliefert, diese Sitzung):** `texkom_listener.c/.h/_defs.h/_i.h` plus
+   Compiliert im eigenen Baum jetzt, sobald Phase 4a angewendet ist (liefert
+   `NfcTechTexkom`-Enum-Wert und `nfc_texkom_poller_rx()`), ist aber bereits seit der
+   eigenen Sitzung — unabhängig davon — host-seitig gegen eine feste, gemockte
+   Lückenliste durchgetestet (siehe "Verifikation"), exakt die hier zuvor vorgesehene
+   Technik.
+3. **Phase 3 (geliefert):** `texkom_listener.c/.h/_defs.h/_i.h` plus
    `texkom_signal.c/.h` unverändert nach `lib/nfc/protocols/texkom/` bzw.
    `lib/digital_signal/presets/nfc/` übernehmen, in die jeweilige Build-Liste aufnehmen.
-   Der Listener compiliert im eigenen Baum erst mit demselben fehlenden
-   `NfcTechTexkom`-Anschlusspunkt wie Phase 2; der Signalpreset ist davon unabhängig und
-   bräuchte nur ein `GpioPin`. Beide bereits jetzt — unabhängig von Phase 4 — host-seitig
-   verifiziert (siehe "Verifikation"), der Signalpreset per differentiellem Encode/Decode
-   gegen Phase 1, exakt die seit Phase 1 vorgesehene Technik.
-4. **Phase 4:** `furi_hal_nfc_texkom.c` — eigene, auf diese eine Datei fokussierte
-   Sitzung; Register-/Timing-Konstanten (64-MHz-Timer, 500-ksps-Abtastrate,
-   Transparent-Mode-Konfiguration) Zeile für Zeile gegen meine bereits vorhandene
-   `furi_hal_nfc_iso14443a.c`/`furi_hal_nfc_iso15693.c` (nutzen laut eigener Prüfung
-   bereits denselben Transparent-Mode-Pfad) gegenrechnen, bevor ein Patch vorgeschlagen
-   wird — höchstes Risiko dieser gesamten Portierung, siehe "Risiko".
-5. **Phase 5:** `lib/nfc/protocols/nfc_protocol.c/.h` — `NfcProtocolTexkom` als neuen
+   Der Listener compiliert im eigenen Baum jetzt ebenfalls mit Phase 4a; der
+   Signalpreset ist davon unabhängig und bräuchte nur ein `GpioPin`. Beide bereits seit
+   der eigenen Sitzung — unabhängig davon — host-seitig verifiziert (siehe
+   "Verifikation"), der Signalpreset per differentiellem Encode/Decode gegen Phase 1,
+   exakt die seit Phase 1 vorgesehene Technik.
+4. **Phase 4a (geliefert, diese Sitzung):** die neun Einzelpatches aus
+   `firmware-mining/texkom-nfc-protocol-core-port/phase4a-connective-patches/` anwenden
+   (`lib/nfc/nfc.h/.c`, `lib/signal_reader/signal_reader.h/.c`,
+   `targets/furi_hal_include/furi_hal_nfc.h`, `targets/f7/furi_hal/furi_hal_nfc.c`,
+   `furi_hal_nfc_i.h`, `furi_hal_nfc_tech_i.h`, `furi_hal_nfc_iso15693.c`). Macht Phase
+   2/3 baubar, ohne selbst RF-Register anzufassen — siehe "Betroffene Dateien" und
+   "Verifikation" für den vollen Umfang und die Abgrenzung von der unabhängigen
+   ISO15693-1oo4/1oo256-Änderung im selben Upstream-Diff, die bewusst nicht mit
+   übernommen ist.
+5. **Phase 4b:** `furi_hal_nfc_texkom.c` — eigene, auf diese eine Datei fokussierte
+   Sitzung; mit Phase 4a sind die Anschlusspunkte und sieben von acht Registerwerten
+   bereits geklärt (siehe "Verifikation"), offen bleibt nur noch `RX_CONF3` (AM-Kanal-
+   Dämpfung), das sich nur an echter Hardware mit Spektrumanalysator/Oszilloskop
+   bestätigen lässt — siehe "Risiko".
+6. **Phase 5:** `lib/nfc/protocols/nfc_protocol.c/.h` — `NfcProtocolTexkom` als neuen
    Basisknoten registrieren (ein Enum-Wert, ein Baumeintrag), plus
    `applications/main/nfc/helpers/protocol_support/texkom/*` (UI-Anbindung) — letzter
-   Schritt, erst sinnvoll sobald Phase 1-4 lokal bauen.
-6. Bauen nach jeder Phase: `ufbt` (bzw. `fbt firmware_all`) — jede Struct-/
-   Signaturabweichung fällt sofort als Compile-Fehler auf.
-7. Funktionstest lokal (ab Phase 2 mit Hardware nötig, Phase 1 bereits host-verifiziert):
+   Schritt, erst sinnvoll sobald Phase 1-4b lokal bauen.
+7. Bauen nach jeder Phase: `ufbt` (bzw. `fbt firmware_all`) — jede Struct-/
+   Signaturabweichung fällt sofort als Compile-Fehler auf. Nach Phase 4a lohnt sich ein
+   erster Build-Versuch besonders: Phase 2/3 sollten jetzt durchlaufen, solange
+   `furi_hal_nfc_texkom.c` (Phase 4b) noch fehlt — jeder verbleibende Compile-Fehler an
+   dieser Stelle wäre ein eigener Fund, den diese Sitzung übersehen hat.
+8. Funktionstest lokal (ab Phase 2 mit Hardware nötig, Phase 1 bereits host-verifiziert):
    eigenen Texkom-Schlüssel (TK13/TK15/TK17/MMBIT, je nach Verfügbarkeit) lesen, Rahmen
    gegen ein unabhängiges Referenzwerkzeug (Proxmark3, falls vorhanden) vergleichen; nach
    Phase 3 Emulation gegen ein zweites eigenes Lesegerät testen.
@@ -482,3 +670,16 @@ Phase 4.
   Geschwisterknoten von ISO14443-3A/3B/Felica/ISO15693-3/ST25TB).
 - `texkom.h` selbst zitiert als Kodierungsquelle die Proxmark3-Funktion
   `TexcomTK13CRC` (TK13-CRC-8-Poly `0x31`).
+- Diese Sitzung (Phase 4a) erneut gegen einen frischen, unabhängigen `dev`-Stand geprüft,
+  Commit `525dcce0e461d4f4b852a32cc6e3b4d075b50f17` (2026-10-20, per `git ls-remote`
+  bestimmt): `targets/f7/furi_hal/furi_hal_nfc_texkom.c` (527 Zeilen, über zwei
+  unabhängige Klone per `md5sum` identisch bestätigt, Prüfsumme
+  `38c7f707f2d8c9156cdd726068cc9644`) vollständig gelesen. Zur Ableitung der drei
+  Phase-4a-Patches zusätzlich gelesen und gegen die eigene Firmware-Basis verglichen:
+  `lib/nfc/nfc.h/.c`, `targets/furi_hal_include/furi_hal_nfc.h`, `targets/f7/furi_hal/
+  furi_hal_nfc.c/_i.h/_tech_i.h/_iso15693.c`, `lib/signal_reader/signal_reader.h/.c`,
+  `lib/drivers/st25r3916.c/.h/_reg.c/.h` (alle vier Treiberdateien gegen die eigene Basis
+  per `diff -q` Byte-für-Byte identisch bestätigt — keine Registeränderung seit meinem
+  letzten Firmwarestand). Eigene Firmware-Basis zur Patch-Ableitung erneut über vier statt
+  zwei unabhängige Klone geprüft (zwei zur Patch-Herleitung, zwei weitere ausschließlich
+  zur `git apply`/`md5sum`-Gegenprobe) — unverändert `b359f6f`.
