@@ -7658,3 +7658,64 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt), Phase 4b
       (`furi_hal_nfc_texkom.c`, `RX_CONF3`), Texkom-Phase 5 (Protokollbaum-Registrierung/
       UI), Bambu-RFID-Lokalbau/-test und veraltete `README.md`.
+
+## Texkom NFC-Protokollfamilie — Phase 4b: `furi_hal_nfc_texkom.c` unverändert übernommen, Abtast-/Zeitmess-Zustandsmaschine erstmals host-verifiziert
+
+- [x] Mit Phase 4a (Anschlussstücke, Registerprüfung) aus der vorherigen Sitzung abgeschlossen,
+      war für diese Sitzung laut eigener Port-Skizze `furi_hal_nfc_texkom.c` selbst (Phase 4b,
+      höchstes Risiko dieser Portierung) an der Reihe. Datei erneut über zwei unabhängige Abrufe
+      geladen: Prüfsumme `38c7f707f2d8c9156cdd726068cc9644`, 527 Zeilen — identisch zum in
+      Phase 4a bereits geprüften Stand, keine Änderung seither. Vollständig gelesen und in drei
+      Gruppen zerlegt: reine Registerkonfiguration (bereits in Phase 4a Register für Register
+      gegengerechnet), reine Hardwareansteuerung ohne eigene Logik (delegiert an bereits
+      vorhandene/generalisierte Funktionen), und eine dritte Gruppe, die bislang nicht als solche
+      erkannt war — die Abtast-/Zeitmess-Zustandsmaschine, die aus dem vom Analogfrontend bei
+      500 ksps abgetasteten Bitstrom die Lückenliste rekonstruiert (`furi_hal_nfc_texkom_feed()`/
+      `_handle_impulse()`/`_cut_frame()`), ist reine, hardwareunabhängige Kontrolllogik ohne
+      jeden Registerzugriff — genau wie Phase 2s Poller-Dispatch, nur bislang übersehen, weil die
+      Phase-4a-Sitzung ausschließlich auf die Register-/Timing-Prüfung fokussiert war.
+- [x] Diese Zustandsmaschine zusammen mit zwei kleineren reinen Dispatch-Funktionen
+      (`furi_hal_nfc_texkom_coding()`, der Rahmengrößen-/Codierungs-Dispatch in
+      `_listener_tx()`, mit gemocktem `texkom_signal_tx()` — dessen eigene Logik bereits in
+      Phase 3 verifiziert ist) jetzt erstmals host-verifiziert. Beim Lesen auf Speicherfehler/
+      Off-by-one geprüft: `gaps[]` (127 Byte) durchgängig durch `gap_count < MAX_GAPS` vor dem
+      Schreiben geschützt, `since_impulse` kann vor dem Speichern nachweislich nie über
+      `FRAME_GAP` (100, laut `_Static_assert` klein genug für ein Byte) steigen, die
+      Fast-Path-Abkürzung für durchgängig-Low-Bytes gegen den langsamen Bit-für-Bit-Pfad von
+      Hand durchgerechnet und für äquivalent befunden. **Kein eigener Fund.**
+- [x] Host-Repro in
+      `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_furi_hal_texkom.c` (die drei
+      Zustandsmaschinen-Funktionen sowie `_coding()` unverändert transkribiert, `_listener_tx()`
+      mit gemocktem `texkom_signal_tx()`; echte `FuriHalSpiBusHandle`/`SignalReader`/
+      `furi_thread_flags_*`-Objekte bleiben vollständig außen vor, da diese Funktionen keine
+      davon aufrufen) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: 445 Prüfungen (TK13-/TK17-förmiger Rahmen, Fast-/Slow-Path-Äquivalenz,
+      Overflow-Ablehnung, Müllzug gefolgt von gültigem Zug im selben Aufruf,
+      Refraktärzeit-Absorption, früher Rückgabepfad nach gültigem Schnitt, Aufteilung über
+      mehrere `feed()`-Aufrufe wie die echten 32-Byte-Blöcke, Codierungswahl,
+      Listener-tx-Dispatch inkl. Rahmengrößenprüfung), alle bestanden, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde. Drei
+      Mutationsproben zur Absicherung des Repros selbst durchgeführt: zwei (Fast-Path-
+      Akkumulationsfehler, TK13-Lückenzahl-Vergleich um eins verschoben) jeweils sofort von
+      402 bzw. den gezielt betroffenen Prüfungen aufgefangen; eine dritte (Refraktärzeit-
+      Vergleichsoperator statt Konstante geändert) bewusst nicht aufgefangen und als für das
+      reale Signal irrelevanter Exakt-Grenzfall erklärt (Refraktärzeit mit 2x Sicherheitsabstand
+      zum kürzesten realen Lückenabstand gewählt), statt stillschweigend übergangen.
+- [x] Datei unverändert nach
+      `firmware-mining/texkom-nfc-protocol-core-port/phase4b-furi-hal/furi_hal_nfc_texkom.c`
+      übernommen. `firmware-mining/texkom-nfc-protocol-core-port.md` entsprechend erweitert:
+      Phase 4b von "künftige Sitzung" auf "geliefert" verschoben, Risikoabschnitt für diese
+      Datei in zwei getrennte Einträge aufgeteilt (niedrig für die jetzt verifizierte Logik,
+      mittel für die verbleibende, nur an Hardware prüfbare Registeransteuerung inkl.
+      `RX_CONF3`), Port-Skizze aktualisiert (Phase 5 jetzt einziger offener Schritt).
+- [ ] Lokal zu tun: Phase 4a-Patches plus Phase 4b anwenden, dann einen ersten vollständigen
+      Build-Versuch (`ufbt`) — Phase 1-4b sollten jetzt zusammen durchlaufen, solange nur noch
+      Phase 5 (Protokollbaum-Registrierung/UI) fehlt. Jeder verbleibende Compile-Fehler an
+      dieser Stelle wäre ein eigener Fund, den diese Sitzung übersehen hat. Erste Lesetests mit
+      einem Spektrumanalysator/Oszilloskop am Antennenausgang begleiten, um `RX_CONF3` (die
+      einzige noch nicht quelltextseitig bestätigte Registerabweichung) tatsächlich zu
+      validieren.
+- [ ] Letzter offener Schritt dieser Portierung: Phase 5 (`lib/nfc/protocols/nfc_protocol.c/.h`
+      — `NfcProtocolTexkom` als neuen Basisknoten registrieren, plus
+      `applications/main/nfc/helpers/protocol_support/texkom/*`, UI-Anbindung).

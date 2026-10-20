@@ -1,4 +1,4 @@
-# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal + Phase-4-Anschlussstücke (Phase 1-3 + 4a von 5)
+# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal + Phase 4 (Phase 1-4b von 5)
 
 ## Was
 
@@ -81,8 +81,28 @@ mehrteilige NFC-Protokollfamilien (MIFARE-Plus-/Ultralight-AES-Port):
    gegen zwei bzw. drei frische, unabhängige Zweitkopien meiner eigenen Basis per
    `git apply --check`/`git apply`/`md5sum` bestätigt — identisch.
 
-`furi_hal_nfc_texkom.c` selbst (Phase 4b) liefere ich weiterhin bewusst **nicht** als
-Patch — siehe "Risiko" und "Port-Skizze". Die UI-Anbindung (Phase 5) ebenfalls nicht.
+6. Phase 4b (diese Sitzung) — `furi_hal_nfc_texkom.c` selbst, unverändert übernommen
+   (527 Zeilen, erneut per `md5sum` gegen den in Phase 4a bereits geprüften Stand
+   bestätigt — unverändert seit letzter Sichtung). Mit der Registerlage bereits aus
+   Phase 4a geklärt, war für diese Sitzung die noch offene Frage, ob die Datei neben der
+   reinen Registerkonfiguration auch eigene, host-prüfbare Bit-/Byte-Logik enthält — sie
+   tut: die Abtast-/Zeitmess-Zustandsmaschine (`furi_hal_nfc_texkom_feed()`,
+   `_handle_impulse()`, `_cut_frame()`), die aus dem vom Analogfrontend digitalisierten
+   Bitstrom die Lückenliste baut, ist reine, hardwareunabhängige Kontrolllogik — exakt
+   dieselbe Kategorie wie Phase 2s Poller-Dispatch. Jetzt erstmals host-verifiziert
+   (Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/repro_furi_hal_texkom.c`),
+   zusammen mit zwei kleineren, ebenfalls reinen Dispatch-Funktionen
+   (`furi_hal_nfc_texkom_coding()`, `furi_hal_nfc_texkom_listener_tx()`s
+   Rahmengrößen-/Codierungs-Dispatch, mit gemocktem `texkom_signal_tx()`). Damit ist von
+   den fünf Schichten dieser Portierung nur noch die reine Registerkonfiguration selbst
+   (acht Registerschreibvorgänge, davon sieben bereits in Phase 4a als wortwörtliche
+   Wiederverwendung bestätigt) und der eine verbleibende Punkt (`RX_CONF3`) nicht
+   host-prüfbar — siehe "Verifikation" und "Risiko".
+
+`furi_hal_nfc_texkom.c` selbst liefere ich jetzt unverändert als fertig zum Übernehmen
+bereite Datei (siehe "Betroffene Dateien") — mit `RX_CONF3` weiterhin als einzigem, nur an
+Hardware zu klärendem Punkt (siehe "Risiko"). Die UI-Anbindung (Phase 5) weiterhin nicht
+Teil dieser Sitzung.
 
 ## Nutzen
 
@@ -207,14 +227,29 @@ Voraussetzungen für Phase 4b, keine eigene Protokolldatei:**
   `SignalReaderTriggerNone` (reiner `GpioModeInput` ohne Interrupt/Resync) gegenüber
   getriggert (unverändertes Verhalten). Keine Abhängigkeit zu einer bei mir fehlenden Datei.
 
-**Für künftige Sitzungen (Phase 4b+, nicht Teil dieses Patches):**
-- `targets/f7/furi_hal/furi_hal_nfc_texkom.c` (527 Zeilen) — Low-Level-RF: fährt den
-  STM32WB55-NFC-Analogfrontend im "Transparent Mode" (digitaler Framing-Pfad umgangen,
-  MISO/MOSI direkt verdrahtet), eigener 64-MHz-Timer für eine 500-ksps-Abtastrate beim
-  Lesen, präkompiliertes Signal beim Senden. Laut Datei-Kopfkommentar hat ein früherer
-  Versuch, stattdessen die IRQ-Leitung wie beim ISO15693-Listener abzutasten, beim
-  Pollen kein einziges Flankenereignis erzeugt — Texkom braucht also nachweislich diesen
-  eigenen Pfad, kein Wiederverwenden eines bestehenden.
+**Jetzt geliefert (Phase 4b, diese Sitzung):**
+- `targets/f7/furi_hal/furi_hal_nfc_texkom.c` (527 Zeilen, unverändert übernommen nach
+  `firmware-mining/texkom-nfc-protocol-core-port/phase4b-furi-hal/`, md5
+  `38c7f707f2d8c9156cdd726068cc9644` — identisch zum in Phase 4a bereits geprüften
+  Stand) — Low-Level-RF: fährt den STM32WB55-NFC-Analogfrontend im "Transparent Mode"
+  (digitaler Framing-Pfad umgangen, MISO/MOSI direkt verdrahtet), eigener 64-MHz-Timer
+  für eine 500-ksps-Abtastrate beim Lesen, präkompiliertes Signal beim Senden. Laut
+  Datei-Kopfkommentar hat ein früherer Versuch, stattdessen die IRQ-Leitung wie beim
+  ISO15693-Listener abzutasten, beim Pollen kein einziges Flankenereignis erzeugt —
+  Texkom braucht also nachweislich diesen eigenen Pfad, kein Wiederverwenden eines
+  bestehenden. Die Registerkonfiguration selbst (`furi_hal_nfc_texkom_configure_rx()`)
+  ist bereits vollständig in Phase 4a gegen die eigene ISO15693-/ISO14443A-Basis
+  gegengerechnet (siehe dortige Tabelle) — unverändert, keine neue Prüfung hier nötig.
+  Neu für diese Sitzung: die Abtast-/Zeitmess-Zustandsmaschine
+  (`furi_hal_nfc_texkom_feed()`/`_handle_impulse()`/`_cut_frame()`), die aus dem vom
+  Analogfrontend auf MISO gelieferten, mit 500 ksps abgetasteten Bitstrom die
+  Lückenliste rekonstruiert, die der bereits host-verifizierte Poller (Phase 2) an
+  `texkom_decode_intervals()` (Phase 1) weiterreicht — reine, hardwareunabhängige
+  Kontrolllogik ohne jeden Registerzugriff, jetzt erstmals host-verifiziert (siehe
+  "Verifikation"). Ebenfalls host-verifiziert: `furi_hal_nfc_texkom_coding()` (wählt
+  TK17- vs. TK13-Signalcodierung anhand des Rahmen-Typbytes) und der
+  Größen-/Codierungs-Dispatch in `furi_hal_nfc_texkom_listener_tx()` (`texkom_signal_tx()`
+  selbst bleibt gemockt — bereits in Phase 3 host-verifiziert).
 - `applications/main/nfc/helpers/protocol_support/texkom/texkom.c/.h`,
   `texkom_render.c/.h` (165 Zeilen) — UI-Anbindung (Kartentyp-Icon, Infoanzeige), reine
   Boilerplate nach demselben Muster wie alle bereits bei mir integrierten NFC-Protokolle.
@@ -527,6 +562,123 @@ eine Hochzieh-Refaktorierung, eine Pfadverzweigung) — anders als Phase 1-3 ist
 Host-Repro mit synthetischen Testvektoren hier nicht der richtige Prüfmaßstab; der exakte
 Quelltextabgleich gegen einen unabhängig geprüften, vorhandenen Referenzstand ist es.
 
+### Phase 4b — Low-Level-RF-Datei: Abtast-/Zeitmess-Zustandsmaschine (diese Sitzung)
+
+`furi_hal_nfc_texkom.c` gegen die eigene Basis geprüft: `md5sum` über zwei unabhängig
+geladene Kopien bestätigt `38c7f707f2d8c9156cdd726068cc9644` — identisch zu der in
+Phase 4a bereits einmal geprüften Prüfsumme, also seit der letzten Sichtung unverändert.
+527 Zeilen vollständig gelesen, in drei Gruppen zerlegt:
+
+1. **Reine Registerkonfiguration** (`furi_hal_nfc_texkom_configure_rx()`, die
+   `MODE`/`OP_CONTROL`-Bits in `_listener_init()`) — bereits vollständig in Phase 4a
+   Register-für-Register gegen die eigene ISO15693-/ISO14443A-Basis gegengerechnet
+   (siehe dortige Tabelle); keine neue Prüfung hier, nur die erneute
+   Prüfsummenbestätigung, dass sich seither nichts geändert hat.
+2. **Reine Hardwareansteuerung ohne eigene Bit-/Byte-Logik**
+   (`furi_hal_nfc_texkom_poller_init/_deinit/_rx`, `_listener_init/_deinit/_sleep`,
+   `_wait_flags()`): Aufrufe von `signal_reader_*()`, `furi_hal_nfc_transparent_mode_*()`,
+   `furi_thread_flags_*()` — delegiert vollständig an bereits vorhandene bzw. in Phase 4a
+   verallgemeinerte Funktionen, ohne eigene Entscheidungslogik außer Fehlercode-Mapping
+   (`NfcErrorTimeout`/`FuriHalNfcErrorBufferOverflow`/`FuriHalNfcErrorNone`) und dem
+   `memcpy(rx_data, capture.gaps, capture.frame_count)` am Ende von `_poller_rx()` — Letzteres
+   gegen `rx_data_size` geprüft, bevor kopiert wird (`if(capture.frame_count > rx_data_size)
+   return FuriHalNfcErrorBufferOverflow;`), kein eigener Fund. Nicht host-testbar (echte
+   `FuriHalSpiBusHandle`/`SignalReader`-Objekte nötig), aber auch keine eigene Logik, die
+   das rechtfertigen würde.
+3. **Eigene, hardwareunabhängige Bit-/Byte-Logik** — die drei Funktionen, die den von
+   `SignalReader` gelieferten, bei 500 ksps abgetasteten Bitstrom in die Lückenliste
+   überführen (`furi_hal_nfc_texkom_feed()`, `_handle_impulse()`, `_cut_frame()`), plus zwei
+   kleinere reine Dispatch-Funktionen (`furi_hal_nfc_texkom_coding()`,
+   `_listener_tx()`s Rahmengrößen-/Codierungs-Prüfung). Das ist die eine Stelle in dieser
+   Datei, an der sich ein Portierungsfehler als falsch decodierte Lücken statt als
+   offensichtlicher Hardware-Fehlschlag zeigen würde — und die einzige, die sich ohne
+   Hardware tatsächlich prüfen lässt. Bislang (Phase 4a) nicht geprüft, weil die
+   Register-fokussierte Sichtung dieser Sitzung galt; diese Sitzung hat sie nachgezogen.
+
+**Fund:** keiner. Beim Lesen auf Speicherfehler/Off-by-one geprüft (gleiches Kriterium wie
+bei Phase 1-3): `gaps[]` (127 Byte) wird ausschließlich über `gap_count < MAX_GAPS` vor dem
+Schreiben geschützt; `since_impulse` ist ein `uint32_t`, das vor jedem Speichern in `gaps[]`
+nachweislich nie über `FURI_HAL_NFC_TEXKOM_FRAME_GAP` (100, laut `_Static_assert` klein genug
+für ein Byte) steigen kann, weil die Inkrement-Verzweigung selbst genau das verhindert; die
+Fast-Path-Abkürzung für durchgängig-Low-Bytes (`feed()`s erste `if`) habe ich von Hand gegen
+den langsamen Bit-für-Bit-Pfad durchgerechnet und für äquivalent befunden — jetzt zusätzlich
+durch Szenario 3 unten bestätigt statt nur hergeleitet.
+
+Host-Repro in
+`firmware-mining/repro-texkom-nfc-protocol-core-port/repro_furi_hal_texkom.c` (die drei
+Zustandsmaschinen-Funktionen sowie `_coding()` unverändert transkribiert;
+`_listener_tx()` mit gemocktem `texkom_signal_tx()` transkribiert, da dessen eigene Logik
+bereits in Phase 3 verifiziert ist; `FuriHalSpiBusHandle`/`SignalReader`/
+`furi_thread_flags_*` bleiben vollständig außen vor — diese Funktionen rufen keine davon
+auf), unter `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined
+-fno-sanitize-recover=undefined` bei `-O0`/`-O1`: **445 Prüfungen, alle bestanden**,
+identischer Output beider Optimierungsstufen, keine Compiler-Warnungen, keine
+Sanitizer-Befunde.
+
+1. **TK13-förmiger Rahmen** (128 Impulse, zwei alternierende Periodenlängen, synthetisch
+   als Low-/High-Bitfolge aufgebaut statt über `texkom_signal.c` codiert — bewusst
+   entkoppelt von Phase 1/3s eigener Bitzuordnung, um ausschließlich diese Datei zu
+   prüfen): die 127 rekonstruierten Lücken stimmen bit-exakt mit den vorgegebenen
+   Periodenlängen überein.
+2. **TK17-förmiger Rahmen** (65 Impulse, vier Periodenlängen): 64 Lücken bit-exakt.
+3. **Fast-Path-/Slow-Path-Äquivalenz**: derselbe Bitstrom einmal als ein Block (reizt die
+   `byte==0`-Abkürzung auf den langen Low-Läufen) und einmal Byte für Byte einzeln
+   eingespeist (reizt denselben Abkürzungspfad, aber auf Einzelbytes, inklusive des
+   frühen `continue` vor dem ersten Impuls) — beide Varianten liefern exakt denselben
+   Endzustand.
+4. **Overflow**: ein Zug, der über 127 Lücken hinaus weiterimpulst, ohne zu pausieren,
+   wird beim endgültigen Pausen-Eintreffen verworfen (`frame_count` bleibt 0,
+   `gap_count`/`overflow` werden von `cut_frame()` zurückgesetzt), `longest_train` meldet
+   den Deckel (127), nicht die unbegrenzte Impulszahl.
+5. **Müllzug gefolgt von gültigem Zug im selben `feed()`-Aufruf**: ein verworfener,
+   10-Impulse-Zug direkt gefolgt von einem gültigen TK17-Zug im selben Puffer — der
+   gültige Zug wird trotzdem korrekt erfasst, der Reset durch `cut_frame()` lässt keinen
+   Zustand in den nächsten Zug durchsickern.
+6. **Refraktärzeit absorbiert Nachschwingen**: ein einzelner Abtastwert mitten in einem
+   Low-Lauf auf High gekippt (ein simuliertes Klingeln knapp nach einer Flanke, deutlich
+   innerhalb der 6-Abtastwerte-Refraktärzeit) ändert die rekonstruierte Lückenliste nicht
+   — zusätzlich gegen eine Mutante geprüft, die `FURI_HAL_NFC_TEXKOM_REFRACTORY` von 12 µs
+   auf 6 µs halbiert: dieses Szenario (nicht nur die am Anfang von `main()` stehende
+   Konstantenprüfung) schlägt dann tatsächlich fehl, ist also empfindlich für die reale
+   Refraktärzeit und keine folgenlose Tautologie.
+7. **Früher Rückgabepfad nach gültigem Schnitt**: nach einem gültigen Frame werden
+   innerhalb desselben `feed()`-Aufrufs angehängte, selbst wieder gültig aussehende
+   weitere Bytes nachweislich nie angefasst (andere Lückenwerte als der erste Zug bleiben
+   unverändert in `gaps[]`); ein zweiter `feed()`-Aufruf auf demselben, bereits
+   geschnittenen `capture` ändert ebenfalls nichts — spiegelt exakt die eigene
+   `if(capture->frame_count) return;`-Absicherung im Reader-Callback.
+8. **Aufteilung über mehrere `feed()`-Aufrufe**, wie es die echten 32-Byte-Blöcke des
+   `SignalReader` tatsächlich tun: derselbe Zug einmal als ein Aufruf, einmal über
+   mehrere 32-Byte-Häppchen verteilt — identisches Endergebnis.
+9. **`furi_hal_nfc_texkom_coding()`**: TK17-Typbyte wählt TK17-Codierung, jedes andere
+   Typbyte (TK13, TK15, MMBIT, Zufallswerte) wählt TK13-Codierung.
+10. **`furi_hal_nfc_texkom_listener_tx()`-Dispatch** (mit gemocktem `texkom_signal_tx()`):
+    korrekte Rahmengrößenprüfung (exakt 64 Bit akzeptiert, 63/65/0 Bit abgelehnt, ohne
+    `texkom_signal_tx()` je zu erreichen) und korrekte Codierungswahl, die bei korrekter
+    Länge durchgereichten Rahmen-Bytes unverändert.
+
+**Mutationsproben zur Absicherung des Repros selbst** (keine Teil des gelieferten Repros,
+nur zur Prüfung dieser Sitzung durchgeführt und verworfen): eine Mutante, die die
+Fast-Path-Akkumulation von `+= BITS_IN_BYTE` auf `+= BITS_IN_BYTE - 1` ändert (ein
+plausibler Transkriptionsfehler), lässt 402 der 445 Prüfungen scheitern; eine Mutante, die
+`cut_frame()`s TK13-Lückenzahl-Vergleich um eins verschiebt, lässt gezielt die
+TK13-bezogenen Szenarien scheitern. Eine dritte Mutante (Refraktärzeit-Vergleich von `<`
+auf `<=` geändert, statt den Konstantenwert selbst) schlägt bei keiner der zehn Prüfungen
+an — bewusst untersucht statt verschwiegen: die Grenze liegt exakt bei
+`since_impulse == REFRACTORY`, einem Abstand, den kein reales Signal je erreicht (die
+Refraktärzeit ist mit 12 µs bewusst unter dem kürzesten realen Lückenabstand, TK17s rund
+28 µs, mehr als doppelt so klein gewählt — siehe Datei-Kommentar); ein echter
+Portierungsfehler an dieser Stelle würde sich als grob falscher Lückenwert zeigen, den
+Szenario 1/2/6 bereits auffangen, nicht als exakt-Grenzfall. Kein zusätzlicher Test dafür
+ergänzt, um keine für das reale Signal irrelevante Grenzfallprüfung als Sicherheit
+vorzutäuschen, die sie nicht ist.
+
+**Nicht** durch diesen Host-Test abgedeckt: die tatsächliche Registerkonfiguration selbst
+(Gruppe 1 oben, bereits durch den Phase-4a-Quelltextabgleich abgedeckt, nicht durch ein
+Host-Repro mit synthetischen Vektoren), jede tatsächliche SPI-/GPIO-Ansteuerung (Gruppe 2),
+und `RX_CONF3` (siehe "Risiko") — dafür bleibt echte Hardware mit
+Spektrumanalysator/Oszilloskop weiterhin der einzige Prüfmaßstab.
+
 ## Risiko
 
 - **Niedrig** für den gelieferten, host-verifizierten Phase-1-Protokollkern: rein additive
@@ -544,13 +696,13 @@ Quelltextabgleich gegen einen unabhängig geprüften, vorhandenen Referenzstand 
   geteilter Zustand, der Signalpreset ist reine, differentiell gegen Phase 1 geprüfte
   Bit-/Byte-Mathematik ohne Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge,
   der Listener reiner Dispatch ohne eigene Logik. Die `NfcTechTexkom`-Lücke ist wie bei
-  Phase 2 mit Phase 4a geschlossen; weiterhin offen (siehe "Betroffene Dateien"), *wie*
-  Phase 4b, die `nfc_listener_tx()`s rohe Byte letztlich entgegennimmt, an die für die
-  Sendung nötige `TexkomCoding`/`TexkomSignalCoding` kommt, da der Listener selbst keine
-  mitführt — das ist ein offener Klärungspunkt für Phase 4b, keiner, der sich aus dem hier
-  gelieferten Code selbst beantworten lässt, und kein Fehler in den beiden jetzt
-  gelieferten Dateien (beide sind für sich genommen vollständig und korrekt, wie die
-  Verifikation zeigt).
+  Phase 2 mit Phase 4a geschlossen; der damals offene Klärungspunkt — *wie* die rohen
+  Byte, die der Listener an `nfc_listener_tx()` übergibt, auf dem Weg dorthin überhaupt
+  an die für die Sendung nötige `TexkomCoding`/`TexkomSignalCoding` kommen — ist mit
+  Phase 4b jetzt beantwortet: `furi_hal_nfc_texkom_listener_tx()` leitet die Codierung
+  selbst aus dem Rahmen-Typbyte ab (`furi_hal_nfc_texkom_coding()`), bevor sie an
+  `texkom_signal_tx()` übergeben wird — kein Fehler in den Phase-3-Dateien, nur eine
+  Zuständigkeit, die strukturell erst in Phase 4b lag.
 - **Niedrig** für die in dieser Sitzung gelieferten Phase-4a-Anschlussstücke (siehe
   "Verifikation"): zwei der drei Änderungsgruppen sind rein additiv (`lib/nfc/nfc.h/.c`,
   `furi_hal_nfc.h`, `furi_hal_nfc_tech_i.h`); die beiden Änderungen an bestehenden Dateien
@@ -560,26 +712,32 @@ Quelltextabgleich gegen einen unabhängig geprüften, vorhandenen Referenzstand 
   `signal_reader.c`s neue Pfadverzweigung betrifft einen Modus
   (`SignalReaderTriggerNone`), den bei mir aktuell kein einziger Aufrufer nutzt (siehe
   "Verifikation") — es gibt also niemanden, dessen Verhalten sich ändern könnte.
-- **Mittel-hoch** für die Low-Level-RF-Schicht (Phase 4b, `furi_hal_nfc_texkom.c`):
-  einziger Teil, der den STM32WB55-NFC-Analogfrontend direkt im "Transparent Mode"
-  ansteuert (digitaler Framing-Pfad umgangen) — ein Fehler hier wirkt sich potenziell auf
-  die HF-Erzeugung selbst aus, nicht nur auf die Dekodierung. Die Phase-4a-Registerprüfung
-  (siehe "Verifikation") hat das auf einen einzigen konkreten Punkt eingegrenzt statt es
-  nur allgemein zu benennen: von acht geprüften Registern ist `RX_CONF3` (AM-Kanal-
+- **Niedrig** für die jetzt gelieferte, host-verifizierte Abtast-/Zeitmess-
+  Zustandsmaschine und die beiden kleinen Dispatch-Funktionen aus Phase 4b (siehe
+  "Verifikation"): unverändert übernommene, reine Bit-/Byte-Logik ohne Registerzugriff,
+  keine Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge (`gaps[]` ist
+  durchgängig durch `gap_count < MAX_GAPS` geschützt), kein eigener Fund beim Lesen.
+- **Mittel** für die verbleibende, nicht host-prüfbare Hardwareansteuerung in derselben
+  Datei (Phase 4b, `furi_hal_nfc_texkom.c`s Registerkonfiguration und
+  SPI-/`SignalReader`-Aufrufe) — einziger Teil, der den STM32WB55-NFC-Analogfrontend
+  direkt im "Transparent Mode" ansteuert (digitaler Framing-Pfad umgangen) — ein Fehler
+  hier wirkt sich potenziell auf die HF-Erzeugung selbst aus, nicht nur auf die
+  Dekodierung. Von acht geprüften Registern (Phase 4a) ist `RX_CONF3` (AM-Kanal-
   Dämpfung auf der Poller-RX-Seite, 3 von 7 Stufen) die einzige nicht aus einer bereits
   bei mir produktiv laufenden Konfiguration wiederverwendete, sondern eine neue, laut
   eigenem Quelltextkommentar beim Hardware-Bringup empirisch ergänzte Abweichung — nur
   dieser eine Wert ist nicht durch Quelltextvergleich abschließend bewertbar, sondern nur
   an echter Hardware mit einem Spektrumanalysator/Oszilloskop zu prüfen. Alle anderen
-  Registerwerte sind jetzt bit-exakt gegen meine eigene, bereits gebaute und produktiv
-  genutzte ISO15693-/ISO14443A-Konfiguration bestätigt (siehe Tabelle in "Verifikation").
-  Richtigstellung zur vorherigen Fassung dieses Punkts: "Transparent Mode bereits für
+  Registerwerte sind bit-exakt gegen meine eigene, bereits gebaute und produktiv genutzte
+  ISO15693-/ISO14443A-Konfiguration bestätigt (siehe Tabelle in "Verifikation" zu Phase
+  4a). Richtigstellung zur vorherigen Fassung dieses Punkts: "Transparent Mode bereits für
   ISO14443A/ISO15693 genutzt" war so nicht korrekt — bei mir nutzt ihn bislang nur der
   ISO15693-*Listener*; ISO14443A verwendet an keiner Stelle `transparent_mode`
   (per `grep` über den gesamten eigenen Baum bestätigt, siehe "Verifikation" zu Phase 4a).
-  Mit den jetzt gelieferten, verallgemeinerten `furi_hal_nfc_transparent_mode_enter/_exit`-
-  Funktionen und der geklärten Registerlage ist Phase 4b für eine künftige, weiterhin auf
-  diese eine Datei fokussierte Sitzung deutlich enger umrissen als zuvor.
+  Die ursprünglich als "Mittel-hoch" eingeschätzte Gesamtdatei ist damit jetzt in zwei
+  klar getrennte Risiken aufgeteilt: die hier gelieferte Logik (niedrig, jetzt
+  host-verifiziert) und die reine Hardwareansteuerung samt `RX_CONF3` (mittel, nur an
+  Hardware zu klären) — kein pauschales Risiko mehr über die ganze Datei.
 - **Kein zusätzliches Missbrauchsrisiko**: Texkom kennt kein Authentifizierungsgeheimnis;
   Lesen und Emulieren eines bekannten/eigenen Schlüssels ist strukturell identisch zum
   bereits unterstützten 125-kHz-Zutrittsformat-Modell (EM-Marin/Cyfral/Hitag), nur auf
@@ -615,24 +773,30 @@ Quelltextabgleich gegen einen unabhängig geprüften, vorhandenen Referenzstand 
    "Verifikation" für den vollen Umfang und die Abgrenzung von der unabhängigen
    ISO15693-1oo4/1oo256-Änderung im selben Upstream-Diff, die bewusst nicht mit
    übernommen ist.
-5. **Phase 4b:** `furi_hal_nfc_texkom.c` — eigene, auf diese eine Datei fokussierte
-   Sitzung; mit Phase 4a sind die Anschlusspunkte und sieben von acht Registerwerten
-   bereits geklärt (siehe "Verifikation"), offen bleibt nur noch `RX_CONF3` (AM-Kanal-
-   Dämpfung), das sich nur an echter Hardware mit Spektrumanalysator/Oszilloskop
-   bestätigen lässt — siehe "Risiko".
+5. **Phase 4b (geliefert, diese Sitzung):** `furi_hal_nfc_texkom.c` unverändert nach
+   `targets/f7/furi_hal/` übernehmen, in die Build-Liste aufnehmen. Macht Phase 2/3
+   zusammen mit Phase 4a vollständig baubar. Die eigene Abtast-/Zeitmess-
+   Zustandsmaschine ist jetzt host-verifiziert (siehe "Verifikation"); offen bleibt nur
+   noch `RX_CONF3` (AM-Kanal-Dämpfung), das sich nur an echter Hardware mit
+   Spektrumanalysator/Oszilloskop bestätigen lässt — siehe "Risiko".
 6. **Phase 5:** `lib/nfc/protocols/nfc_protocol.c/.h` — `NfcProtocolTexkom` als neuen
    Basisknoten registrieren (ein Enum-Wert, ein Baumeintrag), plus
    `applications/main/nfc/helpers/protocol_support/texkom/*` (UI-Anbindung) — letzter
-   Schritt, erst sinnvoll sobald Phase 1-4b lokal bauen.
+   Schritt, einziger noch offener Teil dieser Portierung, erst sinnvoll sobald
+   Phase 1-4b lokal bauen.
 7. Bauen nach jeder Phase: `ufbt` (bzw. `fbt firmware_all`) — jede Struct-/
-   Signaturabweichung fällt sofort als Compile-Fehler auf. Nach Phase 4a lohnt sich ein
-   erster Build-Versuch besonders: Phase 2/3 sollten jetzt durchlaufen, solange
-   `furi_hal_nfc_texkom.c` (Phase 4b) noch fehlt — jeder verbleibende Compile-Fehler an
-   dieser Stelle wäre ein eigener Fund, den diese Sitzung übersehen hat.
+   Signaturabweichung fällt sofort als Compile-Fehler auf. Mit Phase 4a+4b angewendet
+   lohnt sich jetzt ein erster vollständiger Build-Versuch: Phase 1-4b sollten
+   zusammen durchlaufen, solange nur noch Phase 5 (Protokollbaum-Registrierung/UI)
+   fehlt — jeder verbleibende Compile-Fehler an dieser Stelle wäre ein eigener Fund,
+   den diese Sitzung übersehen hat.
 8. Funktionstest lokal (ab Phase 2 mit Hardware nötig, Phase 1 bereits host-verifiziert):
    eigenen Texkom-Schlüssel (TK13/TK15/TK17/MMBIT, je nach Verfügbarkeit) lesen, Rahmen
    gegen ein unabhängiges Referenzwerkzeug (Proxmark3, falls vorhanden) vergleichen; nach
-   Phase 3 Emulation gegen ein zweites eigenes Lesegerät testen.
+   Phase 3 Emulation gegen ein zweites eigenes Lesegerät testen. Besonders für `RX_CONF3`
+   wichtig: erste Lesetests mit einem Spektrumanalysator/Oszilloskop am Antennenausgang
+   begleiten, um die einzige noch nicht quelltextseitig bestätigte Registerabweichung
+   tatsächlich zu validieren.
 
 ## Quelle
 
@@ -683,3 +847,6 @@ Quelltextabgleich gegen einen unabhängig geprüften, vorhandenen Referenzstand 
   letzten Firmwarestand). Eigene Firmware-Basis zur Patch-Ableitung erneut über vier statt
   zwei unabhängige Klone geprüft (zwei zur Patch-Herleitung, zwei weitere ausschließlich
   zur `git apply`/`md5sum`-Gegenprobe) — unverändert `b359f6f`.
+- Diese Sitzung (Phase 4b) `targets/f7/furi_hal/furi_hal_nfc_texkom.c` erneut über zwei
+  unabhängige Abrufe geladen: Prüfsumme weiterhin `38c7f707f2d8c9156cdd726068cc9644`,
+  527 Zeilen — identisch zum in Phase 4a geprüften Stand, keine Änderung seither.
