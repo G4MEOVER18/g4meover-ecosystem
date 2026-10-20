@@ -179,7 +179,7 @@
       "mac": null,
       "role": "433-MHz-LoRa LowPower (spaeter)",
       "status": "planned",
-      "notes": null,
+      "notes": "Vorab-Firmware bereits vorhanden (vor Hardware-Beschaffung): G4MEOVER18/LoRa-Ra-08-CubeCell (public, Stand 2026-06-17) -- PlatformIO-Board cubecell_board/HTCC-AB01, EU433, reine RX-Finder-Rolle (RSSI-LED + Serial) bei 433.775 MHz, kein voller ukfe_rf-Knoten. Vorkompilierte .cyacd/.hex-Releases vorhanden. Vor P11.1 lokal gegen das echte Board gegenpruefen, ob als Basis uebernommen oder nur als Referenz genutzt wird.",
       "verified_at": null
     },
     {

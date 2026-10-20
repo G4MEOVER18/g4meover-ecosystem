@@ -974,7 +974,20 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     für V3/V4/LilyGo/WROOM genutzten ESP-IDF/Arduino-ESP32-Stacks. Welche Firmware-Basis Momentum/
     `G4MEOVER-FW`-Pendant dafür vorsieht (eigenständige Mini-FW vs. Portierung von `lora-ukfe`) ist
     nur lokal zu entscheiden — hier keine Toolchain vorab festlegen, ohne das reale Board in der Hand
-    zu haben.
+    zu haben. **Neu (2026-10-20):** für die Toolchain-Frage existiert bereits ein echter
+    Präzedenzfall statt reiner Vermutung — das eigene, public Repo
+    [`LoRa-Ra-08-CubeCell`](https://github.com/G4MEOVER18/LoRa-Ra-08-CubeCell) (Stand 2026-06-17,
+    **vor** diesem Masterplan) baut bereits erfolgreich für CubeCell HTCC-AB01 via **PlatformIO**
+    (`platform = heltec-cubecell`, `board = cubecell_board`, `framework = arduino`, Region EU433) —
+    also der Arduino-Core-Pfad, kein separates Vendor-SDK nötig. Funktionsumfang ist aber nur ein
+    reiner RX-Finder (RSSI-LED + Serial @ 433.775 MHz, `src/LoRaV4/LoRaV4.ino`), **kein**
+    `ukfe_rf`-Knoten/keine ESP-NOW-/UART-Brücke — für P11.1a/c bleibt neu zu bauen, nur die
+    Build-Toolchain selbst ist damit schon geklärt. Das Repo enthält zusätzlich einen älteren,
+    ESP8266-basierten `legacy/original-import/LoRa-Ra-08_01/`-Stand (RadioLib, Platzhalter-WLAN/
+    MQTT-Zugangsdaten, MQTT-Topic-Präfix `breach/ra08/…`) — das ist **keine** RA08/ASR6601-Firmware
+    (ESP8266 ≠ ASR6601) und nicht weiterverfolgt; nur als Namensursprung des Repos vermerkt. Fund in
+    `ecosystem/devices.json`s `cubecell-htcc-ab01`-`notes`-Feld (vorher `null`) ebenfalls additiv
+    hinterlegt, damit er nicht nur hier im Fließtext steht.
   - [ ] P11.1c Brücke zur Flotte: da diese Chips kein ESP-NOW haben (anderer Funk-Stack als die
     ESP32-Satelliten), kommt nur eine UART-Brücke zu einem vorhandenen ESP32-Satelliten (V3/LilyGo/
     WROOM) in Frage, der die `ukfe_rf`-Frames weiterreicht — kein eigenständiges drittes Transport-
@@ -1956,6 +1969,38 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   im PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 53 synchronisiert.
   DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar, Rotation/Anwenden
   bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-10-20 (Cloud-Heartbeat): Repo-Hygiene zuerst — derselbe Branch-Zeiger-Fund wie an fast allen
+  Vortagen: `HEAD` losgelöst, lokaler `main`-Zeiger lag 1 Commit zurück (seit dem letzten
+  Masterplan-Log-Eintrag `be7fb86`, 2026-10-19, jetzt `d14e0a1`); per `git checkout main && git merge
+  --ff-only` nachgezogen, `origin/main` war bereits auf demselben Stand (reiner Fast-Forward, kein
+  Push nötig, kein Datenverlust). Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default
+  `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem ersten Commit auf
+  `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Der seit `be7fb86` gelandete Commit
+  (Texkom-Phase-4a-Firmware-Mining, `d14e0a1`) gezielt gegen diese Datei/`ecosystem/`/
+  `FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft: keine Überschneidung, dieselbe separate
+  Firmware-Mining-Routine. Statt einer weiteren Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f (seit
+  2026-10-05 ohne Mehrwert, siehe Log oben) einen echten, bisher übersehenen Fund zu Phase 11
+  (433-MHz, bislang als auf fehlende Hardware wartend geführt) gemacht: das eigene, public Repo
+  `G4MEOVER18/LoRa-Ra-08-CubeCell` existiert bereits seit 2026-06-17 (vor diesem Masterplan) und baut
+  per PlatformIO (`cubecell_board`/HTCC-AB01, Arduino-Core, EU433) erfolgreich eine RX-Finder-Firmware
+  für genau das in P11.0 als „später" geführte CubeCell-Board — klärt die in P11.1b offene
+  Toolchain-Frage (Arduino-Core statt separates Vendor-SDK) mit einem echten Präzedenzfall, auch wenn
+  der Funktionsumfang (reiner RSSI-Finder, kein `ukfe_rf`-Knoten) für P11.1a/c neu zu bauen bleibt. Ein
+  im selben Repo enthaltener `legacy/`-Stand ist entgegen des Repo-Namens **keine** RA08/ASR6601-
+  Firmware (ESP8266 + RadioLib, Platzhalter-Zugangsdaten) — geprüft und bewusst nicht weiterverfolgt.
+  P11.1b (Abschnitt 4) entsprechend ergänzt; `ecosystem/devices.json`s `cubecell-htcc-ab01`-Eintrag
+  bekam dasselbe additiv ins vorher leere `notes`-Feld (kein neuer Eintrag, kein Schema-Bruch).
+  Sonst unveränderte Wiederkehr-Prüfungen: `g4meover-deck`/`dogytag-firmware`/`lora-ukfe` laut
+  `list_repos` unverändert (`pushed_at` 2026-08-20/2026-06-17/2026-08-26). `ecosystem/devices.json`/
+  `ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide gültig. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" erneut gegen `git log --all --diff-filter=A` geprüft:
+  weiterhin kein Treffer. Repo-Sichtbarkeit (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin
+  `private`. Pi-SSH-/LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt
+  54 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert);
+  die beiden Tageszähler im PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 54
+  synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
+  Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -2053,7 +2098,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 53 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 54 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2151,7 +2196,12 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     bereits vorbereitete Platzhalter (`status: "planned"`, Hardware-Felder `null`) — beim Eintreffen
     eines Geräts den Platzhalter per `jq` befüllen (wie P0.2c), nicht neu anlegen. P11.1 (RA08/
     CubeCell) braucht eine eigene Vendor-Toolchain (ASR6601/ASR6501, kein ESP32) und eine UART-Brücke
-    zu einem vorhandenen ESP32-Satelliten statt eigenem ESP-NOW; P11.2 (ESP32-CAM) hat eine offene,
+    zu einem vorhandenen ESP32-Satelliten statt eigenem ESP-NOW — **seit 2026-10-20 für CubeCell
+    nicht mehr offen zu entwerfen:** `LoRa-Ra-08-CubeCell` (siehe P11.1b, Log 2026-10-20) zeigt
+    bereits einen funktionierenden PlatformIO/Arduino-Core-Build für HTCC-AB01, nur noch lokal gegen
+    das echte Board zu bestätigen statt eine Vendor-SDK-Alternative zu prüfen; für RA08 (ASR6601)
+    bleibt die Toolchain-Frage weiterhin offen, das Repo liefert dafür trotz seines Namens keine
+    echte Firmware (siehe dort). P11.2 (ESP32-CAM) hat eine offene,
     nur lokal zu treffende Wahl zwischen eigenem MJPEG-HTTP-Stream (einfacher) und ESP-NOW-Chunking
     (einheitlicher Transportweg, aber Reassembly nötig) — beides vor P11.1b/P11.2b dort nachlesen.
     P12.1 (Branding) bleibt auf denselben seit 2026-09-14 offenen Icon-Asset-Blocker wie P1.7c
@@ -2230,7 +2280,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 53 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 54 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
