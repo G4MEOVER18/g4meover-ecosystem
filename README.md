@@ -19,6 +19,7 @@ Interaktive Kontroll-Karte: alle Geräte, **farbcodierte Transporte** (UART · U
 - **[`UKFE-RF-V2-SPEC.md`](UKFE-RF-V2-SPEC.md)** — `ukfe_rf`-v2-Entwurf (BLE-Transport, Ergebnis-Envelope mit Quell-ID, neue Commands).
 - **[`UKFE-RF-CODEC-CROSSCHECK.md`](UKFE-RF-CODEC-CROSSCHECK.md)** — Host-Repro: `ukfe_rf`-v1-Codec (CRC16/keyed-MAC) gegen die reale Firmware verifiziert.
 - **[`TEST-PLAN.md`](TEST-PLAN.md)** — Flash-Test-Aufträge für die offenen Firmware-PRs.
+- **[`docs/HANDBUCH-GLIEDERUNG.md`](docs/HANDBUCH-GLIEDERUNG.md)** — Benutzer-Handbuch-Gliederung (Masterplan P12.3a), Inhalt folgt kapitelweise sobald die Tabs real funktionieren.
 - `WORKFLOW.md` — Arbeitsweise & Kontext (vor jeder Sitzung lesen).
 - `CONSTRAINTS.md` — **verbindliche** Regeln (Sicherheit, Nichts-Pushen-Listen, Commit-Stil).
 - `BACKLOG.md` — offene Aufgaben, priorisiert.
@@ -50,6 +51,9 @@ Interaktive Kontroll-Karte: alle Geräte, **farbcodierte Transporte** (UART · U
 - [`g4meover-companion`](https://github.com/G4MEOVER18/g4meover-companion) — flipperbridge & Deck-Tools
 - [`g4meover-payloads`](https://github.com/G4MEOVER18/g4meover-payloads) — Payloads
 - `g4meover-ecosystem` — **dieses Repo** (Planung/Koordination/Index)
+
+### 📻 433 MHz — Phase 11 (geplant)
+- [`LoRa-Ra-08-CubeCell`](https://github.com/G4MEOVER18/LoRa-Ra-08-CubeCell) — eigenes Repo, vor diesem Masterplan entstanden; liefert bereits einen funktionierenden PlatformIO/Arduino-Core-Build für CubeCell HTCC-AB01 (reiner RSSI-/RX-Finder, kein `ukfe_rf`-Knoten) — klärt die Toolchain-Frage für das in Abschnitt 1 des Masterplans als „später" geführte CubeCell-Board; enthaltener `legacy/`-Stand ist trotz Repo-Name keine echte RA08/ASR6601-Firmware
 
 ### 🛡️ Pentest-Tools
 [`g4meover-pentest-cockpit`](https://github.com/G4MEOVER18/g4meover-pentest-cockpit) · [`g4meover-security-suite`](https://github.com/G4MEOVER18/g4meover-security-suite) · hashpwn · netmap · xss-hunter · sqli-hunter · jwt-pwn · cors-scanner · http-header-auditor · subdomain-takeover-scanner · web-recon-toolkit

@@ -1039,11 +1039,12 @@ Ziel: jede Kontroll-Ebene erreicht jedes relevante Gerät **direkt**, nicht nur 
     einmal manuell funktionieren — kein Update-Mechanismus für ein Artefakt, das noch nicht
     reproduzierbar baut.
 - [ ] P12.3 Benutzer-Doku + Szenario-Handbuch.
-  - [ ] P12.3a Einziger Teil von Phase 12, der schon jetzt ohne Hardware/fertige GUI sinnvoll ist:
-    Gliederung festlegen (Geräte-Setup, Cockpit-Bedienung je Tab, Szenario-Presets aus
-    `ecosystem/topology.json` als Handbuch-Kapitel-Vorlage) — Inhalt selbst aber erst befüllbar,
-    sobald die jeweiligen Tabs (Phase 1) real funktionieren, sonst dokumentiert das Handbuch
-    Platzhalter statt echtem Verhalten.
+  - [~] P12.3a Gliederung ✅ geliefert (2026-10-21, Cloud): [`docs/HANDBUCH-GLIEDERUNG.md`](docs/HANDBUCH-GLIEDERUNG.md)
+    (Geräte-Setup 1:1 aus `ecosystem/devices.json`, Cockpit-Bedienung je Tab aus Phase 1, Szenario-
+    Kapitel 1:1 aus `ecosystem/topology.json`s vier Presets, Befehlsreferenz als Verweis statt
+    Duplikat). Inhalt selbst bleibt offen (`[~]`, nicht `[x]`) — erst befüllbar, sobald die
+    jeweiligen Tabs (Phase 1) real funktionieren, sonst dokumentiert das Handbuch Platzhalter statt
+    echtem Verhalten.
   - [ ] P12.3b Szenario-Handbuch nutzt dieselben vier Presets aus `ecosystem/topology.json` (Feld
     `presets`, P7.2) als Kapitelstruktur statt einer zweiten, separat gepflegten Szenario-Liste.
 
@@ -2001,6 +2002,37 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
   Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-10-21 (Cloud-Heartbeat): Repo-Hygiene zuerst — derselbe Branch-Zeiger-Fund wie an fast allen
+  Vortagen: `HEAD` losgelöst, lokaler `main`-Zeiger lag 1 Commit zurück (seit dem letzten
+  Masterplan-Log-Eintrag `fcf5dcd`, 2026-10-20, jetzt `9fda316`); per `git checkout main && git merge
+  --ff-only` nachgezogen, `origin/main` war bereits auf demselben Stand (reiner Fast-Forward, kein
+  Push nötig, kein Datenverlust). Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default
+  `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem ersten Commit auf
+  `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Die seit `fcf5dcd` gelandeten Commits
+  (usb-army-penetrator RAW_HID-`std::stoi()`-Fix, Bambu-RFID-Ideenrecherche, Evil-Portal-Fix +
+  BACKLOG.md) gezielt gegen diese Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/
+  `WORKFLOW.md` geprüft: keine Überschneidung, dieselbe separate Firmware-Mining-/
+  App-Verbesserungs-/Ideen-Recherche-Routine. Statt einer weiteren Wiederholungsrunde an P0.2c/d,
+  P0.3a-d, P0.4e/f oder der GUI-Architekturfrage (seit 2026-10-05 bzw. 2026-10-18 ohne weiteren
+  Mehrwert, siehe Log oben) zwei echte, bisher übersehene Doku-Konsistenzlücken geschlossen: (1)
+  `README.md`s Repo-Index führte `LoRa-Ra-08-CubeCell` (Fund vom 2026-10-20, P11.1b) nirgends —
+  additiv neue Gruppe „📻 433 MHz — Phase 11 (geplant)" ergänzt; (2) P12.3a (Benutzer-Handbuch-
+  Gliederung) war laut eigenem Text „schon jetzt ohne Hardware/fertige GUI sinnvoll", aber nie
+  tatsächlich geliefert — neues [`docs/HANDBUCH-GLIEDERUNG.md`](docs/HANDBUCH-GLIEDERUNG.md) erstellt
+  (Geräte-Setup 1:1 aus `ecosystem/devices.json`, Cockpit-Tabs aus Phase 1, Szenario-Kapitel 1:1 aus
+  `ecosystem/topology.json`s vier Presets), P12.3a auf `[~]` gesetzt (Gliederung fertig, Inhalt
+  bewusst noch offen) und in `README.md`s Struktur-Liste verlinkt. Sonst unveränderte
+  Wiederkehr-Prüfungen: `g4meover-deck`/`dogytag-firmware`/`lora-ukfe` laut `list_repos` unverändert
+  (`pushed_at` 2026-08-20/2026-06-17/2026-08-26). `ecosystem/devices.json`/`ecosystem/topology.json`
+  Syntax erneut per `json.load` geprüft: beide gültig. Blocker „referenzierte Tool-Dateien fehlen im
+  Repo" erneut gegen `git log --all --diff-filter=A` geprüft: weiterhin kein Treffer. Repo-
+  Sichtbarkeit (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin `private`. Pi-SSH-/
+  LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 55 Tage) — keine
+  erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert); die beiden
+  Tageszähler im PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 55
+  synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
+  Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -2098,7 +2130,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 54 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 55 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2207,8 +2239,10 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
     P12.1 (Branding) bleibt auf denselben seit 2026-09-14 offenen Icon-Asset-Blocker wie P1.7c
     gestapelt (siehe Risiken/Blocker unten); P12.2 (Installer) ist zusätzlich auf P1.7a gestapelt
     (kein Packaging vor funktionierendem P1.3/P1.4); P12.3a (Doku-Gliederung) ist der einzige Teil
-    von Phase 11/12, der schon jetzt ohne Hardware/fertige GUI sinnvoll ist (Gliederung + die vier
-    `ecosystem/topology.json`-Presets als Kapitelvorlage, Inhalt selbst erst nach Phase 1).
+    von Phase 11/12, der schon jetzt ohne Hardware/fertige GUI sinnvoll ist — **seit 2026-10-21
+    geliefert statt nur angekündigt:** [`docs/HANDBUCH-GLIEDERUNG.md`](docs/HANDBUCH-GLIEDERUNG.md)
+    (Geräte-Setup 1:1 aus `devices.json`, Tabs aus Phase 1, Szenario-Kapitel 1:1 aus den vier
+    `ecosystem/topology.json`-Presets); Inhalt selbst bleibt weiterhin erst nach Phase 1 befüllbar.
 
 **Offene Entscheidungen:**
 - GUI-Framework: PySide6 vs. Web (Electron/Tauri) — siehe Abschnitt 6, weiterhin offen. **Konkreter
@@ -2280,7 +2314,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 54 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 55 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
