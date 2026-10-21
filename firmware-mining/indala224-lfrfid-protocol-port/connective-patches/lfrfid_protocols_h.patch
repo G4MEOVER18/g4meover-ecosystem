@@ -1,0 +1,12 @@
+diff --git a/lib/lfrfid/protocols/lfrfid_protocols.h b/lib/lfrfid/protocols/lfrfid_protocols.h
+index d6e13c2..d95fdb8 100644
+--- a/lib/lfrfid/protocols/lfrfid_protocols.h
++++ b/lib/lfrfid/protocols/lfrfid_protocols.h
+@@ -34,6 +34,7 @@ typedef enum {
+     LFRFIDProtocolGProxII,
+     LFRFIDProtocolNoralsy,
+     LFRFIDProtocolInstaFob,
++    LFRFIDProtocolIndala224,
+ 
+     LFRFIDProtocolMax,
+ } LFRFIDProtocol;

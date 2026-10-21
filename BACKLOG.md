@@ -7863,3 +7863,77 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Schlüsselplan-Konstanten (bewusst zurückgestellt), Texkom-Phase 5
       (Protokollbaum-Registrierung/UI), UART-Portierung des Evil-Portal-Ports auf
       `furi_hal_serial_*` und veraltete `README.md`.
+
+## Firmware-Feature-Mining: Indala224 — neues LFRFID-Protokoll (224-Bit-PSK2, Motorola/Indala)
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      App-Verbesserung (usb-army-penetrator, `SET_SETTING_STRING`-Fix), davor Ideen-Recherche
+      (Evil Portal), davor Firmware-Feature-Mining (Texkom Phase 4b) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war Firmware-Feature-Mining
+      für diese Sitzung an der Reihe. Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Texkom-Phase-5 (letzter offener Schritt der laufenden Portierung) laut eigener
+      Port-Skizze bewusst zurückgestellt: "erst sinnvoll, sobald Phase 1-4b lokal bauen" — ohne
+      lokale Baurückmeldung kein sinnvoller nächster Schritt dort. Stattdessen `lib/nfc/
+      protocols/` und `lib/lfrfid/protocols/` vollständig (Dateiliste, nicht nur Stichproben)
+      gegen einen frischen Unleashed-`dev`-Stand gegenübergestellt, um einen echten neuen
+      Lückenfund statt einer weiteren Texkom-Wiederholung oder eines bereits mehrfach
+      geprüften Fix-Clusters zu liefern. NFC-Seite: keine Lücke außer dem bereits laufenden
+      Texkom-Port. LFRFID-Seite: `protocol_indala224.{c,h}` fehlt komplett — ein eigenständiges
+      224-Bit-PSK2-Protokoll (Motorola/Indala), strukturell unabhängig von der bereits
+      vorhandenen 26-Bit-Variante.
+- [x] **Indala224** vollständig gelesen (278 Zeilen) und auf Speicherfehler/Off-by-one
+      geprüft — **kein eigener Fund**. Abhängigkeit identifiziert: der T5577-Schreibpfad nutzt
+      eine bei mir ebenfalls fehlende, neue Helferdatei `lfrfid_write_fill.{c,h}` (72 Zeilen);
+      bewusst nur deren T5577-Hälfte mitgenommen, die viel größere, unabhängige Umbau-Welle,
+      die dieselbe Helferdatei bei zwanzig bereits vorhandenen Protokollen nachträglich statt
+      ihres jeweils eigenen Inline-Codes einsetzt, bewusst **nicht** übernommen (siehe
+      `indala224-lfrfid-protocol-port.md`, "Risiko").
+- [x] Beide Dateien über zwei unabhängige Abrufmethoden (`git clone --branch dev` und
+      `raw.githubusercontent.com`, exakter Commit-Hash `a70a69d9d47c1e0a3b1f868aa25c4d0a7a5346d5`)
+      geladen, per `md5sum` identisch bestätigt. Unverändert nach
+      `firmware-mining/indala224-lfrfid-protocol-port/lib/lfrfid/protocols/` übernommen.
+- [x] Zwei additive Zweizeiler-Patches für die bereits vorhandenen
+      `lfrfid_protocols.h/.c` (neuer Enum-Wert `LFRFIDProtocolIndala224`, ans Ende von
+      `LFRFIDProtocol` angehängt; neue `#include`- und Registrierungszeile in
+      `lfrfid_protocols[]`) abgeleitet, gegen zwei frische, unabhängige Zweitkopien meiner
+      eigenen Firmware-Basis (`main`, unverändert `b359f6f`) mit `git apply --check`/
+      `git apply` verifiziert, real angewendet, per `md5sum` abgeglichen — identisch.
+- [x] Host-Repro in
+      `firmware-mining/repro-indala224-lfrfid-protocol-port/repro.c` (Protokollkern plus
+      T5577-Hälfte der Helferdatei unverändert transkribiert, `bit_lib_*`/`level_duration_*`/
+      `ProtocolBase` unverändert aus der eigenen Basis, `FuriString` auf einen minimalen,
+      verhaltensgleichen Stand-in reduziert) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: **58 Prüfungen, alle bestanden**, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde. Testvektoren
+      unverändert aus Unleasheds eigenem, laut Kommentar Proxmark3-verifiziertem Unit-Test
+      übernommen, aber in einer eigenen, unabhängigen Repro-Umgebung (direkter Funktionsaufruf
+      statt `protocol_dict`/`pulse_glue`, zusätzliche eigene Negativ-/Grenzfall-Szenarien wie
+      "ein Bit zu kurz" und "gekipptes Präambel-Leitbit bei rechnerisch exaktem Minimum") erneut
+      durchlaufen lassen, nicht blind übernommen. Zwei Mutationsproben (XOR→AND in der
+      differentiellen Decodierung; Off-by-one im T5577-Blockindex) lassen die jeweils
+      zutreffenden Prüfungen gezielt fehlschlagen — nicht Teil des gelieferten Repros.
+- [x] `firmware-mining/indala224-lfrfid-protocol-port.md` angelegt (Was, Nutzen, betroffene
+      Dateien, Risiko, Verifikation, Port-Skizze, Quelle).
+- [ ] Lokal zu tun: die drei neuen/geänderten Dateien plus zwei Patches anwenden, in die
+      `lib/lfrfid`-Build-Liste aufnehmen, mit `ufbt`/`fbt firmware_all` bauen (sollte ohne
+      Fehler durchlaufen, da alle Änderungen additiv sind). Danach Funktionstest mit einer
+      eigenen Indala224-Karte (falls verfügbar): Lesen gegen ein unabhängiges
+      Referenzwerkzeug (Proxmark3, `lf indala reader`) vergleichen, Emulation gegen ein
+      zweites eigenes Lesegerät, Schreibversuch auf eine eigene, leere T5577-Karte mit
+      Rücklesen zur Bestätigung.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler (`AGENT_RUN`/`ESP32M`/
+      `RUN_PAYLOAD`-Dispatch-Handler), neun verbleibende FeliCa-Multisystem-Teilfixe aus
+      PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), Texkom-Phase 5 (Protokollbaum-Registrierung/UI, weiterhin an eine
+      lokale Baurückmeldung zu Phase 1-4b gebunden), UART-Portierung des Evil-Portal-Ports auf
+      `furi_hal_serial_*`, die bewusst nicht übernommene `lfrfid_write_fill_*()`-Umbau-Welle
+      an zwanzig bereits vorhandenen LFRFID-Protokollen und veraltete `README.md`.

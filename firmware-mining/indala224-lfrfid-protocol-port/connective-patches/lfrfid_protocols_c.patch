@@ -1,0 +1,18 @@
+diff --git a/lib/lfrfid/protocols/lfrfid_protocols.c b/lib/lfrfid/protocols/lfrfid_protocols.c
+index cbb1e15..0360695 100644
+--- a/lib/lfrfid/protocols/lfrfid_protocols.c
++++ b/lib/lfrfid/protocols/lfrfid_protocols.c
+@@ -22,6 +22,7 @@
+ #include "protocol_gproxii.h"
+ #include "protocol_noralsy.h"
+ #include "protocol_insta_fob.h"
++#include "protocol_indala224.h"
+ 
+ const ProtocolBase* const lfrfid_protocols[] = {
+     [LFRFIDProtocolEM4100] = &protocol_em4100,
+@@ -49,4 +50,5 @@ const ProtocolBase* const lfrfid_protocols[] = {
+     [LFRFIDProtocolGProxII] = &protocol_gproxii,
+     [LFRFIDProtocolNoralsy] = &protocol_noralsy,
+     [LFRFIDProtocolInstaFob] = &protocol_insta_fob,
++    [LFRFIDProtocolIndala224] = &protocol_indala224,
+ };
