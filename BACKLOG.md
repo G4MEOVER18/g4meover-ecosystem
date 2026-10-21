@@ -7783,3 +7783,83 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
       zurückgestellt), Texkom-Phase 5 (Protokollbaum-Registrierung/UI) und veraltete
       `README.md`.
+
+## App-Verbesserung: usb-army-penetrator — SET_SETTING_STRING verwirft jeden mehrwortigen Wert statt ihn zu übernehmen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Ideen-Recherche (Evil Portal), davor Firmware-Feature-Mining (Texkom Phase 4b), davor
+      App-Verbesserung (usb-army-penetrator, RAW_HID-`std::stoi()`-Fix) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war App-Verbesserung für diese
+      Sitzung an der Reihe. Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Den seit der `RAW_HID`-Sitzung explizit als engeren Nachfolge-Rückstellpunkt benannten
+      `handleSetSetting()` (Ducky-Dispatch für `SET_SETTING_BOOL`/`_INT16`/`_UINT16`/`_STRING`,
+      `src/Attacks/Ducky/Extensions.h`) aufgegriffen — der eigentliche `std::stoi()`-Aufruf
+      dahinter in `Settings.cpp` ist bereits behoben, die Argument-Aufteilung in der Funktion
+      selbst war bislang nicht gezielt geprüft. Frischen Klon von
+      `G4MEOVER18/usb-army-penetrator` (`main`, unverändert Commit `411b153`) gezogen, Funktion
+      vollständig gelesen.
+- [x] **Fund**: `handleSetSetting()` zerlegt die komplette Zeile über `Ducky::SplitString()`
+      (aus der eingebundenen `i-am-shodan/DuckScriptInterpreter`-Bibliothek, Pin-Commit
+      `23aa3ba8` laut `platformio.ini`, `DuckyParse.h` gelesen) an jedem Whitespace-Zeichen ohne
+      Anführungszeichen-Unterstützung und verlangt danach exakt drei Teile. Für
+      `SET_SETTING_STRING <Name> <Wert>` heißt das: jeder Wert mit mehr als einem Wort erzeugt
+      mehr als drei Teile und die ganze Zeile wird verworfen (`totalErrors++`, Einstellung
+      bleibt unverändert) — obwohl der Rest der Zeile klar als ein einziger String-Wert gemeint
+      war. Per `grep -rn "registerUserConfigurableSetting.*SettingType::String"` bestätigt, dass
+      das reale, bereits registrierte Einstellungen betrifft: `WIFI_AP_NAME`/`WIFI_AP_PWD`
+      (`HardwareWiFi.cpp`) und `USB_DeviceManufacturer`/`USB_DeviceProductDescriptor`
+      (`USBCore.cpp`) — alle vier plausibel mehrwortig. `setSettingValue()`
+      (`Settings.cpp:50-53`) selbst ist für den `String`-Typ uneingeschränkt
+      (`prefs.putString()` ohne weitere Prüfung); die Einschränkung entsteht ausschließlich
+      durch die Zerlegung in `handleSetSetting()`. Gezielt gegengeprüft und bewusst **nicht**
+      als weiteren Fund behauptet: mehrere Leerzeichen zwischen Name und Wert erzeugen durch
+      `Ducky::SplitString()` keine leeren Zwischen-Token, `SET_SETTING_BOOL`/`_INT16`/`_UINT16`
+      (deren Werte nie Leerzeichen enthalten dürfen) sind unverändert nicht betroffen.
+- [x] Fix (additiv): Für `SET_SETTING_STRING` wird die Mindestanzahl statt der exakten Anzahl
+      Teile geprüft (`split.size() < 3` statt `!= 3`, weiterhin `!= 3` für die anderen drei
+      Varianten — deren Verhalten bleibt dadurch byte-identisch), der Wert wird dann aus der
+      Originalzeile neu ausgeschnitten statt aus `split[2]` übernommen (ab dem Ende des
+      gefundenen Namens den trennenden Whitespace überspringen, Rest der Zeile unverändert als
+      Wert). Patch gegen zwei frische, unabhängige Zweitkopien von
+      `G4MEOVER18/usb-army-penetrator` (`main`, unverändert `411b153`) mit `git apply --check`
+      verifiziert, real angewendet, per `md5sum` abgeglichen — identisch.
+- [x] Host-Repro (`handleSetSetting()` in ALT-/NEU-Form sowie `Ducky::SplitString()` 1:1
+      transkribiert, `setSettingValue()` durch einen aufzeichnenden Stand-in ersetzt, kein
+      `Preferences`/NVS-Objekt nötig) unter
+      `gcc -std=c++17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: 19 Prüfungen (drei Fund-Szenarien — WiFi-Passwort/-AP-Name/USB-Hersteller
+      mit mehrwortigem Wert, ALT verwirft/NEU übernimmt korrekt —, eine Gegenprobe mit mehreren
+      inneren Leerzeichen, zwei `SET_SETTING_STRING`-Regressionsfälle, zwölf Regressionsfälle
+      über `BOOL`/`INT16`/`UINT16` mit paarweise identischem Rückgabewert/Name/Wert/
+      Fehlerzähler zwischen ALT und NEU), alle bestanden, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde. Mutationsprobe
+      (Entfernen des Whitespace-Überspringens nach dem Namen) lässt die erste Prüfung sofort mit
+      einem führenden Leerzeichen im übernommenen Wert fehlschlagen — bestätigt, dass die
+      Prüfung diesen Teil der Logik tatsächlich abdeckt.
+- [x] Details, Fund, Nutzen, Patch, Host-Repro, Risiko, Sicherheitsrahmen, Testhinweis in
+      `app-improvements/usb-army-penetrator/set-setting-string-whitespace-value-fix.md`, Patch
+      in
+      `app-improvements/usb-army-penetrator/set-setting-string-whitespace-value-fix/extensions_h.patch`,
+      Repro in
+      `app-improvements/usb-army-penetrator/repro-set-setting-string-whitespace-value/repro.cpp`.
+- [ ] Lokal zu tun: Patch gegen die eigene `usb-army-penetrator`-Basis anwenden, mit der
+      jeweiligen Plattform-`platformio.ini`-Umgebung bauen; ein `.ds`-Testskript mit
+      `SET_SETTING_STRING WIFI_AP_PWD mein geheimes passwort` laufen lassen (vor dem Fix
+      "SET_SETTING needs two arguments has: 3" im Log und Einstellung unverändert, nach dem Fix
+      vollständig übernommen), danach `SET_SETTING_BOOL`/`_UINT16` mit gültigen und ungültigen
+      Werten zur Regressionsprobe.
+- [ ] `handleSetSetting()` ist damit abgeschlossen; aus derselben, seit der `Fortsetzung
+      2`-Sitzung offenen Liste bleiben die `AGENT_RUN`/`ESP32M`/`RUN_PAYLOAD`-Dispatch-Handler
+      als engerer Nachfolge-Rückstellpunkt für "`usb-army-penetrator`s restliche Ducky-Handler".
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor
+      lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-
+      Schlüsselplan-Konstanten (bewusst zurückgestellt), Texkom-Phase 5
+      (Protokollbaum-Registrierung/UI), UART-Portierung des Evil-Portal-Ports auf
+      `furi_hal_serial_*` und veraltete `README.md`.

@@ -1,0 +1,33 @@
+diff --git a/src/Attacks/Ducky/Extensions.h b/src/Attacks/Ducky/Extensions.h
+index 9e5bd28..905c9b0 100644
+--- a/src/Attacks/Ducky/Extensions.h
++++ b/src/Attacks/Ducky/Extensions.h
+@@ -239,7 +239,9 @@ static int handleSetSetting(const std::string &str, const std::unordered_map<std
+     do
+     {
+         const auto split = Ducky::SplitString(str);
+-        if (split.size() != 3)
++        const bool isStringSetting = startsWith(str, "SET_SETTING_STRING");
++
++        if (split.size() < 3 || (!isStringSetting && split.size() != 3))
+         {
+             Debug::Log.error(LOG_DUCKY, "SET_SETTING needs two arguments has: "+std::to_string(split.size() - 1));
+             Debug::Log.error(LOG_DUCKY, str);
+@@ -250,6 +252,17 @@ static int handleSetSetting(const std::string &str, const std::unordered_map<std
+         const auto settingName = split[1];
+         auto settingValue = split[2];
+ 
++        if (isStringSetting)
++        {
++            // SET_SETTING_STRING values (WiFi SSID/password, USB descriptor strings, ...)
++            // may contain whitespace, which Ducky::SplitString() above has already cut at
++            // the first space. Reconstruct the full value from the original line instead
++            // of using split[2] alone.
++            const auto nameEnd = str.find(settingName, str.find(' ') + 1) + settingName.length();
++            const auto valueStart = str.find_first_not_of(" \t", nameEnd);
++            settingValue = (valueStart == std::string::npos) ? std::string() : str.substr(valueStart);
++        }
++
+         if (startsWith(str, "SET_SETTING_UINT16") && settingValue.rfind("0x", 0) != 0)
+         {
+             // need to add 0x to front
