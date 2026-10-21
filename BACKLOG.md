@@ -7719,3 +7719,67 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
 - [ ] Letzter offener Schritt dieser Portierung: Phase 5 (`lib/nfc/protocols/nfc_protocol.c/.h`
       — `NfcProtocolTexkom` als neuen Basisknoten registrieren, plus
       `applications/main/nfc/helpers/protocol_support/texkom/*`, UI-Anbindung).
+
+## Ideen-Recherche: Evil Portal (bigbrodude6119) — neue Zeile unter WiFi
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Firmware-Feature-Mining (Texkom-NFC-Protokollfamilie, Phase 4b), davor App-Verbesserung
+      (usb-army-penetrator, RAW_HID-`std::stoi()`-Fix), davor Ideen-Recherche (Bambu RFID) —
+      nach dem etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war
+      Ideen-Recherche für diese Sitzung an der Reihe. Git-Identität vor dem ersten Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer Ergänzung für die bislang nur drei Einträge (Marauder/GhostESP-UI,
+      Wendigo, Rogue AP Detector) enthaltende Kategorie "WiFi" gesucht. Mehrere Kandidaten
+      erfolglos/als bereits bekannt verworfen (DAP Link — bereits im eigenen
+      `applications/external/dap_link` enthalten, kein neuer Fund; `Idorobots/ofw-flipperzero-nrf24`
+      — Fork von `mothball187/flipperzero-nrf24`, bereits katalogisiert; Fault-Injection-/
+      LoRa-/EMV-Skimmer-Suchen lieferten nur bereits bekannte Treffer).
+- [x] **Evil Portal** (`bigbrodude6119/flipper-zero-evil-portal`, `main`, Commit `d196f60`,
+      2023-07-17, MIT, 2,4k Sterne/286 Forks) gefunden — WLAN-Captive-Portal mit gefälschter
+      Login-Seite über ein per UART angeschlossenes ESP32-S2-/WROOM-Board, SD-Protokollierung
+      eingegebener Zugangsdaten, Community-Vorlagenbibliothek. Flipper-`.fap` (729 Zeilen über
+      sechs Dateien) vollständig gelesen.
+- [x] API-87-Status verifiziert gegen `G4MEOVER18/G4MEOVER-FW` (`main`, `b359f6f`): die
+      UART-Schicht (`evil_portal_uart.c`) nutzt die alte direkte `furi_hal_uart_tx()`/
+      `_set_br()`/`_set_irq_cb()`/`furi_hal_console_disable()`/`_enable()`-API — per
+      Volltextsuche über den gesamten eigenen Quellbestand bestätigt, dass keine dieser vier
+      Funktionen mehr existiert (nur noch die Handle-basierte `furi_hal_serial_*`-API, an sechs
+      Stellen im eigenen Baum verifiziert, u. a. `expansion_worker.c`/`uart_echo.c`/
+      `subghz_gps.c`). Echte Portierungsarbeit nötig, kein firmwareseitiger Kompat-Shim wie bei
+      SWD Probe/GPIO Logic Analyzer (alte CLI-API) mehr vorhanden.
+- [x] Quelltext-Review (Speichersicherheit): zwei gleichartige Lecks gefunden — sowohl im
+      SET_AP_CMD-Zweig (`evil_portal_uart.c:71`) als auch im SET_HTML_CMD-Zweig
+      (`scenes/evil_portal_scene_console_output.c:117`, dem eigentlichen "Start Portal"-Pfad)
+      wird ein per `furi_string_alloc()` erzeugtes `FuriString*` mit `free()` statt
+      `furi_string_free()` freigegeben; der separat allozierte Inhaltspuffer (bei SET_HTML_CMD
+      die komplette geladene Phishing-Seite) bleibt dabei hängen. Beide Fundstellen liegen im
+      Kern-Workflow, nicht in einem Randfall.
+- [x] Host-Repro in `ideas/repro-evil-portal-furi-string-free-leak/repro.c` (Stand-in-Nachbildung
+      der realen `FuriString`-Semantik aus `furi/core/string.c`, beide Fundstellen 1:1
+      nachgebaut, je 50 simulierte "Start Portal"-Zyklen) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,leak,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`, ALT/NEU in getrennten Prozessen: ALT 8250 Byte über 100 Allokationen
+      (1200 Byte SET_AP_CMD, 7050 Byte SET_HTML_CMD), NEU 0 Byte, identisch bei beiden
+      Optimierungsstufen. Zusätzlicher Regressionsnachweis für das Stand-in-Modell selbst (kurzer
+      unpräfigierter Inhalt bleibt inline, kein Leck).
+- [x] Fix-Skizze (zwei additive Einzeiler, `free()` → `furi_string_free()`) inkl. Patches gegen
+      eine frische, unabhängige Zweitkopie mit `git apply --check` verifiziert, real angewendet.
+      `ideas/evil-portal-wifi-captive-portal-app-status.md` angelegt (Quelle, Was, Nutzen,
+      API-87-Status, Quelltext-Review, Host-Repro, Fix-Skizze, Aufwand, Sicherheitsrahmen,
+      Offen). `ideas/pentest-app-katalog.md` erweitert: neue Zeile unter "WiFi", neuer
+      Rechercheauftrag-Eintrag am Ende.
+- [ ] Lokale Portierung der UART-Schicht auf `furi_hal_serial_*` sowie anschließende Bauprobe
+      (`ufbt`) und Testlauf gegen ein eigenes ESP32-S2-/WROOM-Board weiterhin offen.
+      Funktionsvergleich mit der bereits katalogisierten Marauder-EvilPortal-Funktion
+      (SD-Protokollarchitektur/Vorlagenvielfalt) ebenfalls offen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), Texkom-Phase 5 (Protokollbaum-Registrierung/UI) und veraltete
+      `README.md`.

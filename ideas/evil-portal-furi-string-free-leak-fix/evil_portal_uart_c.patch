@@ -1,0 +1,13 @@
+diff --git a/flipper/flipper-evil-portal/evil_portal_uart.c b/flipper/flipper-evil-portal/evil_portal_uart.c
+index 57848ca..b675e6f 100644
+--- a/flipper/flipper-evil-portal/evil_portal_uart.c
++++ b/flipper/flipper-evil-portal/evil_portal_uart.c
+@@ -68,7 +68,7 @@ static int32_t uart_worker(void *context) {
+ 
+                 uart->app->sent_ap = true;
+ 
+-                free(out_data);
++                furi_string_free(out_data);
+                 free(uart->app->ap_name);
+               }
+ 
