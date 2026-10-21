@@ -7937,3 +7937,82 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lokale Baurückmeldung zu Phase 1-4b gebunden), UART-Portierung des Evil-Portal-Ports auf
       `furi_hal_serial_*`, die bewusst nicht übernommene `lfrfid_write_fill_*()`-Umbau-Welle
       an zwanzig bereits vorhandenen LFRFID-Protokollen und veraltete `README.md`.
+
+## Ideen-Recherche: BC Scanner (polarikus) — neue Kategorie Barcode/POS-Testing
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Firmware-Feature-Mining (Indala224-LFRFID-Protokoll), davor App-Verbesserung
+      (usb-army-penetrator, `SET_SETTING_STRING`-Fix), davor Ideen-Recherche (Evil Portal) —
+      nach dem etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war
+      Ideen-Recherche für diese Sitzung an der Reihe. Git-Identität vor dem ersten eigenen
+      Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer bislang komplett fehlenden Kategorie gesucht (Eingabevalidierung an
+      Kassensystemen/POS über eine emulierte Scanner-Identität, Gegenstück zum eigenen BadUSB
+      auf der COM-Port- statt HID-Seite). Erfolglos vorrecherchiert: ein eigenständiger
+      Flipper-Zigbee/802.15.4-Sniffer (bereits in einer früheren Sitzung erfolglos geprüft,
+      bestätigt — keine neue Quelle gefunden).
+- [x] **BC Scanner** (`polarikus/flipper-zero_bc_scanner_emulator`, Commit `7f512ec`,
+      2026-10-11, `fap_version 0.5`, GPL-3.0, 170 Sterne) gefunden — emuliert einen
+      USB-COM-Port-Barcodescanner für Kassensystem-Eingabevalidierungstests, Datei-Modus
+      (`.bc`-Dateien auf SD) plus RPC-/BLE-Modus über eine separate Android-Begleit-App. Per
+      `git clone` sowie unabhängig per `raw.githubusercontent.com` auf exakt diesen Commit
+      geladen, beide Methoden per `md5sum` identisch bestätigt. Alle neun Quelldateien
+      (~850 Zeilen) vollständig gelesen.
+- [x] API-87-Status verifiziert gegen eine frische, unabhängige Zweitkopie von
+      `G4MEOVER18/G4MEOVER-FW` (`main`, `b359f6f`): `furi_hal_usb_unlock()`/`_is_locked()`/
+      `_set_config(&usb_cdc_single, NULL)`, `furi_hal_serial_control_acquire(FuriHalSerialIdUsart)`/
+      `_init()`/`_deinit()`/`_control_release()`, `furi_hal_cdc_send()` sowie
+      `cli_vcp_disable()`/`_enable()` über `RECORD_CLI_VCP` exakt nach demselben Muster wie in
+      der eigenen, bereits gebauten `usb_uart_bridge`-App genutzt. Der RPC-/BLE-Modus nutzt
+      `rpc/rpc_app.h` wörtlich wie das offizielle `rpc_debug_app` (`RpcAppSystem`,
+      `RpcAppSystemEvent`, `rpc_system_app_set_callback()`/`_send_started()`/`_send_exited()`/
+      `_confirm()`). `requires=["gui","dialogs","notification","rpc_start"]` — alle vier
+      App-IDs vorhanden. Kein Firmware-Patch nötig, reiner `.fap`-Build.
+- [x] Quelltext-Review: Fund in `bc_scanner_script.c` — `bc_script_read_file()` setzt
+      `line_nb` bei jedem gelesenen 50-Byte-Häppchen auf die Häppchengröße zurück statt auf der
+      beim Öffnen einmalig ermittelten Gesamtdateigröße zu bleiben; die Sendeschleife setzt
+      `line_cur` auf denselben Häppchenwert. Die View-Formel `(line_cur*100)/line_nb`
+      (`views/bc_scanner_view.c:71`) zeigt dadurch bei jeder Datei über 50 Byte durchgehend
+      `100 %` statt eines ansteigenden Sendefortschritts — reiner Anzeigefehler, der
+      tatsächlich über den COM-Port gesendete Byteinhalt ist unberührt. Der RPC-/BLE-Modus ist
+      nicht betroffen (keine Fortschrittsanzeige, ein Sendeaufruf pro Barcode-Wert).
+      Gegengeprüft und bewusst nicht als weiteren Fund behauptet: eine Typverwechslung
+      zwischen zwei Enums in `bc_scanner_scene_file_select.c:28` trifft bei der aktuellen
+      Enum-Reihenfolge zufällig denselben Zahlenwert wie der korrekte Scene-Index — fragil,
+      aber ohne beobachtbare Fehlwirkung beim aktuellen Stand.
+- [x] Host-Repro in `ideas/repro-bc-scanner-progress-percent-overwrite/repro.c`
+      (`bc_script_read_file()`, Sendeschleife und View-Formel 1:1 transkribiert, minimale
+      Mock-Storage, kein Hardware-/USB-Zugriff nötig) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`, sechs Prüfgruppen (237-Byte- und 150-Byte-Datei: ALT durchgehend
+      `100 %`, NEU rampt korrekt; 12-Byte-Datei als Äquivalenzfall; Regressionsprüfung der
+      View-Formel; 65500-Byte-Datei nahe der `uint16_t`-Obergrenze ohne Überlauf;
+      Mutationsprobe mit abweichendem, ebenfalls falschem Ergebnis zur Bestätigung der
+      Testschärfe): **8 Prüfungen bestanden**, identischer Output beider Optimierungsstufen,
+      keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] Fix-Skizze (additiv: `line_nb`-Reset in `bc_script_read_file()` entfernen, `line_cur`
+      in der Sendeschleife statt mit dem zuletzt gelesenen Häppchen mit der kumulierten
+      Byteanzahl befüllen) in `ideas/bc-scanner-emulator-app-status.md` angelegt (Quelle, Was,
+      Nutzen, Aufwand, API-87-Status, Fund, Fix-Skizze, Testhinweis, Sicherheitsrahmen,
+      Nächster Schritt). `ideas/pentest-app-katalog.md` erweitert: neue Kategorie "Barcode /
+      POS-Testing" mit erster Zeile, neuer Rechercheauftrag-Eintrag am Ende.
+- [ ] Lokal zu tun: `.fap` gegen den eigenen `mntm-012`-Stand bauen, Fix in
+      `bc_scanner_script.c` einbringen, Funktionstest mit einer `.bc`-Datei über 50 Byte
+      während laufender Übertragung (Prozentanzeige vor/nach Fix vergleichen) sowie
+      Byteinhalt-Vergleich am COM-Port-Gegenstück. Separate Android-Begleit-App
+      (`flipper-zero_bc_scanner_emulator-Android-app`) für eine künftige Sitzung vorgemerkt,
+      bislang nicht geprüft.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler (`AGENT_RUN`/`ESP32M`/
+      `RUN_PAYLOAD`-Dispatch-Handler), neun verbleibende FeliCa-Multisystem-Teilfixe aus
+      PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), Texkom-Phase 5 (Protokollbaum-Registrierung/UI, weiterhin an eine
+      lokale Baurückmeldung zu Phase 1-4b gebunden), UART-Portierung des Evil-Portal-Ports auf
+      `furi_hal_serial_*`, die bewusst nicht übernommene `lfrfid_write_fill_*()`-Umbau-Welle
+      an zwanzig bereits vorhandenen LFRFID-Protokollen und veraltete `README.md`.
