@@ -8103,3 +8103,80 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lokale Baurückmeldung zu Phase 1-4b gebunden), UART-Portierung des Evil-Portal-Ports auf
       `furi_hal_serial_*`, die bewusst nicht übernommene `lfrfid_write_fill_*()`-Umbau-Welle
       an zwanzig bereits vorhandenen LFRFID-Protokollen und veraltete `README.md`.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal — fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
+
+- [x] `lib/subghz/protocols/*` und `lib/lfrfid/protocols/*` vollständig gegen Unleashed
+      (Standard-Branch, Commit `f31555e4610a74af609c1cc7c3e9db999499fe1d`) gegenübergestellt —
+      keine neue Protokolldatei, jedes Rolling-Code-Format bereits vorhanden. Stattdessen beim
+      Prüfen der externen App `DarkFlippers/SubGHz_Remote` (Submodul von Unleashed, Commit
+      `df6334cdde0c88e22ab09ba16b12222cfccf834a`) eine fehlende Infrastrukturschicht gefunden:
+      `lib/subghz/blocks/generic.h`/`.c` fehlt bei mir komplett die
+      `SubGhzBlockGenericGlobal`-Struktur plus vier Funktionen
+      (`_counter_override_set/get`, `_button_override_set/get`, `_reset`) — der Mechanismus,
+      über den ~15 Rolling-Code-Protokolle (KeeLoq, FAAC SLH, Secplus v1/v2, Alutech AT-4N,
+      Beninca ARC, Jarolift, Prastel, Ditec GOL4, Phoenix V2, Nice FloR-S, CAME Atomo,
+      KingGates Stylo4K, Somfy Keytis/Telis) Zähler-/Tastenwert vor dem Senden überschreiben
+      lassen, plus ein `endless_tx`-Flag für Dauersenden statt fester Wiederholzahl.
+      `subghz_custom_btn_*()` (eigene, unabhängige API) dagegen bereits byte-identisch
+      vorhanden.
+- [x] Eigenen Fund beim Vorbereiten des Patches: meine `generic.c`/`.h` sind **keine** reine
+      Untermenge von Unleasheds Version — eigene, unabhängige Erweiterung
+      (`subghz_block_generic_serialize_common()` plus `Lat`/`Lon`-Geotagging, genutzt von vier
+      bereits vorhandenen Protokolldateien `pcsg_generic.c`/`tpms_generic.c`/`ws_generic.c`/
+      `bin_raw.c`) wäre bei einem blinden Dateiersatz verloren gegangen. Deshalb additive
+      Zusammenführung statt Ersatz: Unleasheds vier Funktionen plus Struct eingefügt, eigene
+      Erweiterung unverändert belassen.
+- [x] Patch-Trio (`generic_h.patch`, `generic_c.patch`, `base_c.patch`) einzeln und zusammen
+      per `git apply --check`/`git apply` gegen eine frische, unveränderte
+      `G4MEOVER18/G4MEOVER-FW`-Arbeitskopie (`b359f6fc32f282ce7217dd2d48a4e3478771852e`)
+      verifiziert: alle drei greifen, zusammen 104 Zeilen Hinzufügung, 0 Löschungen.
+      `base.c`-Hook (`#include "../blocks/generic.h"` plus
+      `subghz_block_generic_global_reset(0);` in `subghz_protocol_decoder_base_get_string()`)
+      byte-für-byte Unleasheds eigener Anbindung entsprechend.
+- [x] Host-Repro in `firmware-mining/repro-subghz-block-generic-global-override-port/`
+      kompiliert die tatsächliche, nach dem Merge entstandene `generic.c` unverändert mit
+      (inklusive der eigenen Lat-Lon-Erweiterung, die mitkompiliert aber nie aufgerufen wird),
+      gegen minimale Mocks für `FuriString`/`FlipperFormat`/`Stream`. Geprüft: Override
+      "einmal verbraucht" (Counter und Button), Masken-Formel für jeden bei Unleashed
+      tatsächlich verwendeten Bitlängen-Wert (Counter 8/16/20/28/32, Button 1/2/3/4/8),
+      `_reset()` erhält `endless_tx` in beide Richtungen, frischer Reset meldet korrekt "kein
+      Override anhängig". Unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **101 Prüfungen bestanden**, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` durchgehend 0.
+- [x] Separates UB-Probe-Programm (`ub_check.c`) bestätigt den in "Risiko" dokumentierten,
+      nach heutigem Code nicht erreichbaren, aber für eine künftige Protokoll-Anbindung zu
+      beachtenden Fallstrick: `_counter_override_get()` ohne vorheriges Setzen von
+      `cnt_length_bit` löst unter UBSan exakt den erwarteten Shift-Exponent-32-Fehler aus.
+- [x] Vollständiger Eintrag (Was, Nutzen, betroffene Dateien, Risiko, Verifikation,
+      Port-Skizze, Quelle) in
+      `firmware-mining/subghz-block-generic-global-override-port.md`.
+- [ ] Lokal zu tun: `generic.h`/`generic.c` ersetzen (oder die drei Patches anwenden), mit
+      `ufbt`/`fbt firmware_all` bauen — reine Ergänzung, sollte ohne Compile-Fehler
+      durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst den neuen
+      `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner
+      Infrastruktur-Schritt, noch kein sichtbares Feature in dieser Phase).
+- [ ] Phase 2 (künftige Sitzung): ein Pilotprotokoll anschließen (KeeLoq bietet sich an),
+      danach die übrigen ~14 Protokolle (Phase 3), dann `endless_tx` an die eigene
+      SubGhz-Transmitter-App anschließen. Erst danach wird ein eigener Port der 3440-Zeilen-App
+      `SubGhz Remote` sinnvoll (eigene Port-Vorschlag-Datei, u. a. Map-Datei-Format,
+      Szenen/Views, Abgleich ihrer eigenen `subghz_txrx`-Kopie gegen meine unabhängig
+      weiterentwickelte Version — bereits ein funktionaler Unterschied beim OTG-Einschaltpfad
+      gesehen).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`-Web-UI-Case-Schwächen (`/payloadinfo`,
+      `autorun.ds`-Vergleich im Upload-Handler), neun verbleibende FeliCa-Multisystem-
+      Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor
+      lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-
+      Schlüsselplan-Konstanten (bewusst zurückgestellt), Texkom-Phase 5 (Protokollbaum-
+      Registrierung/UI, weiterhin an eine lokale Baurückmeldung zu Phase 1-4b gebunden),
+      UART-Portierung des Evil-Portal-Ports auf `furi_hal_serial_*`, die bewusst nicht
+      übernommene `lfrfid_write_fill_*()`-Umbau-Welle an zwanzig bereits vorhandenen
+      LFRFID-Protokollen, SubGhzBlockGenericGlobal Phase 2/3 (neu benannt, siehe oben) und
+      veraltete `README.md`.
