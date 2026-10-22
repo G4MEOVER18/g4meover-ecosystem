@@ -8271,3 +8271,85 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       UART-Portierung des Evil-Portal-Ports auf `furi_hal_serial_*`, die bewusst nicht
       übernommene `lfrfid_write_fill_*()`-Umbau-Welle an zwanzig bereits vorhandenen
       LFRFID-Protokollen, SubGhzBlockGenericGlobal Phase 2/3 und veraltete `README.md`.
+
+## App-Verbesserung: RollForge — manuelles "Save" zweimal in derselben Sekunde überschreibt die vorherige Aufnahme ersatzlos
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Ideen-Recherche (ublox), davor Firmware-Feature-Mining
+      (SubGhzBlockGenericGlobal-Port), davor App-Verbesserung (usb-army-penetrator,
+      `RUN_PAYLOAD`-Case-Fix) — nach dem etablierten Rotationsmuster (Firmware → Ideen →
+      App → Firmware → ...) war App-Verbesserung für diese Sitzung an der Reihe.
+      Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `RollJam`/`RollLab` (eigene Repos) frisch geklont und vollständig gegen die bereits
+      dokumentierten Funde geprüft: beide zuvor gefundenen Klassenfehler
+      (`abort-right-key-quits-app-fix.md`/`exit-button-left-key-unhandled-fix.md` bei
+      `RollJam`; `analyze-silence-terminator-stats-skew-fix.md`/
+      `otg-power-false-ownership-claim-fix.md` bei `RollLab`) unverändert als offene
+      bzw. bereits lokal übernommene Fixe bestätigt — kein neuer Fund in beiden
+      Einzel-Apps, da bereits vollständig durchgesehen.
+- [x] Stattdessen `RollForge` (eigenes Repo, vereint RollJam/RollLab/Jammer als Module
+      plus eigene `rollforge_storage.c`) gezielt an der bisher am wenigsten geprüften
+      Stelle weiterverfolgt: der manuellen Speicherfunktion selbst. Fund:
+      `rollforge_save_sig()` baut den Dateinamen nur aus Stunde/Minute/Sekunde der
+      Systemuhr und öffnet ihn mit `FSOM_CREATE_ALWAYS` ohne jede Kollisionsprüfung.
+      `module_rolljam.c` (`[v]` in `RJ_CAPTURED`/`RJ_DONE`, Hints `"rj_A"`/`"rj_B"`) und
+      `module_rolllab.c` (`[<]` in `RL_ANALYZE_VIEW`/`RL_REPLAY_READY`, beide mit
+      identischem Hint `"rl_ref"`) rufen diese Funktion ausschließlich manuell per
+      Tastendruck auf — zwei Saves desselben Hints innerhalb derselben Sekunde (z. B.
+      ein Doppeldruck, oder zweimal auf verschiedenen Bildschirmen desselben
+      Referenzsignals) erzeugen denselben Pfad; der zweite Aufruf ersetzt die Datei des
+      ersten kommentarlos, während die UI beide Male identisch "Gespeichert" anzeigt.
+      Benachbarter, bereits dokumentierter Fund zum Vergleich:
+      `rj-b-premature-saved-claim-fix.md` (dieselbe Aufrufkette, andere Schicht: dort
+      die verfrühte Statusmeldung, hier die tatsächliche Dateischreiblogik).
+- [x] Fix (additiv): vor dem bestehenden `storage_file_open(..., FSOM_CREATE_ALWAYS)`
+      per `storage_file_exists()` auf eine bereits vorhandene Datei am Standardpfad
+      prüfen, bei Kollision einen laufenden Zähler-Suffix (`_1`, `_2`, …) anhängen, bis
+      ein freier Pfad gefunden ist. `storage_file_exists()` gegen einen frischen,
+      blobfreien Sparse-Checkout von `G4MEOVER18/G4MEOVER-FW` (`main`) als seit Jahren
+      stabiler Teil von `storage/storage.h` verifiziert. Patch gegen zwei frische,
+      unabhängige Zweitkopien von `G4MEOVER18/RollForge` (`main`, Commit `cc23cd486`)
+      mit `git apply --check` verifiziert, real angewendet, Ergebnis per `md5sum`
+      abgeglichen — identisch.
+- [x] Host-Repro: die echte, unverändert mitkompilierte `rollforge_storage.c` (je
+      einmal vor/nach dem Patch, nur `rollforge_save_sig` zu `_ALT`/`_NEU` umbenannt)
+      gegen ein virtuelles In-Memory-Dateisystem, das `FSOM_CREATE_ALWAYS` exakt wie
+      der echte Flipper-Storage-Treiber nachbildet. Vier Szenarien unter
+      `gcc -std=c11 -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei
+      `-O0`/`-O1`: zwei verschiedene Aufnahmen/gleicher Hint/gleiche Sekunde (ALT
+      verliert die erste Aufnahme komplett, NEU behält beide), Regression Normalfall
+      (ein Save → identischer Pfad wie ALT), drei Saves in derselben Sekunde (NEU
+      behält alle drei), Regression unterschiedliche Hints (kollisionsfrei wie bisher).
+      `ALL CHECKS PASSED`, keine Sanitizer-Meldungen, keine Compiler-Warnungen bei
+      beiden Optimierungsstufen.
+- [x] `app-improvements/RollForge/save-same-second-filename-collision-fix.md` angelegt
+      (Was, Nutzen, betroffene Dateien, Patch, Testhinweis, Risiko, Quelle) plus Patch
+      (`save-same-second-filename-collision-fix/rollforge_storage_c.patch`) und
+      vollständig eigenständig baubares Host-Repro
+      (`repro-save-same-second-filename-collision/`, inkl. Storage-/RTC-Mocks und
+      beider `rollforge_storage_ALT/NEU.c`-Kopien).
+- [ ] Lokal zu tun: Patch gegen die eigene `RollForge`-Kopie anwenden, mit `ufbt`
+      bauen (reine Ergänzung, sollte ohne Compile-Fehler durchlaufen). Funktionstest:
+      im RollLab-Modul einmal bis `RL_ANALYZE_VIEW` capturen, dort zweimal schnell
+      hintereinander `[<]` drücken (innerhalb derselben angezeigten Sekunde) — auf der
+      SD-Karte müssen danach zwei getrennte Dateien unter `/ext/subghz/rollforge/`
+      liegen (`rl_ref_HHMMSS.sub` und `rl_ref_HHMMSS_1.sub`), nicht nur eine.
+- [ ] `RollJam`/`RollLab` als Einzel-Apps sind damit (bis auf die bereits dokumentierten,
+      weiterhin lokal anzuwendenden Fixe) vollständig durchgesehen. `RollForge` selbst
+      bleibt darüber hinaus nicht vollständig durchgesehen (`module_jammer.c`,
+      `rollforge_rf.c`, `rollforge_app.c` im Detail noch nicht Zeile für Zeile gegen
+      einen eigenen neuen Fund geprüft).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5
+      (Protokollbaum-Registrierung/UI, weiterhin an eine lokale Baurückmeldung zu
+      Phase 1-4b gebunden), NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES
+      Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      `usb-army-penetrator`s restliche Ducky-Handler, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an
+      fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SubGhzBlockGenericGlobal Phase 2/3, veraltete `README.md`.
