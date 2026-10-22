@@ -1,0 +1,38 @@
+--- a/src/Attacks/Ducky/Extensions.h	2026-10-22 00:24:27.054230081 +0000
++++ b/src/Attacks/Ducky/Extensions.h	2026-10-22 00:24:51.760779381 +0000
+@@ -2,6 +2,8 @@
+ #include "Adafruit_TinyUSB.h"
+ #endif
+ 
++#include <algorithm>
++
+ #ifdef ARDUINO_ARCH_ESP32
+ #include "esp_ota_ops.h" // for OTA
+ #endif
+@@ -473,16 +475,23 @@
+ static int handleRunPayload(const std::string &str, const std::unordered_map<std::string, std::string> &constants, const std::unordered_map<std::string, int> &variables)
+ {
+     const std::string arg = str.substr(str.find(' ') + 1);
+-    if (arg.ends_with(".ds"))
++
++    std::string argUpper = arg;
++    std::transform(argUpper.begin(), argUpper.end(), argUpper.begin(), ::toupper);
++
++    if (argUpper.ends_with(".DS"))
+     {
+         Attacks::Ducky.setPayload(arg);
+-        duckyFileParser.Restart();
+     }
+-    else if (arg.ends_with(".png"))
++    else if (argUpper.ends_with(".PNG"))
+     {
+         currentlyExecutingFile.clear();
+         Attacks::Ducky.setPayloadCmdLine("DISPLAY_PNG " + arg);
+     }
++    else
++    {
++        Debug::Log.error(LOG_DUCKY, "RUN_PAYLOAD unsupported file type: " + arg);
++    }
+ 
+     return true;
+ }

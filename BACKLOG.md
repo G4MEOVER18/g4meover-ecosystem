@@ -8016,3 +8016,90 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lokale Baurückmeldung zu Phase 1-4b gebunden), UART-Portierung des Evil-Portal-Ports auf
       `furi_hal_serial_*`, die bewusst nicht übernommene `lfrfid_write_fill_*()`-Umbau-Welle
       an zwanzig bereits vorhandenen LFRFID-Protokollen und veraltete `README.md`.
+
+## App-Verbesserung: usb-army-penetrator — RUN_PAYLOAD: Dateiendungsvergleich Groß-/Kleinschreibungs-abhängig
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Ideen-Recherche (BC Scanner), davor Firmware-Feature-Mining (Indala224), davor
+      App-Verbesserung (`SET_SETTING_STRING`-Fix) — nach dem etablierten Rotationsmuster
+      (Firmware → Ideen → App → Firmware → ...) war App-Verbesserung für diese Sitzung an der
+      Reihe. Gezielt den seit mehreren Sitzungen offenen Rückstellpunkt
+      "`usb-army-penetrator`s restliche Ducky-Handler (`AGENT_RUN`/`ESP32M`/
+      `RUN_PAYLOAD`-Dispatch-Handler)" aufgegriffen. Git-Identität vor dem ersten eigenen
+      Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `handleAgentRun()`/`handleESP32Marauder()`/`handleRunPayload()` in
+      `src/Attacks/Ducky/Extensions.h` gegen eine frische Zweitkopie von
+      `G4MEOVER18/usb-army-penetrator` (`main`, Commit `411b153`) gelesen. Für
+      `handleAgentRun()`/`handleESP32Marauder()`: bestätigt, dass beide dem bereits in einer
+      früheren Sitzung einzeln als sicher geprüften `str.substr(str.find(' ') + 1)`-Muster
+      folgen (kein Absturzpfad, kein `std::stoi()`) — kein neuer Fund.
+- [x] Fund in `handleRunPayload()`: die Dateityp-Weiche vergleicht die Endung
+      case-sensitiv (`arg.ends_with(".ds")`/`(".png")`). Der Dateiname kommt unverändert aus
+      dem Web-UI-Upload-Pfad (`handleUpload()` in `src/Comms/Web/WebServer.cpp`, Zeile 530 —
+      keine Normalisierung) und `/payloadinfo` (Zeile 278) listet ebenfalls nur exakt
+      kleingeschriebene `.ds`-Dateien. Eine groß- oder gemischtgeschrieben benannte `.ds`-/
+      `.png`-Datei existiert also real auf dem Gerät, `RUN_PAYLOAD <Name>` läuft aber bei
+      beiden `ends_with()`-Zweigen durch, ohne etwas zu tun und ohne Log-Zeile — Rückgabewert
+      bleibt `true` (vom Ducky-Interpreter als erfolgreich gewertet).
+- [x] Zusätzlich bestätigt (kein eigener Fund, mit demselben Patch aufgeräumt): der zweite,
+      unmittelbar auf `Attacks::Ducky.setPayload(arg)` folgende `duckyFileParser.Restart()`
+      in der `.ds`-Verzweigung ist totes Doppel — `DuckyPayload::setPayload()`
+      (`DuckyPayload.cpp`, Zeile 286) ruft `duckyFileParser.Restart()` bereits selbst auf.
+      Gegen die exakt in `platformio.ini` gepinnte vendored Bibliothek
+      `i-am-shodan/DuckScriptInterpreter` (Commit `23aa3ba87e95f402ccab53beb9ead54602643dd7`)
+      verifiziert: `DuckyInterpreter::Restart()` (`src/DuckyParse.h:185`) setzt nur
+      `_lineNumber`/drei Stacks zurück — ein zweiter Aufruf ohne Zustandsänderung dazwischen
+      ist beobachtbar wirkungslos.
+- [x] Web-UI-Angriffsflächen-Gegenprobe: die `AGENT_RUN`-Abkürzung `/runagentcmd`
+      (`WebServer.cpp:249`, baut `"AGENT_RUN " + cmdline` als Ducky-Rohzeile) öffnet keine
+      zusätzliche Angriffsfläche gegenüber dem bereits vollständig offenen `/rawinput`
+      (Zeile 241) — wer dort hinkommt, kann ohnehin jede beliebige, auch mehrzeilige
+      Ducky-Rohzeile einschleusen (`setPayloadCmdLine()` zerlegt an `\n`,
+      `DuckyPayload.cpp:301`). Kein Fund.
+- [x] Fix (additiv): Vergleich über eine Großbuchstaben-Kopie (`std::transform(...,
+      ::toupper)`, nach demselben bereits in `src/Utilities/Settings.cpp` etablierten Muster),
+      der an `setPayload()`/`setPayloadCmdLine()` übergebene Dateiname bleibt in
+      Originalschreibung. Neuer `else`-Zweig loggt einen bisher unerkannten Dateityp
+      (`"RUN_PAYLOAD unsupported file type: ..."`) statt eines unsichtbaren No-ops. Entfernter
+      doppelter `Restart()`-Aufruf im selben Patch. Patch gegen zwei frische, unabhängige
+      Zweitkopien von `usb-army-penetrator` (`411b153`) mit `git apply --check` verifiziert,
+      real angewendet, per `md5sum` byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro in `repro-run-payload-case-insensitive-extension/repro.cpp` (Dispatch-Logik
+      1:1 übernommen, Seiteneffekte durch einen `Branch`-Rückgabewert ersetzt) unter
+      `g++ -std=c++20 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: sechs Groß-/Mischschreibungs-Fundbestätigungen, eine Regression
+      (unbekannter Dateityp bleibt bei ALT unverändert `None`), sieben NEU-Checks (alle
+      korrekt behoben, inkl. neuem `Unsupported`-Zweig), eine Byte-Identitätsprüfung
+      (übergebener Dateiname bleibt in Originalschreibung), ein bereits bekannter
+      Grenzfall (`RUN_PAYLOAD` ohne Argument, kein Absturz). **16 Prüfungen bestanden**,
+      identischer Output beider Optimierungsstufen, keine Compiler-Warnungen, keine
+      Sanitizer-Befunde.
+- [x] Vollständiger Eintrag (Was, Nutzen, betroffene Dateien, Fix, Testhinweis, Risiko,
+      Sicherheitsrahmen, Quelle) in
+      `app-improvements/usb-army-penetrator/run-payload-case-insensitive-extension-fix.md`.
+- [ ] Lokal zu tun: Patch gegen die eigene `usb-army-penetrator`-Basis anwenden, mit der
+      vorhandenen PlatformIO-Umgebung bauen, Funktionstest: eine Datei mit Großendung
+      (`TEST.DS`) über die Web-UI hochladen, per `RUN_PAYLOAD TEST.DS` starten (vor dem Fix
+      passiert nichts, nach dem Fix läuft das Skript), zusätzlich ein bereits vorher
+      funktionierendes kleingeschriebenes `.ds`/`.png`-Payload wiederholen (unverändertes
+      Verhalten).
+- [ ] Damit ist der Rückstellpunkt "`usb-army-penetrator`s restliche Ducky-Handler" abgeschlossen.
+      Separat vorgemerkt (bewusst nicht in diesen Patch aufgenommen, reiner Web-UI-Code
+      außerhalb des Ducky-Dispatch-Rückstellpunkts): dieselbe Case-Schwäche in
+      `/payloadinfo` (`WebServer.cpp:278`) und der exakte String-Vergleich
+      `filename == "autorun.ds"` im Upload-Handler (Zeile 525, verhindert bei Großschreibung
+      nicht das versehentliche Überschreiben eines laufenden Autorun-Payloads).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`-Web-UI-Case-Schwächen (`/payloadinfo`,
+      `autorun.ds`-Vergleich im Upload-Handler — neu benannt, siehe oben), neun
+      verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-
+      Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an
+      fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), Texkom-Phase 5 (Protokollbaum-Registrierung/UI, weiterhin an eine
+      lokale Baurückmeldung zu Phase 1-4b gebunden), UART-Portierung des Evil-Portal-Ports auf
+      `furi_hal_serial_*`, die bewusst nicht übernommene `lfrfid_write_fill_*()`-Umbau-Welle
+      an zwanzig bereits vorhandenen LFRFID-Protokollen und veraltete `README.md`.
