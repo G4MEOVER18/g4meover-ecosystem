@@ -55,6 +55,9 @@ Interaktive Kontroll-Karte: alle Geräte, **farbcodierte Transporte** (UART · U
 ### 📻 433 MHz — Phase 11 (geplant)
 - [`LoRa-Ra-08-CubeCell`](https://github.com/G4MEOVER18/LoRa-Ra-08-CubeCell) — eigenes Repo, vor diesem Masterplan entstanden; liefert bereits einen funktionierenden PlatformIO/Arduino-Core-Build für CubeCell HTCC-AB01 (reiner RSSI-/RX-Finder, kein `ukfe_rf`-Knoten) — klärt die Toolchain-Frage für das in Abschnitt 1 des Masterplans als „später" geführte CubeCell-Board; enthaltener `legacy/`-Stand ist trotz Repo-Name keine echte RA08/ASR6601-Firmware
 
+### 🖥️ Eigenständige Großprojekte (kein ukfe_rf-Gerät, gleicher Besitzer)
+- [`g4meover-one-x`](https://github.com/G4MEOVER18/g4meover-one-x) — eigenständiger Linux-Handheld (Rockchip RK3576, 5″-Touch, HyperRF-SDR 100 kHz–6 GHz, eigenes `ONE-X-Link-v1`-Wire-Format); kein `ukfe_rf`-Transport, kein Teil des Geräte-Inventars (Abschnitt 1) oder der 12 Phasen dieses Masterplans — eigenes Hardware-Engineering-Programm (Status EVT6/Architektur-Phase), analog zu den Pentest-Tools unten unabhängig geführt
+
 ### 🛡️ Pentest-Tools
 [`g4meover-pentest-cockpit`](https://github.com/G4MEOVER18/g4meover-pentest-cockpit) · [`g4meover-security-suite`](https://github.com/G4MEOVER18/g4meover-security-suite) · hashpwn · netmap · xss-hunter · sqli-hunter · jwt-pwn · cors-scanner · http-header-auditor · subdomain-takeover-scanner · web-recon-toolkit
 

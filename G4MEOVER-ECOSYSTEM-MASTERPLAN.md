@@ -2033,6 +2033,42 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
   Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-10-22 (Cloud-Heartbeat): Repo-Hygiene zuerst — derselbe Branch-Zeiger-Fund wie an fast allen
+  Vortagen: `HEAD` losgelöst, lokaler `main`-Zeiger lag 6 Commits zurück (seit dem letzten
+  Masterplan-Log-Eintrag `a7e68f9`, 2026-10-21, jetzt `fe3676c`); per `git switch main && git merge
+  --ff-only` nachgezogen, `origin/main` war bereits auf demselben Stand (reiner Fast-Forward, kein
+  Push nötig, kein Datenverlust). Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default
+  `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem ersten Commit auf
+  `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Die seit `a7e68f9` gelandeten Commits
+  (usb-army-penetrator SET_SETTING_STRING-Fix, Indala224-LFRFID-Firmware-Mining, BC-Scanner-
+  Ideenrecherche, usb-army-penetrator RUN_PAYLOAD-Case-Fix) gezielt gegen diese Datei/`ecosystem/`/
+  `FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft: keine Überschneidung, dieselbe separate
+  Firmware-Mining-/App-Verbesserungs-/Ideen-Recherche-Routine. Statt einer weiteren
+  Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f oder der GUI-Architekturfrage (seit 2026-10-05 bzw.
+  2026-10-18 ohne weiteren Mehrwert, siehe Log oben) eine echte, bisher übersehene Doku-
+  Konsistenzlücke geschlossen: das Repo `G4MEOVER18/g4meover-one-x` (public, erstmals gepusht
+  2026-09-09, seither unverändert) stand bisher **nirgends** im Tracker oder in `README.md`s
+  Repo-Index, obwohl es wie alle anderen Sibling-Repos geprüft wird. Lokal ausgecheckt und gelesen:
+  es ist ein eigenständiges, weit fortgeschrittenes Hardware-Engineering-Programm (Linux-Handheld auf
+  Rockchip RK3576, 5″-Touch, eigenes HyperRF-SDR 100 kHz–6 GHz, eigener RP2350B-Systemcontroller,
+  eigenes `ONE-X-Link-v1`-Wire-Format, Status EVT6/Architektur-Phase, eigene Spec/CI/Release-Gate-
+  Pipeline) — **kein** `ukfe_rf`-Transport, **kein** Bezug zu Flipper/Heltec/Deck/DogyTag, nicht Teil
+  des Geräte-Inventars (Abschnitt 1) oder der 12 Phasen dieses Masterplans. Exakt derselbe Fall wie
+  der bereits dokumentierte `g4meover-pentest-cockpit` (eigenständig, gleicher Besitzer, kein
+  Ökosystem-Code) — additiv in `README.md`s Repo-Index ergänzt, neue Gruppe „🖥️ Eigenständige
+  Großprojekte (kein ukfe_rf-Gerät, gleicher Besitzer)" direkt vor „🛡️ Pentest-Tools". Keine
+  Integration in Phasen/Geräte-Inventar vorgenommen, da kein inhaltlicher Bezug besteht. Sonst
+  unveränderte Wiederkehr-Prüfungen: `g4meover-deck`/`dogytag-firmware`/`lora-ukfe` laut `list_repos`
+  unverändert (`pushed_at` 2026-08-20/2026-06-17/2026-08-26). `ecosystem/devices.json`/
+  `ecosystem/topology.json` Syntax erneut per `json.load` geprüft: beide gültig. Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" erneut gegen `git log --all --diff-filter=A` geprüft:
+  weiterhin kein Treffer. Repo-Sichtbarkeit (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin
+  `private`. Pi-SSH-/LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt
+  56 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert);
+  die beiden Tageszähler im PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 56
+  synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
+  Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -2130,7 +2166,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 55 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 56 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2314,7 +2350,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 55 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 56 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
