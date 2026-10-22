@@ -1,0 +1,73 @@
+--- a/ublox_worker.c	2026-10-22 12:32:18.383558477 +0000
++++ b/ublox_worker.c	2026-10-22 12:32:18.385962547 +0000
+@@ -289,6 +289,7 @@
+ 
+     UbloxMessage* message_rx =
+         ublox_i2c_transfer(message_tx, UBX_NAV_TIMEUTC_MESSAGE_LENGTH);
++    ublox_message_free(message_tx);
+     if(message_rx == NULL) {
+         FURI_LOG_E(TAG, "get_gps_time transfer failed");
+         ublox_worker_change_state(ublox_worker, UbloxWorkerStateStop);
+@@ -508,18 +509,18 @@
+     pms_frame_tx.class = UBX_CFG_CLASS;
+     pms_frame_tx.id = UBX_CFG_PMS_MESSAGE;
+     pms_frame_tx.len = 8;
+-    pms_frame_tx.payload = pms_message_rx->message;
++    pms_frame_tx.payload = pms_message_rx->message + 6;
+ 
+     pms_message_tx = ublox_frame_to_bytes(&pms_frame_tx);
+ 
+     UbloxMessage* ack = ublox_i2c_transfer(pms_message_tx, UBX_ACK_ACK_MESSAGE_LENGTH);
++    ublox_message_free(pms_message_tx);
+     if(ack == NULL) {
+         FURI_LOG_E(TAG, "ACK after CFG-PMS set transfer failed");
+         return false;
+     }
+     FURI_LOG_I(
+         TAG, "CFG-PMS ack: id = %u, type = %s", ack->message[3], ack->message[3] ? "ACK" : "NAK");
+-    ublox_message_free(pms_message_tx);
+     ublox_message_free(pms_message_rx);
+     ublox_message_free(ack);
+ 
+@@ -543,7 +544,7 @@
+     odo_frame_tx.class = UBX_CFG_CLASS;
+     odo_frame_tx.id = UBX_CFG_ODO_MESSAGE;
+     odo_frame_tx.len = 20;
+-    odo_frame_tx.payload = odo_message_rx->message;
++    odo_frame_tx.payload = odo_message_rx->message + 6;
+ 
+     // TODO: low-pass filters in settings?
+     // enable useODO bit in flags
+@@ -553,6 +554,7 @@
+     odo_message_tx = ublox_frame_to_bytes(&odo_frame_tx);
+ 
+     ack = ublox_i2c_transfer(odo_message_tx, UBX_ACK_ACK_MESSAGE_LENGTH);
++    ublox_message_free(odo_message_tx);
+     if(ack == NULL) {
+         FURI_LOG_E(TAG, "ACK after CFG-ODO set transfer failed");
+         return false;
+@@ -560,7 +562,6 @@
+     FURI_LOG_I(
+         TAG, "CFG-ODO ack: id = %u, type = %s", ack->message[3], ack->message[3] ? "ACK" : "NAK");
+ 
+-    ublox_message_free(odo_message_tx);
+     ublox_message_free(odo_message_rx);
+     ublox_message_free(ack);
+ 
+@@ -586,7 +587,7 @@
+     nav5_frame_tx.class = UBX_CFG_CLASS;
+     nav5_frame_tx.id = UBX_CFG_NAV5_MESSAGE;
+     nav5_frame_tx.len = 36;
+-    nav5_frame_tx.payload = nav5_message_rx->message;
++    nav5_frame_tx.payload = nav5_message_rx->message + 6;
+ 
+     nav5_frame_tx.payload[0] = 1; // tell GPS to apply only the platform model settings
+     nav5_frame_tx.payload[2] = (ublox->device_state).platform_model;
+@@ -594,6 +595,7 @@
+     nav5_message_tx = ublox_frame_to_bytes(&nav5_frame_tx);
+ 
+     ack = ublox_i2c_transfer(nav5_message_tx, UBX_ACK_ACK_MESSAGE_LENGTH);
++    ublox_message_free(nav5_message_tx);
+     if(ack == NULL) {
+         FURI_LOG_E(TAG, "ACK after CFG-NAV5 set transfer failed");
+         return false;

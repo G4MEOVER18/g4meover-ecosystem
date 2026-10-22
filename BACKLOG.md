@@ -8180,3 +8180,94 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       übernommene `lfrfid_write_fill_*()`-Umbau-Welle an zwanzig bereits vorhandenen
       LFRFID-Protokollen, SubGhzBlockGenericGlobal Phase 2/3 (neu benannt, siehe oben) und
       veraltete `README.md`.
+
+## Ideen-Recherche: ublox (liamhays) — neue Zeile unter Recon / GPS / Wardriving
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      Firmware-Feature-Mining (SubGhzBlockGenericGlobal-Port), davor App-Verbesserung
+      (usb-army-penetrator, `RUN_PAYLOAD`-Case-Fix), davor Ideen-Recherche (BC Scanner) — nach
+      dem etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war
+      Ideen-Recherche für diese Sitzung an der Reihe. Dabei einen eigenen, von vorherigen
+      Sitzungen unabhängigen Zustandsfehler im lokalen Checkout korrigiert: `HEAD` stand
+      detached acht Commits vor dem Branch-Zeiger `main` (lokaler `origin/main`-Tracking-Stand
+      war vor einem `git fetch` veraltet); nach `git fetch origin main` deckte sich
+      `origin/main` exakt mit `HEAD` — reines Fast-Forward des lokalen `main`-Zeigers, kein
+      Push nötig ("Everything up-to-date"). Git-Identität vor dem ersten eigenen Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer Ergänzung für die bislang nur über reines Logging
+      (`FlipDeFlock`/`GPS (NMEA) + WigleCSV`) und eine Auswertungsseite (`Nearby Files`)
+      abgedeckte Kategorie "Recon / GPS / Wardriving" gesucht. Erfolglos vorrecherchiert: ein
+      eigenständiger GNSS-Jamming-/Spoofing-Detektor für den Flipper (GPS liegt bei ~1,5 GHz,
+      außerhalb des CC1101-Sub-GHz-Bereichs — würde einen eigenen GNSS-Empfänger plus eigene
+      Erkennungslogik erfordern, keine existierende Flipper-App gefunden).
+- [x] **ublox** (`liamhays/ublox`, Commit `bdb4e19`, 2025-08-02, GPL-3.0, `fap_version 0.5`,
+      27 Sterne) gefunden — I2C-basierte u-blox-GPS-Anbindung (Qwiic/C0/C1) als zweiter
+      Anbindungsweg neben der seriellen NMEA-Variante. Per `git clone` auf exakt diesen Commit
+      geladen, alle 20 Quelldateien (2890 Zeilen) vollständig gelesen.
+- [x] API-87-Status verifiziert gegen einen frischen, blobfreien Sparse-Checkout von
+      `G4MEOVER18/G4MEOVER-FW` (`main`): `furi_hal_i2c_acquire()`/`_release()`/`_tx()`/`_rx()`/
+      `_trx()`/`_is_device_ready()` sowie `furi_hal_i2c_handle_external` wörtlich gegen
+      `targets/furi_hal_include/furi_hal_i2c.h` abgeglichen, dasselbe Muster wie bei i2c
+      Tools/RS485 Modbus/SPI Flash Dump. `furi_hal_rtc_*`/`FuriString`/`FuriThread`-API
+      ebenfalls unverändert vorhanden. Kein Firmware-Patch nötig, keine
+      Erweiterungsport-Pin-Kollision mit einem eigenen Standardmodul.
+- [x] Quelltext-Review, Hauptfund in `ublox_worker.c::ublox_worker_init_gps()`: alle drei
+      Lese-Modifizieren-Schreiben-Konfigurationszyklen (CFG-PMS/Energiesparmodus,
+      CFG-ODO/Kilometerzähler, CFG-NAV5/Plattformmodell) setzen den Payload-Zeiger auf den
+      rohen, vollständigen UBX-Rahmen (`<x>_frame_tx.payload = <x>_message_rx->message;`)
+      statt auf den eigentlichen, laut der app-eigenen `ublox_bytes_to_frame()` erst bei
+      Byte-Offset 6 beginnenden Payload-Bereich. Die anschließenden Feldänderungen landen
+      dadurch im 6-Byte-Header statt im echten Payload, und der Re-Encode-Schritt kopiert
+      dieselben falsch-versetzten Bytes in die ans GPS gesendete Nachricht — keiner der drei
+      "Apply my setting"-Schreibzugriffe trifft das beabsichtigte Feld, obwohl das Modul jeweils
+      ein syntaktisch gültiges ACK zurückgibt. Protokollunabhängig am CFG-PMS-Fall per
+      Host-Repro bewiesen (acht eindeutige Markerbytes, harte `assert()`-Prüfung gegen die
+      echte, unverändert mitkompilierte `ublox_device.c`): gesendeter Payload `b5 62 06 86 08
+      00 90 01` statt der beabsichtigten `90 01 92 93 94 95 96 97`. Für CFG-ODO/CFG-NAV5
+      strukturell identisch hergeleitet (beide ausschließlich relativ über `payload[]`
+      schreibend, ohne die zufällig korrekte Absolut-Indizierung wie bei PMS).
+- [x] Nebenfund in derselben Datei: zwei von sechs `ublox_frame_to_bytes()`-Ergebnissen werden
+      nie mit `ublox_message_free()` freigegeben (`ublox_worker_sync_to_gps_time()`s
+      `message_tx`; der zweite, wiederverwendete `nav5_message_tx` im CFG-NAV5-Schreibzweig),
+      zusätzlich leckt der CFG-PMS-/CFG-ODO-Schreibbefehl im selteneren ACK-Fehlerpfad. Mit
+      LeakSanitizer bestätigt (50 simulierte Zyklen je Fundstelle, ALT/NEU in getrennten
+      Prozessen): 4176 Byte über 198 Allokationen ALT bei `-O0` (4200 Byte/200 Allokationen bei
+      `-O1`, identisches Bild) vs. 0 Byte NEU bei beiden Optimierungsstufen.
+- [x] Host-Repro in `ideas/repro-ublox-cfg-payload-offset-and-tx-leak/repro.c`, kompiliert
+      zusammen mit der echten, unverändert kopierten `ublox_device.c` gegen minimale
+      `furi_hal_i2c_*`/`FURI_LOG_*`-Mocks — beide Funde in einer Datei, Fund A per `assert()`
+      hart verifiziert, Fund B per LeakSanitizer.
+- [x] Fix additiv (neun Zeilen in `ublox_worker.c`): Payload-Zeiger je `+ 6` korrigiert (die
+      bereits vorhandenen relativen `payload[N]`-Zugriffe zeigen danach automatisch richtig,
+      ohne eigene Änderung); die vorhandenen `ublox_message_free(<x>_message_tx)`-Aufrufe vom
+      Ende des Erfolgspfads direkt hinter den jeweiligen ACK-Transfer vorgezogen (deckt den
+      ACK-Fehlerpfad mit ab); ein neuer `ublox_message_free(message_tx)`-Aufruf im
+      Uhrzeit-Abgleich ergänzt. Patch (`ideas/ublox-cfg-payload-offset-and-tx-leak-fix/
+      ublox_worker_c.patch`) gegen zwei frische, unabhängige Zweitkopien von `liamhays/ublox`
+      mit `git apply --check` verifiziert, real angewendet, byte-für-byte identisch
+      (`77e4169df93c68061daa632295e255d2`).
+- [x] Vollständiger Eintrag (Quelle, Was, Nutzen, API-87-Status, beide Funde, Host-Repro,
+      Fix-Skizze, Aufwand, Sicherheitsrahmen, Offen) in `ideas/ublox-gps-i2c-app-status.md`.
+      `ideas/pentest-app-katalog.md` erweitert: neue Zeile unter "Recon / GPS / Wardriving",
+      neuer Rechercheauftrag-Eintrag am Ende.
+- [ ] Lokal zu tun: `.fap` gegen den eigenen `mntm-012`-Stand bauen, Patch anwenden,
+      Funktionstest gegen ein eigenes u-blox-Modul (SAM-M8Q/NEO-M9N/MAX-M10S über Qwiic) —
+      insbesondere prüfen, ob sich nach dem Fix ein messbar geändertes Energiesparverhalten
+      bzw. eine tatsächlich aktive Kilometerzähler-Funktion zeigt. Zusätzlich die nach Fix
+      gesendeten CFG-ODO-/CFG-NAV5-Bytes gegen die u-blox-Interface-Beschreibung (M8/M9/M10)
+      abgleichen (CFG-PMS bereits per Host-Repro protokollunabhängig bewiesen, ODO/NAV5
+      strukturell hergeleitet, nicht einzeln am echten Modul verifiziert).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, `usb-army-penetrator`s restliche Ducky-Handler (`AGENT_RUN`/`ESP32M`/
+      `RUN_PAYLOAD`-Dispatch-Handler), neun verbleibende FeliCa-Multisystem-Teilfixe aus
+      PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor
+      lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-
+      Schlüsselplan-Konstanten (bewusst zurückgestellt), Texkom-Phase 5 (Protokollbaum-
+      Registrierung/UI, weiterhin an eine lokale Baurückmeldung zu Phase 1-4b gebunden),
+      UART-Portierung des Evil-Portal-Ports auf `furi_hal_serial_*`, die bewusst nicht
+      übernommene `lfrfid_write_fill_*()`-Umbau-Welle an zwanzig bereits vorhandenen
+      LFRFID-Protokollen, SubGhzBlockGenericGlobal Phase 2/3 und veraltete `README.md`.
