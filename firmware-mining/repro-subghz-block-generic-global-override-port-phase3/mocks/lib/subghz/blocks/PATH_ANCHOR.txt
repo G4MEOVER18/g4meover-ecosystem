@@ -1,0 +1,7 @@
+This directory has no header of its own -- it exists only so that
+`-I mocks/lib/subghz/blocks` is a real, git-tracked path. generic.h's own
+`#include "../types.h"` is resolved by the compiler as this -I directory's
+path + "/../types.h", landing on the real mocks/lib/subghz/types.h one level
+up. Git does not track empty directories, so without this file the directory
+(and the include path) would silently vanish on a fresh clone. See the build
+command in the accompanying .md for the full -I list.

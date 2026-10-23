@@ -1,0 +1,36 @@
+--- a/lib/subghz/protocols/princeton.c	2026-10-23 12:29:53.419837358 +0000
++++ b/lib/subghz/protocols/princeton.c	2026-10-23 12:29:53.421602628 +0000
+@@ -261,6 +261,11 @@
+     // Generate new key using custom or default button
+     instance->generic.btn = subghz_protocol_princeton_get_btn_code();
+ 
++    // override button if we change it with the signal settings button editor
++    if(subghz_block_generic_global_button_override_get(&instance->generic.btn)) {
++        FURI_LOG_D(TAG, "Button successfully changed to 0x%X", instance->generic.btn);
++    }
++
+     // Reconstruction of the data
+     // If we have 8bit button code move serial to left by 8 bits (and 4 if 4 bits)
+     if(instance->generic.btn == 0x30 || instance->generic.btn == 0xC0) {
+@@ -594,8 +599,13 @@
+     uint32_t data_rev = subghz_protocol_blocks_reverse_key(
+         instance->generic.data, instance->generic.data_count_bit);
+ 
++    // push protocol data to the global variable for the signal settings button editor
++    subghz_block_generic_global.btn_is_available = true;
++    subghz_block_generic_global.current_btn = instance->generic.btn;
++
+     if(instance->generic.btn == 0x30 || instance->generic.btn == 0xC0 ||
+        instance->generic.btn == 0xF3 || instance->generic.btn == 0xFC) {
++        subghz_block_generic_global.btn_length_bit = 8;
+         furi_string_cat_printf(
+             output,
+             "%s %dbit\r\n"
+@@ -614,6 +624,7 @@
+             instance->te,
+             instance->guard_time);
+     } else {
++        subghz_block_generic_global.btn_length_bit = 4;
+         furi_string_cat_printf(
+             output,
+             "%s %dbit\r\n"

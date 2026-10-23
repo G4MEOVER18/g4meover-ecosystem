@@ -8531,3 +8531,92 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
       zurückgestellt), SubGhzBlockGenericGlobal Phase 3 (übrige ~14 Protokolle, dann
       `endless_tx`-Anschluss) und Phase 4 (separater SubGhz-Remote-Port), veraltete `README.md`.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 3 — Princeton als erstes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `BACKLOG.md`-Ende
+      durchgesehen: letzte Sitzung war Ideen-Recherche (ProtoView), davor Firmware-Feature-Mining
+      (SubGhzBlockGenericGlobal Phase 2), davor App-Verbesserung (RollForge) — nach dem
+      etablierten Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war
+      Firmware-Feature-Mining für diese Sitzung an der Reihe. `HEAD` lag beim Sitzungsstart
+      losgelöst (`detached`), aber bereits exakt auf demselben Commit wie `origin/main` — reine
+      Zeiger-Frage, kein echter Rückstand; die lokale `main`-Branch-Referenz blieb (anders als in
+      den letzten beiden Sitzungen) unangetastet, da ein Branch-Zeiger-Umbiegen in dieser Sitzung
+      von der Umgebung blockiert wurde — ohne inhaltliche Auswirkung, da der spätere Push direkt
+      gegen `HEAD`/`origin/main` erfolgt. Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Port-Skizze aus Phase 1/2 aufgegriffen: Phase 3 sieht die übrigen ~14 Protokolle vor, die
+      Unleashed bereits an den Mechanismus anschließt. Erst die ursprünglich gezählten ~15
+      Rolling-Code-Kandidaten gegen Unleasheds aktuellen Standard-Branch (Commit
+      `e611e31583c29b6576eda27afb41e020d10265ce`, 2026-10-23) durchdiffed: FAAC SLH (712
+      Diff-Zeilen), Secplus v2 (1133), Nice FloR-S (1284), KingGates Stylo4K (496), Alutech
+      AT-4N/CAME Atomo (je ~404), Somfy Keytis (405) sind inzwischen (genau wie teilweise auch
+      KeeLoq und, wie sich beim Princeton-Fund unten zeigte, auch kleinere Diffs) auf Unleasheds
+      separaten `common.c`-Encoder-/Decoder-Basis-Umbau umgestellt — bei diesen Kandidaten macht
+      der Umbau aber den Großteil eines mehrere-hundert-Zeilen-Diffs aus, für diese Sitzung zu
+      groß, um den override-relevanten Kern von Hand verlässlich herauszutrennen (noch nicht
+      versucht, eigener Rückstellpunkt). Vier der gelisteten Dateinamen (`beninca_arc.c`,
+      `jarolift.c`, `prastel.c`, `ditec_gol4.c`) existieren bei mir überhaupt nicht als
+      eigenständige Protokolldateien (bei mir über KeeLoq-Herstellercodes bzw. eigene frühere
+      Einzelports abgedeckt) — kein direkter Diff möglich, eigener Rückstellpunkt. Stattdessen
+      **Princeton** gefunden: kein Mitglied der ursprünglichen ~15-Liste (Festcode, kein
+      Rolling-Code), aber Unleashed schließt auch dieses Protokoll an die Tasten-Hälfte des
+      Mechanismus an; derselbe `common.c`-Umbau betrifft auch `princeton.c`, der Gesamtdiff bleibt
+      mit 214 Zeilen aber klein genug, um die zwei tatsächlich override-relevanten
+      Anschlussstellen von Hand verlässlich herauszutrennen — kleinster Gesamtdiff aller
+      geprüften Kandidaten.
+- [x] Meine eigene `princeton.c` (`G4MEOVER18/G4MEOVER-FW`, unverändert
+      `b359f6fc32f282ce7217dd2d48a4e3478771852e` wie Phase 1/2 — per `git ls-remote` erneut als
+      aktueller `HEAD`-Stand bestätigt) gegen Unleasheds Fund gegengelesen: dieselbe
+      Vier-Fall-Tastencode-Struktur, dieselbe Zwei-Zweig-Anzeigeaufteilung wie Unleasheds aktuelle
+      Version — kein struktureller Umbau wie bei KeeLoq nötig, die zwei Anschlusspunkte (ein
+      `_button_override_get()`-Aufruf im Encoder vor der bestehenden Datenrekonstruktion, plus
+      `btn_is_available`/`current_btn`/`btn_length_bit` in beiden Zweigen von `get_string()`)
+      lassen sich 1:1 übernehmen. Siehe `firmware-mining/
+      subghz-block-generic-global-override-port.md`, Abschnitt "Phase 3: Princeton".
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      princeton_c.patch`) gegen zwei frische, unabhängige Zweitkopien meiner eigenen
+      `princeton.c` mit `git apply --check` verifiziert, real angewendet, Ergebnis per `md5sum`
+      byte-für-byte abgeglichen — identisch (11 Zeilen Hinzufügung, 0 Löschungen laut
+      `git diff --stat`). Zieldatei zum direkten Ersetzen ebenfalls mitgeliefert.
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase3/`):
+      die zwei neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus der gepatchten
+      `princeton.c` extrahiert, gegen die echte, unveränderte Phase-1-`generic.c` verlinkt. 37
+      Prüfungen (Override in allen drei Datenrekonstruktions-Zweigen inkl. Maskierung, Einmal-
+      Verbrauch, unveränderte Rekonstruktion für alle neun realen Tastencodes ohne Override,
+      `get_string()`-Verfügbarkeitsfelder je Anzeigezweig) unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED**, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` bleibt bei 0. Da Princeton nur die Tasten-, nie die
+      Zähler-Override-Hälfte nutzt, ist die in Phase 1 dokumentierte `cnt_length_bit`-Schiebe-UB
+      für dieses Protokoll von vornherein unerreichbar (vermerkt, nicht erneut geprüft).
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` entsprechend erweitert
+      (neuer Abschnitt "Phase 3: Princeton" unter "Betroffene Dateien", neuer Abschnitt
+      "Verifikation Phase 3", "Port-Skizze"-Punkt 3 von "künftige Sitzung" auf "begonnen, diese
+      Sitzung" aktualisiert, "Quelle" um den Unleashed-Vergleichscommit und den erneut
+      bestätigten G4MEOVER-FW-Commit ergänzt).
+- [ ] Lokal zu tun: Patch gegen die eigene `princeton.c` anwenden, mit `ufbt`/`fbt firmware_all`
+      bauen (reine Ergänzung an bereits vorhandener, aktiver Datei — sollte ohne Compile-Fehler
+      durchlaufen, da beide neuen Symbole bereits aus dem Phase-1-`generic.h`-Patch kommen).
+      Funktionstest mit Hardware: ein eigenes Princeton-Festcode-Signal erfassen, über das noch
+      zu bauende Signal-Einstellungen-Menü (existiert als UI noch nicht — siehe Phase 4) ersatz-
+      weise direkt per Debugger/Testaufruf `subghz_block_generic_global_button_override_set()`
+      setzen, erneut senden, am eigenen autorisiert getesteten Empfänger beobachten, ob der
+      geänderte Tastenwert tatsächlich ankommt.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige ~13 Rolling-Code-Protokolle (die vier auf
+      Unleasheds `common.c`-Umbau umgestellten Kandidaten FAAC SLH/Secplus v2/Nice FloR-S/
+      KingGates Stylo4K/Alutech AT-4N/CAME Atomo/Somfy Keytis brauchen denselben sorgfältigen
+      Einzelabgleich wie KeeLoq, kein blinder Dateiersatz; vier Dateinamen aus der ursprünglichen
+      Liste existieren bei mir gar nicht als eigenständige Protokolldateien — Beninca ARC,
+      Jarolift, Prastel, Ditec GOL4 — Status klären, bevor man sie weiterverfolgt), dann
+      `endless_tx`-Anschluss, sowie Phase 4 (separater SubGhz-Remote-Port), veraltete
+      `README.md`.

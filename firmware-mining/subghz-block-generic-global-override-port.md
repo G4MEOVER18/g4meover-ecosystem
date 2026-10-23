@@ -111,10 +111,27 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase2/` — Host-Repro (siehe
   "Verifikation").
 
-**Für Phase 3 (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** die übrigen ~14 der oben
-genannten Protokolldateien, die den Mechanismus bei Unleashed bereits nutzen — pro Datei
-derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq. Keine dieser Dateien ist in
-dieser Sitzung angefasst.
+**Jetzt geliefert (Phase 3, erstes Nachzieh-Protokoll Princeton):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/princeton.c`
+  — meine eigene `princeton.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `b359f6fc32f282ce7217dd2d48a4e3478771852e`,
+  per `git ls-remote` zu Sitzungsbeginn erneut als unverändert aktueller `HEAD`-Stand bestätigt),
+  additiv um die zwei Anschlussstellen erweitert (siehe "Phase 3: Princeton" oben). Fertige
+  Zieldatei zum direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/princeton.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/princeton_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase3/` — Host-Repro (siehe
+  "Verifikation Phase 3").
+
+**Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** die übrigen
+~13 der oben genannten Rolling-Code-Protokolldateien, die den Mechanismus bei Unleashed bereits
+nutzen, plus ggf. weitere Festcode-Protokolle wie Princeton, die den Mechanismus ebenfalls nur
+für die Taste nutzen (noch nicht systematisch durchsucht) — pro Datei derselbe kleine, lokal
+begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton, sofern sich der Gesamtdiff (auch bei
+KeeLoq/Princeton teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug
+von Hand auftrennen lässt. Bei Protokollen mit deutlich größerem Gesamtdiff (FAAC SLH: 712
+Zeilen, Secplus v2: 1133, Nice FloR-S: 1284 u. a.) ist derselbe sorgfältige Einzelabgleich wie bei
+KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht versucht. Keine dieser Dateien ist
+in dieser Sitzung angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -150,6 +167,41 @@ umgebenden Logik zu ändern:
    alle anderen bekannten Hersteller (verschlüsselter Zähler, editierbar) — AN-Motors/HCS101
    fallen bei mir strukturell unter "alle anderen", da meine `gen_data()` sie anders als
    Unleashed weiterhin mit echtem Zähler statt Pseudo-Zähler kodiert.
+
+### Phase 3: Princeton (erstes Protokoll der Nachzieh-Liste)
+
+**Was:** Princeton ist bei Unleashed **kein** Mitglied der in "Was" oben gezählten ~15
+Rolling-Code-Protokolle — es ist ein reines Festcode-Protokoll
+(`.type = SubGhzProtocolTypeStatic`, bei mir wie bei Unleashed unverändert), hat also keinen
+Zähler und nutzt dementsprechend ausschließlich die Tasten-Override-Hälfte des Mechanismus,
+nie die Zähler-Hälfte. Beim Diff meiner eigenen `princeton.c` gegen Unleasheds aktuellen
+Standard-Branch (Commit `e611e31583c29b6576eda27afb41e020d10265ce`, 2026-10-23) zeigte sich:
+Unleasheds separater `common.c`-Encoder-/Decoder-Basis-Umbau betrifft zwar auch `princeton.c`
+(neue `#include "common.h"`, `SUBGHZ_ASSERT_*_LAYOUT`-Makros, `alloc`/`free` über
+`subghz_protocol_*_common_alloc/_free` statt eigenem `malloc`/`free`) — anders als bei FAAC SLH
+(712 Diff-Zeilen), Secplus v2 (1133), Nice FloR-S (1284) u. a. ist der Gesamtdiff mit 214 Zeilen
+aber klein genug, dass sich die zwei tatsächlich override-relevanten Anschlussstellen auch so von
+Hand zuverlässig heraustrennen lassen, ohne den Umbau selbst zu übernehmen (der bei mir nicht
+existiert und außerhalb dieser Port-Skizze liegt). Meine eigene `princeton.c` hat exakt dieselbe
+Vier-Fall-Tastencode-
+Struktur (`subghz_protocol_princeton_get_btn_code()`, unverändert, eigener Code) und dieselbe
+Zwei-Zweig-Anzeigeaufteilung (8-Bit-Codes `0x30`/`0xC0`/`0xF3`/`0xFC` vs. alle anderen 4-Bit-Codes)
+wie Unleasheds aktuelle Version — kein struktureller Diff wie bei KeeLoq in Phase 2 nötig, die
+beiden Anschlusspunkte lassen sich 1:1 übernehmen.
+
+Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`:
+1. `subghz_protocol_encoder_princeton_get_upload()`: direkt nach der bestehenden
+   `instance->generic.btn = subghz_protocol_princeton_get_btn_code();`-Zeile (meine eigene,
+   unveränderte Tastencode-Zuweisung) ein `subghz_block_generic_global_button_override_get(
+   &instance->generic.btn)`-Aufruf, der den endgültigen Tastenwert **vor** der anschließenden
+   Datenrekonstruktion (die drei `if`/`else if`/`else`-Zweige, die je nach Tastenwert Seriennummer
+   und Taste zu `instance->generic.data` zusammensetzen) überschreibt — dieselbe Reihenfolge wie
+   bei KeeLoqs Encoder-Anschluss in Phase 2.
+2. `subghz_protocol_decoder_princeton_get_string()`: `btn_is_available`/`current_btn` unbedingt
+   am Funktionsanfang gesetzt (beide Zweige senden denselben Tastenwert, nur mit unterschiedlicher
+   Bitlänge), `btn_length_bit` pro Zweig passend zur bestehenden Anzeigeaufteilung (8 für die vier
+   8-Bit-Codes, 4 für alle anderen) — exakt Unleasheds eigene Anbindung, byte-für-byte übernommen
+   (siehe "Verifikation Phase 3").
 
 ## Risiko
 
@@ -308,6 +360,44 @@ umgebenden Logik zu ändern:
     such file or directory`" fehlschlagen (hier tatsächlich reproduziert). Rein redaktioneller
     Nebenfund für den eigenen Phase-2-Ordner, keine Änderung an Phase 1.
 
+### Verifikation Phase 3 (Princeton)
+
+- **Patch additiv, byte-identisch:** `connective-patches/princeton_c.patch` per `git apply
+  --check` sowie real per `git apply` gegen zwei frische, unabhängige Zweitkopien meiner eigenen
+  `princeton.c` (`G4MEOVER18/G4MEOVER-FW`, `b359f6fc32f282ce7217dd2d48a4e3478771852e`) angewendet
+  — beide Ergebnisse per `md5sum` byte-identisch zueinander und zur mitgelieferten Zieldatei
+  bestätigt. `git diff --stat` nach dem Anwenden: **11 Zeilen Hinzufügung, 0 Löschungen**.
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase3/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die zwei neuen
+  Anschlussstellen selbst sind per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten,
+  bereits gepatchten `princeton.c` in eigene `.inc`-Fragmente extrahiert und in minimalen
+  Wrapper-Funktionen eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar: `sed 264,280p`/`602,604p`/`608p`/`627p`). Geprüft (37 Prüfungen):
+  1. Override greift in allen drei Datenrekonstruktions-Zweigen (8-Bit ohne Maske `0x30`/`0xC0`,
+     8-Bit mit Maskierung auf 4 Bit `0xF3`/`0xFC`, reiner 4-Bit-Zweig) und überschreibt dabei
+     einen bewusst aus einem jeweils anderen Zweig gewählten Vorwert — Beleg, dass der Override,
+     nicht der ursprüngliche `get_btn_code()`-Wert, über den Rekonstruktions-Zweig entscheidet.
+  2. Override ist "einmal verbraucht": ein zweiter Aufruf direkt danach ohne neuen `_set()`
+     verwendet den (simulierten) nächsten `get_btn_code()`-Vorwert unverändert.
+  3. Ohne anhängenden Override läuft die bestehende Formel für alle neun real vorkommenden
+     Tastencodes (`0x30`/`0xC0`/`0xF3`/`0xFC`/`0x1`/`0x2`/`0x4`/`0x8`/`0xF`) exakt wie vor dem
+     Patch (Regression).
+  4. `get_string()`s zwei Anzeige-Zweige setzen `btn_is_available`/`current_btn`/`btn_length_bit`
+     korrekt (8 im ersten, 4 im zweiten Zweig) — der reale Aufrufpfad, der die in Phase 1
+     dokumentierte Reihenfolge-Abhängigkeit (Bitlänge vor dem `_override_get()`-Aufruf) erfüllt;
+     da Princeton nur die Tasten-, nie die Zähler-Hälfte des Mechanismus nutzt und `btn_length_bit`
+     hier nie 0 wird, ist die in Phase 1 als UB dokumentierte Schiebe-Falle für dieses Protokoll
+     grundsätzlich unerreichbar (keine neue Prüfung nötig, nur zur Vollständigkeit vermerkt).
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **37 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus `firmware-mining/repro-subghz-block-generic-global-override-port-phase3/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -324,11 +414,16 @@ umgebenden Logik zu ändern:
    dem ersten `_override_get()`) wurde dabei am eigenen Host-Repro tatsächlich ausgelöst und
    korrekt eingehalten (siehe "Verifikation Phase 2"). Kein Modus-7/`bypass`-Mechanismus nötig,
    da mein `keeloq_counter_mode` kein Modus 7 kennt.
-3. **Phase 3 (künftige Sitzung):** die übrigen ~14 Protokolle nachziehen (gleiches Muster wie
-   KeeLoq, siehe "Betroffene Dateien" — pro Protokoll eigener Diff gegen Unleashed nötig, da
-   bereits bei KeeLoq erhebliche strukturelle Abweichungen von der aktuellen Unleashed-Version
-   bestanden), dann `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK =
-   Dauersenden statt fester Wiederholzahl).
+3. **Phase 3 (begonnen, diese Sitzung — Princeton):** erstes Nachzieh-Protokoll angeschlossen,
+   nur die Tasten-Hälfte des Mechanismus (Princeton ist Festcode, kein Zähler). Gesamtdiff mit
+   214 Zeilen klein genug, um die zwei override-relevanten Anschlussstellen von Hand aus dem
+   (auch bei Princeton vorhandenen, aber hier nicht übernommenen) `common.c`-Umbau-Diff
+   herauszutrennen. Weiterhin offen: die übrigen ~13 der ursprünglich gezählten Rolling-Code-Protokolle (gleiches
+   Muster wie KeeLoq, siehe "Betroffene Dateien" — pro Protokoll eigener Diff gegen Unleashed
+   nötig, da bereits bei KeeLoq erhebliche strukturelle Abweichungen von der aktuellen
+   Unleashed-Version bestanden, und bei den auf `common.c` umgebauten Protokollen wie FAAC SLH
+   ein deutlich größerer Diff als bei KeeLoq/Princeton zu erwarten ist), dann `endless_tx` an die
+   eigene SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
 4. **Phase 4 (separater, deutlich größerer Port, nicht Teil dieser Port-Skizze):** erst ab hier
    wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll — ihr `subrem_tx_start_sub()`
    braucht exakt den hier gelieferten Mechanismus, um den Tastenwert vor dem Senden zu
@@ -343,7 +438,10 @@ umgebenden Logik zu ändern:
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
    ein künftiges Edit-Menü den Zähler ändern, erneut senden, am Zielgerät (eigenes, autorisiert
-   getestetes Garagentor/Empfänger) beobachten, ob/wie der geänderte Zähler akzeptiert wird.
+   getestetes Garagentor/Empfänger) beobachten, ob/wie der geänderte Zähler akzeptiert wird. Nach
+   Phase 3 zusätzlich mit Princeton testbar: Festcode-Signal erfassen, über ein künftiges
+   Edit-Menü die Taste ändern, erneut senden, am Zielgerät beobachten, ob der geänderte
+   Tastenwert erwartungsgemäß erkannt wird.
 
 ## Quelle
 
@@ -377,3 +475,14 @@ umgebenden Logik zu ändern:
   Pilotprotokoll" — meine eigene `keeloq.c` ist seit Phase 1s Commit `f31555e4` bereits so weit
   von Unleasheds aktueller Version abgewichen, dass ein Ersatz/Diff-Port hier nicht sinnvoll war,
   nur die drei Anschlusspunkte selbst).
+- (Phase 3) Unleashed-Firmware, Standard-Branch, Commit
+  `e611e31583c29b6576eda27afb41e020d10265ce` (2026-10-23, per frischem `git clone` zu
+  Sitzungsbeginn als aktueller `HEAD`-Stand bestätigt): `lib/subghz/protocols/princeton.c` zum
+  Abgleich geholt, die zwei Button-Override-Anschlusspunkte (siehe "Phase 3: Princeton") daraus
+  übernommen; der übrige, hier nicht übernommene Teil des Diffs besteht ausschließlich aus
+  Unleasheds separatem `common.c`-Encoder-/Decoder-Basis-Umbau (`subghz_protocol_encoder_common_*`,
+  `SUBGHZ_ASSERT_*_LAYOUT`), der mit diesem Port nicht zusammenhängt und nicht übernommen wird.
+- (Phase 3) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per `git ls-remote` zu Sitzungsbeginn Phase 3 erneut als unverändert aktueller `HEAD`-Stand
+  bestätigt, identisch zu Phase 1/2): eigene Basis für `lib/subghz/protocols/princeton.c` sowie
+  Ausgangspunkt für `connective-patches/princeton_c.patch`.
