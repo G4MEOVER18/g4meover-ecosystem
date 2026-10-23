@@ -101,11 +101,55 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port/` — Host-Repro (siehe
   "Verifikation").
 
-**Für Phase 2 (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** jede der ~15 oben genannten
-Protokolldateien, die den Mechanismus bei Unleashed bereits nutzt — pro Datei ein kleiner,
-lokal begrenzter Satz Zeilen (Setzen von `cnt_length_bit`/`btn_length_bit`/`*_is_available` am
-Ende von `get_string()`, ein `_override_get()`-Aufruf im Encoder). Keine dieser Dateien ist in
+**Jetzt geliefert (Phase 2, KeeLoq-Pilotprotokoll):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/keeloq.c` —
+  meine eigene `keeloq.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `b359f6fc32f282ce7217dd2d48a4e3478771852e`,
+  dieselbe wie Phase 1), additiv um die drei Anschlussstellen erweitert (siehe "Was" unten).
+  Fertige Zieldatei zum direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/keeloq.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/keeloq_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase2/` — Host-Repro (siehe
+  "Verifikation").
+
+**Für Phase 3 (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** die übrigen ~14 der oben
+genannten Protokolldateien, die den Mechanismus bei Unleashed bereits nutzen — pro Datei
+derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq. Keine dieser Dateien ist in
 dieser Sitzung angefasst.
+
+### Phase 2: KeeLoq als Pilotprotokoll
+
+**Was:** meine eigene `keeloq.c` ist **keine** 1:1-Kopie von Unleasheds aktueller `dev`-Version
+(Commit `97a0174368527e7307cf6af231aa2f4e41c26f96`, zum Vergleich frisch geholt) — der volle Diff
+ist über 500 Zeilen groß und umfasst u. a. Unleasheds inzwischen eingeführte
+`common.c`-Encoder-/Decoder-Basisfunktionen, eine Monarch-Diskriminator-Konstante, zusätzliche
+Hersteller-Sonderfälle (`Pecinin`, erweiterte `klq_last_custom_btn`-Tabelle) und einen
+Modus-7-Lern-Sequenz-Pfad mit einer eigenen `bypass`-Variable, die bei mir schlicht nicht
+existieren (mein `keeloq_counter_mode` kennt nur die Modi 0–6, kein Modus 7). Ein blinder
+Dateiersatz durch Unleasheds Version — wie in Phase 1 für `generic.c` zunächst erwogen und dann
+verworfen — hätte hier denselben Fehler wiederholt, nur gravierender (verlorene eigene
+Zählermodi 1–6, verlorene `Pecinin`-Sonderbehandlung). Stattdessen: dieselben drei
+Anschlusspunkte, die Unleashed für KeeLoq nutzt, an der jeweils strukturell passenden Stelle
+**meiner eigenen** `gen_data()`/`get_upload()`/`get_string()` eingefügt, ohne sonst etwas an der
+umgebenden Logik zu ändern:
+1. `subghz_protocol_keeloq_gen_data()`, Zähler-Erhöhungsblock (`if(counter_up && prog_mode ==
+   PROG_MODE_OFF)`): `subghz_block_generic_global_counter_override_get(&instance->generic.cnt)`
+   als zusätzlicher, vorangestellter Zweig der bestehenden `if/else if`-Kette über die Modi 0–6 —
+   bei anhängendem Override wird der neue Wert direkt verwendet, sonst läuft exakt die bisherige
+   Modus-Logik unverändert weiter. Da mein Code kein Modus 7 kennt, entfällt Unleasheds
+   `bypass`-Mechanismus ersatzlos — es gibt hier keinen Lern-Sequenz-Pfad, den er schützen müsste.
+2. `subghz_protocol_encoder_keeloq_get_upload()`: direkt nach der bestehenden
+   `btn = subghz_protocol_keeloq_get_btn_code(klq_last_custom_btn);`-Zeile (meine eigene,
+   programmiermodus-abhängige Tastencode-Zuweisung, bleibt unverändert) ein
+   `subghz_block_generic_global_button_override_get(&btn)`-Aufruf, der den endgültigen
+   Tastenwert vor der Signalerzeugung überschreibt.
+3. `subghz_protocol_decoder_keeloq_get_string()`: `btn_is_available`/`current_btn`/
+   `btn_length_bit` unbedingt am Funktionsanfang gesetzt (alle drei Zweige senden dasselbe
+   4-Bit-Tastenfeld); `cnt_is_available`/`cnt_length_bit`/`current_cnt` pro Zweig passend zu
+   meiner eigenen (von Unleashed abweichenden) Drei-Zweig-Aufteilung: `BFT` (Zähler im
+   Klartext übertragen, editierbar), `Unknown` (reines Replay ohne Zähler, nicht editierbar),
+   alle anderen bekannten Hersteller (verschlüsselter Zähler, editierbar) — AN-Motors/HCS101
+   fallen bei mir strukturell unter "alle anderen", da meine `gen_data()` sie anders als
+   Unleashed weiterhin mit echtem Zähler statt Pseudo-Zähler kodiert.
 
 ## Risiko
 
@@ -205,6 +249,65 @@ dieser Sitzung angefasst.
   'unsigned int'` ab (Exit-Code 1). Bestätigt die in "Risiko" beschriebene, nach heutigem Code
   nicht erreichbare, aber für Phase 2 zu beachtende UB-Falle.
 
+### Verifikation Phase 2 (KeeLoq)
+
+- **Patch additiv, byte-identisch:** `connective-patches/keeloq_c.patch` per `git apply --check`
+  sowie real per `git apply` gegen zwei frische, unabhängige Zweitkopien meiner eigenen
+  `keeloq.c` (`G4MEOVER18/G4MEOVER-FW`, `b359f6fc32f282ce7217dd2d48a4e3478771852e`) angewendet —
+  beide Ergebnisse per `md5sum` byte-identisch zueinander und zur mitgelieferten Zieldatei
+  bestätigt.
+- **Die eigene Vertragslücke aus Phase 1 tatsächlich getroffen, dann korrekt entschärft:** der
+  erste Durchlauf des neuen Host-Repros (Szenario A, Override gesetzt, `cnt_length_bit` noch auf
+  dem `_reset()`-Standardwert 0) brach exakt mit derselben UB ab, die `ub_check.c` in Phase 1
+  demonstriert hatte (`generic.c:23:33: shift exponent 32 is too large`) — der reale Beleg, dass
+  das in Phase 1 als "nach heutigem Code nicht erreichbar, aber für Phase 2 zu beachten"
+  dokumentierte Vertragsverhältnis beim ersten tatsächlichen Anschluss sofort relevant wird.
+  Behoben, indem jedes Testszenario `cnt_length_bit`/`btn_length_bit` zuerst setzt — genau wie es
+  mein eigener, jetzt gelieferter Fragment-3-Patch (`get_string()`) vor jedem realen
+  `_override_get()`-Aufruf im Encoder auch tut, da `get_string()` beim Anzeigen eines Signals
+  immer vor einer eigenen Sendung läuft.
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase2/`):** `repro.c`
+  kompiliert die tatsächliche, nach dem Patch entstandene `generic.c`-Gegenseite aus Phase 1
+  unverändert mit; die drei neuen Anschlussstellen selbst sind nicht als vollständige `keeloq.c`
+  mitkompiliert (das zöge `subghz_keystore_i.h`/`custom_btn_i.h`/`m-array.h` nach sich, die dieser
+  Patch nicht berührt), sondern per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten,
+  bereits gepatchten `keeloq.c` in eigene `.inc`-Fragmente extrahiert und in minimalen
+  Wrapper-Funktionen eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar). Geprüft (63 Prüfungen):
+  1. Zähler-Override schneidet für jeden Modus 0–6 (inkl. beider OFEX-Zweige von Modus 0) die
+     Standard-Erhöhung ab, schreibt exakt den `new_cnt`-Wert und verbraucht sich einmalig.
+  2. Ein zweiter Aufruf direkt danach ohne neuen `_set()` führt die normale Modus-0-Erhöhung aus
+     (`+1`), statt den verbrauchten Override erneut anzuwenden.
+  3. Ohne anhängenden Override laufen alle sieben Modi (0–6) exakt wie vor dem Patch — 14
+     Einzelfälle inkl. aller dokumentierten Überlauf-/Wrap-Werte (`0xFFFF`→`0`, `0x8007`→`0x0006`
+     usw.).
+  4. `counter_up == false` bzw. `prog_mode != PROG_MODE_OFF` verhindern weiterhin jeden
+     Zähler-Zugriff, auch bei anhängendem Override (der Override-Aufruf selbst steht innerhalb
+     derselben bestehenden Bedingung, nicht davor).
+  5. Tasten-Override verbraucht sich einmalig wie der Zähler-Override; ohne anhängenden Override
+     bleibt der übergebene Tastenwert unverändert.
+  6. `get_string()`s drei Zweige (`BFT`/`Unknown`/alle anderen) setzen `cnt_is_available`
+     korrekt `true`/`false`/`true` und befüllen `current_cnt`/`cnt_length_bit` nur, wenn
+     verfügbar; `btn_is_available`/`current_btn`/`btn_length_bit` sind in allen drei Zweigen
+     identisch gesetzt.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **63 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus `firmware-mining/repro-subghz-block-generic-global-override-port-phase2/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+  - Nebenfund beim Einrichten des Builds: derselbe `-I mocks/lib/subghz/blocks`-Suchpfad-Trick wie
+    in Phase 1 setzt voraus, dass `mocks/lib/subghz/blocks/` als Verzeichnis tatsächlich existiert
+    (die Kompilierung löst `../types.h` relativ zu diesem `-I`-Pfad auf) — Git verfolgt aber keine
+    leeren Verzeichnisse. Deshalb liegt in diesem Repro-Verzeichnis zusätzlich eine
+    `PATH_ANCHOR.txt`, rein damit das Verzeichnis einen frischen Checkout überlebt; ohne sie würde
+    genau derselbe Build-Befehl nach einem frischen `git clone` mit "`fatal error: ../types.h: No
+    such file or directory`" fehlschlagen (hier tatsächlich reproduziert). Rein redaktioneller
+    Nebenfund für den eigenen Phase-2-Ordner, keine Änderung an Phase 1.
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -212,16 +315,19 @@ dieser Sitzung angefasst.
    Patches anwenden), `base.c`-Hook setzen. Baut eigenständig (reine Ergänzung, host-seitig
    bestätigt), ändert das Verhalten noch nicht beobachtbar, da nichts die neuen Funktionen
    aufruft außer dem harmlosen Reset-Hook.
-2. **Phase 2 (künftige Sitzung):** ein einzelnes Pilotprotokoll anschließen — KeeLoq bietet sich
-   an, da es bei mir bereits vorhanden, gut getestet und bei Unleashed der am dichtesten
-   dokumentierte Aufrufer ist (`lib/subghz/protocols/keeloq.c`, Zeilen ~207/276/749f./1886-1999
-   bei Unleashed). Pro Protokoll: ein `_button_override_get()`-Aufruf im Encoder, ein
-   `_counter_override_get()`-Aufruf im Encoder, plus das Setzen von `cnt_is_available`/
-   `cnt_length_bit`/`current_cnt`/`btn_is_available`/`btn_length_bit`/`current_btn` am Ende von
-   `get_string()` — unter Beachtung der in "Risiko" dokumentierten Reihenfolge-Abhängigkeit.
-   Verifikation wie hier: Host-Repro mit den tatsächlichen KeeLoq-Bitlängen, UBSan/ASan.
-3. **Phase 3:** die übrigen ~14 Protokolle nachziehen (gleiches Muster, siehe "Betroffene
-   Dateien"), dann `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK =
+2. **Phase 2 (geliefert, diese Sitzung):** KeeLoq als Pilotprotokoll angeschlossen — ein
+   `_button_override_get()`-Aufruf im Encoder, ein `_counter_override_get()`-Aufruf im Encoder
+   (bei mir in `gen_data()` statt direkt in `get_upload()`, da meine eigene Zählerlogik dort
+   sitzt), plus das Setzen von `cnt_is_available`/`cnt_length_bit`/`current_cnt`/
+   `btn_is_available`/`btn_length_bit`/`current_btn` am Anfang/in den drei Zweigen von
+   `get_string()`. Die in "Risiko" dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit` vor
+   dem ersten `_override_get()`) wurde dabei am eigenen Host-Repro tatsächlich ausgelöst und
+   korrekt eingehalten (siehe "Verifikation Phase 2"). Kein Modus-7/`bypass`-Mechanismus nötig,
+   da mein `keeloq_counter_mode` kein Modus 7 kennt.
+3. **Phase 3 (künftige Sitzung):** die übrigen ~14 Protokolle nachziehen (gleiches Muster wie
+   KeeLoq, siehe "Betroffene Dateien" — pro Protokoll eigener Diff gegen Unleashed nötig, da
+   bereits bei KeeLoq erhebliche strukturelle Abweichungen von der aktuellen Unleashed-Version
+   bestanden), dann `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK =
    Dauersenden statt fester Wiederholzahl).
 4. **Phase 4 (separater, deutlich größerer Port, nicht Teil dieser Port-Skizze):** erst ab hier
    wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll — ihr `subrem_tx_start_sub()`
@@ -256,10 +362,18 @@ dieser Sitzung angefasst.
   tatsächlichen Nutzungsfall des hier portierten Mechanismus bei einer externen App; eigener Port
   dieser App bewusst nicht Teil dieser Sitzung (siehe "Port-Skizze", Phase 4).
 - `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
-  (2026-08-18, per `git ls-remote` zu Sitzungsbeginn als aktueller `HEAD`-Stand bestätigt):
-  eigene Basis für den vollständigen Diff von `lib/subghz/blocks/generic.c`/`.h` und
-  `lib/subghz/protocols/base.c`, Fundort der eigenen, unabhängigen
+  (2026-08-18, per `git ls-remote` sowohl zu Sitzungsbeginn Phase 1 als auch erneut zu
+  Sitzungsbeginn Phase 2 als unverändert aktueller `HEAD`-Stand bestätigt): eigene Basis für den
+  vollständigen Diff von `lib/subghz/blocks/generic.c`/`.h`, `lib/subghz/protocols/base.c` sowie
+  (Phase 2) `lib/subghz/protocols/keeloq.c`; Fundort der eigenen, unabhängigen
   `subghz_block_generic_serialize_common()`/Lat-Lon-Erweiterung
   (`applications/main/subghz/helpers/subghz_gps.c`, `minmea.c`, vier Aufrufer
   `pcsg_generic.c`/`tpms_generic.c`/`ws_generic.c`/`bin_raw.c`) sowie Ausgangspunkt für alle
-  drei `connective-patches/*.patch`.
+  vier `connective-patches/*.patch`.
+- (Phase 2) Unleashed-Firmware, Standard-Branch (`dev`), Commit
+  `97a0174368527e7307cf6af231aa2f4e41c26f96` (2026-10-23, per `git ls-remote` zu
+  Sitzungsbeginn als aktueller `HEAD`-Stand bestätigt): `lib/subghz/protocols/keeloq.c`/`.h` nur
+  zum strukturellen Abgleich geholt (nicht als Portquelle verwendet, siehe "Phase 2: KeeLoq als
+  Pilotprotokoll" — meine eigene `keeloq.c` ist seit Phase 1s Commit `f31555e4` bereits so weit
+  von Unleasheds aktueller Version abgewichen, dass ein Ersatz/Diff-Port hier nicht sinnvoll war,
+  nur die drei Anschlusspunkte selbst).

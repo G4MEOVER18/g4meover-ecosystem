@@ -1,0 +1,76 @@
+--- a/lib/subghz/protocols/keeloq.c	2026-10-23 00:27:06.708901914 +0000
++++ b/lib/subghz/protocols/keeloq.c	2026-10-23 00:27:06.711245613 +0000
+@@ -184,9 +184,12 @@
+         hop = 0x00000000;
+     }
+     if(counter_up && prog_mode == PROG_MODE_OFF) {
+-        // Counter increment conditions
+-
+-        if(keeloq_counter_mode == 0) {
++        // Counter increment conditions. PULL data from subghz_block_generic_global first --
++        // if the counter was overriden via the signal settings counter editor, use that value
++        // as-is and skip the standard increment below entirely.
++        if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
++            // counter_override_get() already wrote the new value into instance->generic.cnt
++        } else if(keeloq_counter_mode == 0) {
+             // Check for OFEX (overflow experimental) mode
+             if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
+                 if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
+@@ -517,6 +520,11 @@
+ 
+     btn = subghz_protocol_keeloq_get_btn_code(klq_last_custom_btn);
+ 
++    // override button if we change it with the signal settings button editor
++    if(subghz_block_generic_global_button_override_get(&btn)) {
++        FURI_LOG_D(TAG, "Button successfully changed to 0x%X", btn);
++    }
++
+     // Generate new key
+     if(subghz_protocol_keeloq_gen_data(instance, btn, true)) {
+         // OK
+@@ -1417,6 +1425,12 @@
+     subghz_protocol_keeloq_check_remote_controller(
+         &instance->generic, instance->keystore, &instance->manufacture_name);
+ 
++    // Allow button edit from the signal settings button editor; all three branches below
++    // transmit the same 4-bit button field, so this is unconditional.
++    subghz_block_generic_global.btn_is_available = true;
++    subghz_block_generic_global.current_btn = instance->generic.btn;
++    subghz_block_generic_global.btn_length_bit = 4;
++
+     uint32_t code_found_hi = instance->generic.data >> 32;
+     uint32_t code_found_lo = instance->generic.data & 0x00000000ffffffff;
+ 
+@@ -1426,6 +1440,11 @@
+     uint32_t code_found_reverse_lo = code_found_reverse & 0x00000000ffffffff;
+ 
+     if(strcmp(instance->manufacture_name, "BFT") == 0) {
++        // Counter is present and transmitted in the clear in BFT's programming-mode seed
++        // scheme -- allow counter edit.
++        subghz_block_generic_global.cnt_is_available = true;
++        subghz_block_generic_global.cnt_length_bit = 16;
++        subghz_block_generic_global.current_cnt = instance->generic.cnt;
+         furi_string_cat_printf(
+             output,
+             "%s %dbit\r\n"
+@@ -1445,6 +1464,9 @@
+             instance->generic.seed);
+     } else if(strcmp(instance->manufacture_name, "Unknown") == 0) {
+         instance->generic.cnt = 0x0;
++        // Simple replay of the received code, no counter to encrypt/decrypt without a
++        // known manufacturer key -- no counter edit possible.
++        subghz_block_generic_global.cnt_is_available = false;
+         furi_string_cat_printf(
+             output,
+             "%s %dbit\r\n"
+@@ -1461,6 +1483,10 @@
+             instance->generic.btn,
+             instance->manufacture_name);
+     } else {
++        // All other known manufacturers transmit an encrypted counter -- allow counter edit.
++        subghz_block_generic_global.cnt_is_available = true;
++        subghz_block_generic_global.cnt_length_bit = 16;
++        subghz_block_generic_global.current_cnt = instance->generic.cnt;
+         furi_string_cat_printf(
+             output,
+             "%s %dbit\r\n"

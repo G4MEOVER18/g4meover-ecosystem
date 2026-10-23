@@ -8353,3 +8353,95 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
       PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
       SubGhzBlockGenericGlobal Phase 2/3, veraltete `README.md`.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 2 — KeeLoq als Pilotprotokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`/`BACKLOG.md`-Ende durchgesehen: letzte
+      Sitzung war App-Verbesserung (RollForge), davor Ideen-Recherche (ublox), davor
+      Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 1) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war Firmware-Feature-Mining für
+      diese Sitzung an der Reihe. Zusätzlich vor dem ersten Commit Branch-Zeiger-Drift
+      korrigiert: `HEAD` lag beim Sitzungsstart losgelöst (`detached`) 8 Commits vor dem lokalen
+      `main`-Zeiger (letzte Sitzungen hatten alle direkt auf `HEAD` statt auf `main` committet,
+      ohne den Zeiger nachzuziehen); `main` per Fast-Forward auf den bestehenden `HEAD`-Stand
+      vorgezogen (reiner Zeiger-Vorschub, keine neuen Commits, kein Inhalt verändert) — `origin/
+      main` war bereits identisch, kein Push nötig. Git-Identität vor dem ersten eigenen Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Port-Skizze aus Phase 1 aufgegriffen: Phase 2 sieht KeeLoq als Pilotprotokoll vor (bei mir
+      bereits vorhanden, gut getestet, bei Unleashed der am dichtesten dokumentierte Aufrufer der
+      in Phase 1 gelieferten Override-Mechanik). Dafür zunächst versucht, `usb-army-penetrator`
+      (eigenes Repo) für den eigentlich nächsten App-Verbesserungs-Slot auf neue, noch nicht
+      dokumentierte Ducky-Handler-Funde durchzusehen — nach Durchsicht aller ~35 Extension-
+      Handler in `src/Attacks/Ducky/Extensions.h` kein neuer Fund (jede dort plausible
+      Fehlerklasse — ungeprüfte `substr()`/`stoi()`-Aufrufe, Settings-Typumwandlung,
+      Out-of-Bounds-Indizierung — ist bereits in einem der zwölf vorhandenen
+      `app-improvements/usb-army-penetrator/*.md`-Einträge dokumentiert); stattdessen beim
+      Firmware-Feature-Mining-Slot geblieben und direkt mit Phase 2 fortgesetzt.
+- [x] Vollständigen Diff meiner eigenen `keeloq.c` (`G4MEOVER18/G4MEOVER-FW`, unverändert
+      `b359f6fc32f282ce7217dd2d48a4e3478771852e` wie Phase 1 — per `git ls-remote` erneut als
+      aktueller `HEAD`-Stand bestätigt) gegen Unleasheds aktuellen `dev`-Stand
+      (`97a0174368527e7307cf6af231aa2f4e41c26f96`) gezogen, bevor irgendetwas portiert wurde.
+      Fund: über 500 Zeilen Abweichung — Unleashed hat inzwischen `common.c`-Basisfunktionen,
+      eine Monarch-Diskriminator-Konstante, weitere Hersteller-Sonderfälle und einen
+      Modus-7-Lern-Sequenz-Pfad mit eigenem `bypass`, die bei mir alle fehlen (mein
+      `keeloq_counter_mode` kennt nur Modi 0–6). Ein blinder Dateiersatz durch Unleasheds Version
+      — wie in Phase 1 für `generic.c` zunächst erwogen und dann verworfen — hätte hier denselben
+      Fehler wiederholt, nur gravierender (verlorene eigene Zählermodi, verlorene
+      `Pecinin`-Sonderbehandlung). Stattdessen nur die drei strukturell passenden Anschlusspunkte
+      in meiner eigenen Datei ergänzt, siehe `firmware-mining/
+      subghz-block-generic-global-override-port.md`, Abschnitt "Phase 2: KeeLoq als
+      Pilotprotokoll".
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      keeloq_c.patch`) gegen zwei frische, unabhängige Zweitkopien meiner eigenen `keeloq.c` mit
+      `git apply --check` verifiziert, real angewendet, Ergebnis per `md5sum` byte-für-byte
+      abgeglichen — identisch. Zieldatei zum direkten Ersetzen ebenfalls mitgeliefert.
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase2/`):
+      die drei neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus der gepatchten
+      `keeloq.c` extrahiert (nicht die volle Datei kompiliert, da das `subghz_keystore_i.h`/
+      `custom_btn_i.h`/`m-array.h` nach sich zöge), gegen die echte, unveränderte Phase-1-
+      `generic.c` verlinkt. Dabei die in Phase 1 als "nach heutigem Code nicht erreichbar, aber
+      für Phase 2 zu beachten" dokumentierte UB-Falle (`cnt_length_bit`-Schiebe-Shift) beim ersten
+      Testlauf tatsächlich ausgelöst (identischer UBSan-Befund wie Phase 1s `ub_check.c`) und
+      korrekt durch die richtige Aufrufreihenfolge in den Testszenarien entschärft — bestätigt,
+      dass der eigene `get_string()`-Patch dieselbe Reihenfolge in der echten Firmware einhält.
+      63 Prüfungen (Zähler-Override pro Modus 0–6 inkl. OFEX, Einmal-Verbrauch, unveränderte
+      Modus-Arithmetik ohne Override, `counter_up`/`prog_mode`-Schutz, Tasten-Override,
+      `get_string()`-Verfügbarkeitsfelder je Herstellerzweig) unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED**, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` bleibt bei 0.
+- [x] Nebenfund beim Einrichten des Repro-Builds (rein redaktionell, keine Änderung an Phase 1):
+      der von Phase 1 übernommene `-I mocks/lib/subghz/blocks`-Suchpfad-Trick setzt voraus, dass
+      dieses Verzeichnis als solches existiert; Git verfolgt aber keine leeren Verzeichnisse.
+      Deshalb liegt im eigenen Phase-2-Repro-Ordner zusätzlich eine `PATH_ANCHOR.txt`, damit der
+      Build einen frischen Checkout überlebt — ohne sie schlägt exakt derselbe Build-Befehl nach
+      `git clone` mit `fatal error: ../types.h: No such file or directory` fehl (tatsächlich
+      reproduziert).
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` entsprechend erweitert
+      (neuer Abschnitt "Phase 2: KeeLoq als Pilotprotokoll" unter "Betroffene Dateien", neuer
+      Abschnitt "Verifikation Phase 2", "Port-Skizze"-Punkt 2 von "künftige Sitzung" auf
+      "geliefert, diese Sitzung" aktualisiert, "Quelle" um den Unleashed-`dev`-Vergleichscommit
+      und den erneut bestätigten G4MEOVER-FW-Commit ergänzt).
+- [ ] Lokal zu tun: Patch gegen die eigene `keeloq.c` anwenden, mit `ufbt`/`fbt firmware_all`
+      bauen (reine Ergänzung an bereits vorhandener, aktiver Datei — sollte ohne Compile-Fehler
+      durchlaufen, da alle vier neuen Symbole bereits aus dem Phase-1-`generic.h`-Patch kommen).
+      Funktionstest mit Hardware: ein eigenes KeeLoq-Signal erfassen, über das noch zu bauende
+      Signal-Einstellungen-Menü (existiert als UI noch nicht — siehe Phase 3/4) ersatzweise direkt
+      per Debugger/Testaufruf `subghz_block_generic_global_counter_override_set()`/
+      `_button_override_set()` setzen, erneut senden, am eigenen autorisiert getesteten
+      Garagentor-Empfänger beobachten, ob der geänderte Zähler/Tastenwert tatsächlich ankommt.
+      Ohne ein Edit-UI (Phase 3/4) ist der Mechanismus vorerst nur programmatisch ansteuerbar.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5
+      (Protokollbaum-Registrierung/UI, weiterhin an eine lokale Baurückmeldung zu Phase 1-4b
+      gebunden), NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SubGhzBlockGenericGlobal Phase 3 (übrige ~14 Protokolle, dann `endless_tx`-Anschluss) und
+      Phase 4 (separater SubGhz-Remote-Port), veraltete `README.md`.
