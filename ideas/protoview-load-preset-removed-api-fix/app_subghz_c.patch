@@ -1,0 +1,15 @@
+--- a/app_subghz.c	2026-10-23 06:27:50.618941461 +0000
++++ b/app_subghz.c	2026-10-23 06:28:10.673304039 +0000
+@@ -49,8 +49,10 @@
+      * the modulation "custom" field is NULL, or a custom preset we
+      * defined in custom_presets.h. */
+     if (ProtoViewModulations[app->modulation].custom == NULL) {
+-        furi_hal_subghz_load_preset(
+-            ProtoViewModulations[app->modulation].preset);
++        subghz_devices_load_preset(
++            subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME),
++            ProtoViewModulations[app->modulation].preset,
++            NULL);
+     } else {
+         furi_hal_subghz_load_custom_preset(
+             ProtoViewModulations[app->modulation].custom);

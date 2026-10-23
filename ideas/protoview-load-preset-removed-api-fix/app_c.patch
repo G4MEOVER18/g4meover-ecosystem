@@ -1,0 +1,25 @@
+--- a/app.c	2026-10-23 06:27:50.618903126 +0000
++++ b/app.c	2026-10-23 06:28:17.965303872 +0000
+@@ -157,6 +157,12 @@
+     app->frequency = subghz_setting_get_default_frequency(app->setting);
+     app->modulation = 0; /* Defaults to ProtoViewModulations[0]. */
+ 
++    /* The subghz device registry (needed by subghz_devices_load_preset()
++     * in radio_begin(), see app_subghz.c) is not guaranteed to be already
++     * initialized when ProtoView runs standalone, outside the main
++     * Subghz app. Own its lifetime for as long as this app runs. */
++    subghz_devices_init();
++
+     furi_hal_power_suppress_charge_enter();
+     app->running = 1;
+ 
+@@ -172,6 +178,9 @@
+     // Put CC1101 on sleep, this also restores charging.
+     radio_sleep(app);
+ 
++    // Release the subghz device registry acquired in protoview_app_alloc().
++    subghz_devices_deinit();
++
+     // View related.
+     view_port_enabled_set(app->view_port, false);
+     gui_remove_view_port(app->gui, app->view_port);

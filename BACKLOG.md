@@ -8445,3 +8445,89 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
       SubGhzBlockGenericGlobal Phase 3 (übrige ~14 Protokolle, dann `endless_tx`-Anschluss) und
       Phase 4 (separater SubGhz-Remote-Port), veraltete `README.md`.
+
+## Ideen-Recherche: ProtoView — furi_hal_subghz_load_preset()-Fund
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`/`BACKLOG.md`-Ende durchgesehen: letzte
+      Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 2), davor
+      App-Verbesserung (RollForge), davor Ideen-Recherche (ublox) — nach dem etablierten
+      Rotationsmuster (Firmware → Ideen → App → Firmware → ...) war Ideen-Recherche für diese
+      Sitzung an der Reihe. Vorab Branch-Zeiger-Drift geprüft: `HEAD` war beim Sitzungsstart
+      losgelöst (`detached`), lag aber tatsächlich bereits auf demselben Commit wie `origin/main`
+      — der lokale `main`-Zeiger war nur ein veralteter Cache-Stand ohne `git fetch`, kein echter
+      11-Commit-Rückstand wie zunächst vermutet. Per `git fetch origin main` bestätigt und `main`
+      per reinem Fast-Forward nachgezogen (keine neuen Commits, kein Inhalt verändert, kein Push
+      nötig). Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer Ergänzung für die Kategorie "SubGHz / RF" gesucht: ein
+      protokollunabhängiges Signal-Analysewerkzeug als Gegenstück zu RollForges rein auf bekannte
+      Rolling-/Fixed-Code-Protokolle ausgelegter Dekodierung. Erfolglose Suchen zuerst
+      dokumentiert: kein Flipper-FAP für DMX512-Bühnenbeleuchtung, kein Flipper-FAP für
+      Z-Wave-Sniffing gefunden. **ProtoView** (`antirez/protoview`, Commit `fd2f6ed`, 2025-05-05,
+      BSD-2-Clause, 598 Sterne) gefunden und vollständig gelesen (3701 Zeilen über 16
+      Quelldateien) — Rohpuls-Visualisierung/-Edit/-Resend unbekannter Signale plus vier native
+      Protokoll-Decoder (TPMS Renault/Toyota/Schrader/Citroen/Ford, KeeLoq, Oregon 2,
+      PT2262/SC5262).
+- [x] API-87-Status gegen eine frische, blobfreie `G4MEOVER18/G4MEOVER-FW`-Zweitkopie (`main`,
+      Commit `b359f6f`) verifiziert: alle `furi_hal_gpio_*`/`furi_hal_interrupt_set_isr`/
+      `furi_hal_power_suppress_charge_*`/`furi_hal_cortex_instructions_per_microsecond`-Aufrufe
+      sowie acht der neun genutzten `furi_hal_subghz_*`-Funktionen byteidentisch vorhanden.
+- [x] **Fund**: `furi_hal_subghz_load_preset(FuriHalSubGhzPreset)` — die neunte Funktion, genutzt
+      von vier der neun `ProtoViewModulations[]`-Einträge (beide Stock-OOK-, beide
+      Stock-2FSK-Presets, darunter der App-Default "OOK 650Khz") — existiert in meiner Firmware
+      nicht mehr (volltextlich in `targets/f7/furi_hal/furi_hal_subghz.h` bestätigt). Ursache:
+      meine Firmware hat inzwischen die Geräteabstraktionsschicht `lib/subghz/devices/` für
+      austauschbare externe SubGhz-Module; dieselbe `FuriHalSubGhzPreset`-Enum (inkl. aller vier
+      bei ProtoView genutzten Werte) existiert unverändert in `lib/subghz/devices/preset.h`, wird
+      jetzt aber nur noch über `subghz_devices_load_preset(const SubGhzDevice*,
+      FuriHalSubGhzPreset, uint8_t*)` aufgelöst — Case-für-Case identisch zu dem, was die alte
+      Funktion intern tat (per Volltextvergleich gegen
+      `lib/subghz/devices/cc1101_int/cc1101_int_interconnect.c` bestätigt). Ohne Fix bricht
+      `./fbt launch_app APPSRC=protoview` bereits am Standardfall mit einem Linkfehler ab — kein
+      Rand-/Sonderfall, reine Firmware-API-Historie, kein eigener Logikfehler von ProtoView.
+- [x] Fix (additiv, drei Dateien): `app.h` um die zwei nötigen Includes ergänzt (`lib/subghz/
+      devices/devices.h`, `lib/subghz/devices/cc1101_int/cc1101_int_interconnect.h` — derselbe
+      Include-Pfad, den auch die offizielle `applications/main/subghz/subghz_cli.c` für dieselbe
+      Aufgabe nutzt); `app_subghz.c::radio_begin()` auf `subghz_devices_load_preset(
+      subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME), preset, NULL)` umgestellt;
+      `app.c` um ein zur App-Lebensdauer passendes `subghz_devices_init()`/`_deinit()`-Paar
+      ergänzt (`protoview_app_alloc()`/`protoview_app_free()`, analog zum bereits vorhandenen
+      `furi_hal_power_suppress_charge_enter()`/`_exit()`-Paar). Alle drei Patches einzeln und
+      zusammen gegen zwei frische, unabhängige Zweitkopien von `antirez/protoview` mit
+      `git apply --check` verifiziert, real angewendet, byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`ideas/repro-protoview-load-preset-removed-api/`): die exakte
+      Entscheidungslogik aus `radio_begin()` zweimal extrahiert (ALT/NEU, sonst byteidentischer
+      Aufbau), gegen eine aus den bestätigten Symbol-Listen gebaute Mock-API plus eine
+      byteidentische Kopie der neun-Einträge-Modulationstabelle. ALT gegen einen Mock mit der
+      (noch vorhandenen) alten Funktion: baut, läuft, 27 Prüfungen bestätigen den erwarteten
+      Aufrufpfad für alle neun Modulationen — reine Verifikation, dass die Extraktion dem
+      Original entspricht. ALT gegen einen Mock ohne diese Funktion (mein eigener
+      Firmware-Stand): Build schlägt wie erwartet fehl — Finding reproduziert. NEU gegen
+      denselben Mock: baut, läuft, 37 Prüfungen bestätigen denselben Enum-Wert/Zeiger wie ALT für
+      alle neun Modulationen, nur über den neuen Geräte-API-Pfad. Unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED**, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] Details, Fund, Fix, Host-Repro, Testhinweis, Risiko, Quelle in
+      `ideas/protoview-digital-signal-tool-app-status.md` (Patches in
+      `ideas/protoview-load-preset-removed-api-fix/`, Host-Repro in
+      `ideas/repro-protoview-load-preset-removed-api/`). `ideas/pentest-app-katalog.md` um die
+      neue Katalog-Zeile unter "SubGHz / RF" sowie einen Log-Eintrag unter "Nächste
+      Recherche-Aufträge" ergänzt.
+- [ ] Lokal zu tun: alle drei Patches gegen die eigene `antirez/protoview`-Kopie anwenden, dann
+      `./fbt launch_app APPSRC=protoview` innerhalb des eigenen `G4MEOVER-FW`-Baums (vorher
+      bricht derselbe Befehl exakt mit dem reproduzierten Linkfehler ab). Funktionstest: eigenes
+      433-MHz-Signal (z. B. eigene TPMS-Attrappe oder eigene SubGHz-Fernbedienung) mit Modulation
+      "OOK 650Khz" empfangen, Rohpulse müssen im Zeitdiagramm erscheinen; TPMS-1/2/3-Presets
+      (unverändert über `furi_hal_subghz_load_custom_preset()`) als Regressionsprobe
+      gegenprüfen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal Phase 3 (übrige ~14 Protokolle, dann
+      `endless_tx`-Anschluss) und Phase 4 (separater SubGhz-Remote-Port), veraltete `README.md`.
