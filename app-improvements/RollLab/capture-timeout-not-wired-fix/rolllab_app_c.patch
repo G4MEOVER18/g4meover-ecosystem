@@ -1,0 +1,27 @@
+--- a/rolllab_app.c	2026-10-23 18:25:49.459644511 +0000
++++ b/rolllab_app.c	2026-10-23 18:26:04.428670810 +0000
+@@ -379,6 +379,7 @@
+         case RLAB_CAPTURING: {
+             if(app->rf_mode != RLAB_RF_CAPTURING) {
+                 rlab_capture_ref_start(app);
++                app->cap_start_tick = furi_get_tick();
+                 snprintf(app->status, sizeof(app->status), "Listening...");
+             }
+             snprintf(app->status, sizeof(app->status),
+@@ -408,6 +409,16 @@
+                     app->state = RLAB_ADVANCE;
+                     break;
+                 }
++            } else if(furi_get_tick() - app->cap_start_tick >= RLAB_CAP_TIMEOUT_MS) {
++                // RLAB_CAP_TIMEOUT_MS was declared but never enforced: without this,
++                // a capture that never reaches RLAB_MIN_EDGES/silence (no keyfob
++                // pressed, out of range) waited here forever with no feedback besides
++                // a static "Edges: 0" line, recoverable only via a manual Right/Back
++                // press. Stop listening and return to the menu once the declared
++                // per-attempt budget is up.
++                rlab_capture_ref_stop(app);
++                snprintf(app->status, sizeof(app->status), "Timeout - no signal");
++                app->state = RLAB_MENU;
+             }
+ 
+             furi_delay_ms(20);

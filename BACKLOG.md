@@ -8620,3 +8620,83 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Jarolift, Prastel, Ditec GOL4 — Status klären, bevor man sie weiterverfolgt), dann
       `endless_tx`-Anschluss, sowie Phase 4 (separater SubGhz-Remote-Port), veraltete
       `README.md`.
+
+## App-Verbesserung: RollLab — RLAB_CAP_TIMEOUT_MS deklariert, aber nie durchgesetzt
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `BACKLOG.md`-Ende
+      durchgesehen: letzte Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal
+      Phase 3, Princeton), davor Ideen-Recherche (ProtoView), davor Firmware-Feature-Mining
+      (Phase 2, KeeLoq) — App-Verbesserung war seit der RollForge-Sitzung am längsten nicht
+      an der Reihe, für diese Sitzung gewählt. Git-Identität vor dem ersten eigenen Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `RollJam` (eigenes Repo) frisch durchgesehen: beide dort dokumentierten Funde
+      (`abort-right-key-quits-app-fix.md`/`exit-button-left-key-unhandled-fix.md`) sind
+      bereits vollständig geliefert, kein offener Punkt mehr — kein neuer Fund.
+- [x] `RollLab` (eigenes Repo, `main`, Commit `4ea80481`) frisch geklont, vollständig
+      gelesen (833 Zeilen über `rolllab_app.c`/`.h`, `rolllab_rf.c`/`.h`,
+      `rolllab_states.h`). Die beiden zuvor dokumentierten Funde
+      (`analyze-silence-terminator-stats-skew-fix.md`/
+      `otg-power-false-ownership-claim-fix.md`) bereits im Hauptzweig übernommen
+      (`git log` bestätigt `4ea80481` als genau den Silence-Terminator-Fix-Commit) —
+      beide erledigt. Eine zuerst vermutete weitere Verfeinerung der
+      Silence-Terminator-Ausschlusslogik (Unterscheidung "Bereitschaft durch echte
+      Stille" vs. "Bereitschaft durch vollen Puffer") beim Nachrechnen wieder verworfen:
+      beide Bereitschafts-Zweige prüfen in `rlab_rx_ref_cb()` dieselbe zuletzt
+      geschriebene Flanke mit demselben Kriterium, das `rlab_analyze()` anschließend
+      erneut auswertet — strukturell kann keine Diskrepanz entstehen, kein echter
+      Fund, eigener Rückstellpunkt verworfen statt eines nicht belastbaren Fixes.
+- [x] Stattdessen gefunden: `RLAB_CAP_TIMEOUT_MS` (`rolllab_app.h`, Kommentar "9 s per
+      capture attempt") wird im gesamten Repo nirgends gelesen — der `RLAB_CAPTURING`-
+      Fall der Hauptschleife (`rolllab_app()`, `rolllab_app.c`) prüft ausschließlich
+      `rlab_capture_ref_done()`, ohne jedes Zeitbudget. Drückt man in keinem der vier
+      Modi den Keyfob, bleibt der Zustand unbegrenzt in `RLAB_CAPTURING` hängen (sichtbar
+      nur als stehenbleibende `"Edges: 0"`-Zeile), einziger Ausweg ein manueller
+      Abbruch. Siehe `app-improvements/RollLab/capture-timeout-not-wired-fix.md`.
+- [x] Fix (additiv, zwei Dateien): neues Feld `uint32_t cap_start_tick;` in
+      `RollLabApp` (`rolllab_app.h`); `rolllab_app.c` setzt es beim Start eines neuen
+      Aufnahmeversuchs auf `furi_get_tick()` und prüft in einem neuen `else if`-Zweig
+      nach der bestehenden Erfolgsprüfung, ob `RLAB_CAP_TIMEOUT_MS` verstrichen ist —
+      dann Stop + Rückkehr zu `RLAB_MENU`, exakt dasselbe Muster wie der bereits
+      bestehende "CC1101 not found"-Geräte-Guard im selben Zustand. Patch gegen zwei
+      frische, unabhängige Zweitkopien von `G4MEOVER18/RollLab` (`main`, Commit
+      `4ea80481`) mit `git apply --check` verifiziert, real angewendet, per `md5sum`
+      byte-für-byte abgeglichen — identisch.
+- [x] Host-Repro (`app-improvements/RollLab/repro-capture-timeout-not-wired/`): die
+      reine Zustandsübergangs-Logik des `RLAB_CAPTURING`-Falls (ALT ohne Timeout-Zweig,
+      NEU mit dem Patch 1:1 transkribiert) gegen eine vollständig kontrollierbare
+      Mock-Uhr anstelle von `furi_get_tick()`. 12 Prüfungen (ALT hängt nach simulierten
+      40 s unverändert in `RLAB_CAPTURING`, NEU kehrt nach exakt 450 simulierten
+      20-ms-Durchläufen/9000 ms zu `RLAB_MENU` zurück, ein rechtzeitig eintreffendes
+      Signal gewinnt weiterhin auch am exakten Grenz-Tick gegen den Timeout, ein
+      zweiter Aufnahmeversuch nach einem Timeout nimmt einen frischen Startzeitstempel
+      statt das alte Budget fortzusetzen) unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED**, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `app-improvements/RollLab/capture-timeout-not-wired-fix.md` angelegt (Was,
+      Nutzen, betroffene Dateien, Patch, Testhinweis, Risiko, Quelle) plus Patches
+      (`capture-timeout-not-wired-fix/rolllab_app_h.patch`,
+      `.../rolllab_app_c.patch`, Zieldateien als `.target` beigelegt) und Host-Repro
+      (`repro-capture-timeout-not-wired/repro.c`).
+- [ ] Lokal zu tun: beide Patches gegen die eigene `RollLab`-Kopie anwenden, mit
+      `ufbt` bauen (reine Ergänzung, sollte ohne Compile-Fehler durchlaufen).
+      Funktionstest: einen beliebigen Modus starten, bewusst keinen Keyfob drücken —
+      nach 9 s muss die App von selbst zum Hauptmenü zurückkehren. Regressionsfall:
+      denselben Modus starten und sofort den Keyfob drücken — gewohntes Verhalten
+      bleibt unverändert.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SubGhzBlockGenericGlobal übrige ~13 Rolling-Code-Protokolle (vier Dateinamen aus
+      der ursprünglichen Liste existieren bei mir gar nicht als eigenständige
+      Protokolldateien — Status klären), dann `endless_tx`-Anschluss, sowie Phase 4
+      (separater SubGhz-Remote-Port), ProtoViews restliche vier Protokoll-Decoder sowie
+      die Bit-Edit-/Keyboard-Ansicht (noch nicht Zeile für Zeile auf eigene
+      Logikfehler durchgesehen), veraltete `README.md`.

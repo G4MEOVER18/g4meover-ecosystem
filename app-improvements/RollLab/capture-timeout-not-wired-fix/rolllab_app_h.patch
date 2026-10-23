@@ -1,0 +1,11 @@
+--- a/rolllab_app.h	2026-10-23 18:25:49.459662948 +0000
++++ b/rolllab_app.h	2026-10-23 18:25:55.508670279 +0000
+@@ -52,6 +52,8 @@
+     uint8_t             advance_count;   // Presses detected during advance phase
+     uint8_t             advance_target;  // Guidance: expected presses for this mode
+ 
++    uint32_t            cap_start_tick;  // furi_get_tick() at capture start, for RLAB_CAP_TIMEOUT_MS
++
+     volatile bool       abort;
+     volatile size_t     tx_pos;
+     RollLabRfMode       rf_mode;
