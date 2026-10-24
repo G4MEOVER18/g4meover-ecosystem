@@ -1,0 +1,41 @@
+diff --git a/webdeck/webdeck.py b/webdeck/webdeck.py
+index 0bd9862..2ad87b8 100644
+--- a/webdeck/webdeck.py
++++ b/webdeck/webdeck.py
+@@ -19,6 +19,7 @@ import os
+ import re
+ import sys
+ import threading
++import time
+ from http.server import BaseHTTPRequestHandler, HTTPServer
+ 
+ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "flipperbridge"))
+@@ -39,6 +40,8 @@ CATS = ["Sub-GHz", "NFC", "RFID", "Infrared", "GPIO", "iButton",
+ _bridge = None
+ _lock = threading.Lock()
+ _apps_cache = None
++_apps_cache_ts = 0.0
++APPS_CACHE_TTL_S = 30.0
+ 
+ 
+ def _int(s):
+@@ -69,8 +72,9 @@ def api_status():
+ 
+ 
+ def api_apps():
+-    global _apps_cache
+-    if _apps_cache is not None:
++    global _apps_cache, _apps_cache_ts
++    now = time.monotonic()
++    if _apps_cache is not None and (now - _apps_cache_ts) < APPS_CACHE_TTL_S:
+         return _apps_cache
+     counts = {}
+     with _lock:
+@@ -80,6 +84,7 @@ def api_apps():
+             if n:
+                 counts[cat] = n
+     _apps_cache = {"counts": counts, "total": sum(counts.values())}
++    _apps_cache_ts = now
+     return _apps_cache
+ 
+ 

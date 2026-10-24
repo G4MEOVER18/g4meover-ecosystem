@@ -8856,3 +8856,80 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
       SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete
       `README.md`.
+
+## App-Verbesserung: g4meover-companion — webdeck `_apps_cache` wird nie neu befüllt
+
+- [x] `reports/` durchgesehen: letzte Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal
+      Phase 4, Security+ 1.0), davor Ideen-Recherche (SignalSweep), davor App-Verbesserung
+      (RollLab) — App-Verbesserung war seit der RollLab-Sitzung am längsten nicht an der Reihe,
+      für diese Sitzung gewählt. Eigenen Branch-Zeiger-Zustand geprüft: `HEAD` (detached) stand
+      bereits exakt auf `origin/main`, nur der lokale `main`-Branch lag einen Commit zurück — per
+      `git checkout main` + `git merge --ff-only` nachgezogen, kein Push nötig (`origin/main` war
+      schon aktuell). Git-Identität vor dem ersten eigenen Commit gesetzt (`G4MEOVER18
+      <g4me.over.18@gmail.com>`).
+- [x] `RollJam`/`RollLab` erneut auf offene Punkte geprüft: beide vollständig abgeschlossen, kein
+      neuer Fund. Stattdessen `g4meover-companion` gewählt — laut `G4MEOVER-ECOSYSTEM-MASTERPLAN.md`
+      (P2.1a, 2026-10-12) bislang nur strukturell erfasst (`flipperbridge.py`/`cockpit.py`/
+      `webdeck.py` als "live getestet" identifiziert), aber nie zeilenweise auf eigene Logikfehler
+      durchgesehen — per `add_repo`/`register_repo_root` frisch geklont (`main`, Commit
+      `ceb068bf278feae4a8180d24330111e0b911301d`), alle fünf Dateien
+      (`flipperbridge.py`/`cockpit.py`/`magtool.py`/`vault_organizer.py`/`webdeck.py`, 1099 Zeilen)
+      vollständig gelesen.
+- [x] `flipperbridge.py`/`cockpit.py::storage_free()` zunächst als Verdachtsstelle geprüft
+      (`"total"`/`"free"` als Teilstring-Suche, Groß-/Kleinschreibung) — gegen den tatsächlichen
+      Firmware-CLI-Output verifiziert (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+      `b359f6fc32f282ce7217dd2d48a4e3478771852e`,
+      `applications/services/storage/storage_cli.c`: `"%luKiB total\r\n%luKiB free\r\n"`,
+      tatsächlich kleingeschrieben) — kein Fund, Verdacht verworfen statt eines nicht belastbaren
+      Fixes. `magtool.py`/`vault_organizer.py` ebenfalls ohne belastbaren Fund (LRC-Berechnungen
+      sind rein informativ, keine Rundreise-Inkonsistenz).
+- [x] Echter Fund in `webdeck/webdeck.py::api_apps()`: `_apps_cache` (Modul-global) wird beim
+      ersten `/api/apps`-Aufruf einmal befüllt und danach nie wieder invalidiert — anders als die
+      oberflächlich ähnliche, aber bewusst als "einmal pro `live`-Kommando" dokumentierte
+      `count_apps()`-Cache-Stelle in `cockpit.py` ist `webdeck.py` ein Dauerprozess (`serve_forever()`),
+      bei dem "einmalig" faktisch "für immer bis zum Neustart" bedeutet. Jede Installation/
+      Deinstallation einer App auf dem Flipper, während der Webdeck-Server durchläuft (Normalfall
+      auf dem Pi-Deck), bleibt in der Browser-Ansicht dauerhaft unsichtbar.
+- [x] Fix (additiv, zwei Zeilen Logik + ein Import): neues Feld `_apps_cache_ts`/`APPS_CACHE_TTL_S
+      = 30.0`; `api_apps()` prüft jetzt `(time.monotonic() - _apps_cache_ts) < APPS_CACHE_TTL_S`
+      statt bloßem `is not None`. Cache-Performance-Vorteil bei schnell aufeinanderfolgenden
+      Aufrufen bleibt erhalten, Staleness auf 30 s begrenzt. Patch
+      (`connective-patches/webdeck_py.patch`) gegen zwei frische, unabhängige Zweitkopien von
+      `G4MEOVER18/g4meover-companion` (`main`, Commit `ceb068bf278feae4a8180d24330111e0b911301d`)
+      mit `git apply --check` verifiziert, real angewendet, per `md5sum` byte-für-byte abgeglichen
+      — identisch; `python3 -m py_compile` auf die gepatchte Datei fehlerfrei.
+- [x] Host-Repro (`repro-webdeck-apps-cache-ttl/repro.py`): `api_apps()` 1:1 als ALT-/NEU-Funktion
+      über injizierbares `CacheState` + `MockBridge` transkribiert (`storage_list()`-Antwortformat
+      gegen dieselbe reale Firmware-CLI-Stelle verifiziert, `"\t[F] %s %lub\r\n"`) — nicht per
+      `import webdeck` getestet, da `flipperbridge.py` `pyserial` importiert, das auf diesem Host
+      nicht installiert ist. 10 Prüfungen (ALT liefert korrekten Erststand; **Fund:** ALT bleibt
+      nach simulierter App-Installation und beliebig langer simulierter Zeit beim alten Stand ohne
+      jede erneute Geräteabfrage; NEU liefert korrekten Erststand; NEU bleibt knapp vor TTL-Ablauf
+      gecacht, ohne erneuten `storage_list`-Aufruf; **Fix:** NEU liefert knapp nach TTL-Ablauf den
+      aktuellen Stand mit genau einem neuen Abfragesatz; Regression ohne Geräteänderung bleibt
+      stabil) unter `python3 -I`: **ALLE PRÜFUNGEN BESTANDEN**.
+- [x] `app-improvements/g4meover-companion/webdeck-apps-cache-never-expires-fix.md` angelegt (Was,
+      Nutzen, betroffene Dateien, Patch, Host-Repro, Testhinweis, Risiko, Quelle) plus Patch
+      (`connective-patches/webdeck_py.patch`, Zieldatei `webdeck_py.target`) und Host-Repro
+      (`repro-webdeck-apps-cache-ttl/repro.py`).
+- [ ] Lokal zu tun: Patch gegen die eigene `webdeck.py`-Kopie anwenden, `webdeck.py -p COM3`
+      starten, `/api/apps` einmal abrufen, dann eine App in einer der `CATS`-Kategorien auf dem
+      Flipper hinzufügen/entfernen. Vor dem Fix bleibt die Browser-Ansicht bis zum Prozess-Neustart
+      beim alten Stand; nach dem Fix zeigt ein Abruf nach spätestens 30 s den aktuellen Stand.
+      Regressionsfall: mehrere `/api/apps`-Abrufe innerhalb von 30 s ohne Geräteänderung erzeugen
+      weiterhin nur einen `storage list`-Durchlauf (kein spürbar erhöhter Seriell-Traffic).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration
+      (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SubGhzBlockGenericGlobal übrige 9 Rolling-Code-Protokolle, dann `endless_tx`-Anschluss, sowie
+      Phase 5 (separater SubGhz-Remote-Port), ProtoViews restliche vier Protokoll-Decoder sowie die
+      Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, `g4meover-companion` restlicher Code
+      (`flipperbridge.py`/`cockpit.py`/`magtool.py`/`vault_organizer.py` jetzt vollständig
+      gelesen, aktuell ohne weiteren belastbaren Fund — bei künftiger Weiterentwicklung dieser
+      Dateien gegenprüfen).
