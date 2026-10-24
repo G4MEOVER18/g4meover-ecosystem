@@ -8700,3 +8700,69 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (separater SubGhz-Remote-Port), ProtoViews restliche vier Protokoll-Decoder sowie
       die Bit-Edit-/Keyboard-Ansicht (noch nicht Zeile für Zeile auf eigene
       Logikfehler durchgesehen), veraltete `README.md`.
+
+## Ideen-Recherche: SignalSweep (B0z0dcl0wn) — neue Zeile unter Counter-Surveillance / TSCM
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: letzte Sitzung war
+      App-Verbesserung (RollLab, `RLAB_CAP_TIMEOUT_MS`-Fix), davor Firmware-Feature-Mining
+      (SubGhzBlockGenericGlobal Phase 3, Princeton), davor Ideen-Recherche (ProtoView) — nach
+      dem etablierten Rotationsmuster (die am längsten zurückliegende Kategorie zuerst) war
+      Ideen-Recherche für diese Sitzung an der Reihe (zuletzt vor zwei weiteren Sitzungen
+      dran). Dabei einen eigenen Zustandsfehler im lokalen Checkout korrigiert: `HEAD` stand
+      detached einen Commit vor dem Branch-Zeiger `main` — reines Fast-Forward des lokalen
+      `main`-Zeigers auf `HEAD`, kein Push nötig. Git-Identität vor dem ersten eigenen Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer Ergänzung für die bestehende Gegenüberwachungs-/TSCM-Sammlung
+      (Nyx/Specter/GhostTag/Argus/Sobe) gesucht: dort sind Infrarot, aktive NFC-Leser,
+      BLE-Tracker über Verweilzeit und WiFi-Deauth/Evil-Twin abgedeckt — eine Drohnen-/
+      Remote-ID-Erkennung fehlt komplett. Mehrere Web-Recherchen zu Flipper-nativen
+      Zigbee-/Remote-ID-/ADS-B-/FLARM-Apps blieben erfolglos (kein existierender Flipper-FAP
+      für diese Kategorien gefunden, teils außerhalb des CC1101-Sub-GHz-Bereichs).
+- [x] **SignalSweep** (`B0z0dcl0wn/SignalSweep`, GPL-3.0-or-later, 372 Commits, 106 Sterne,
+      16 Forks, eigenes `CHANGELOG.md`) gefunden — passiver BLE-/WiFi-Scanner auf einem Seeed
+      XIAO ESP32-C5 (Dual-Band 2,4/5 GHz, empfohlen) bzw. ESP32-S3 (nur 2,4 GHz), dekodiert
+      ASTM-F3411-Drohnen-Remote-ID (Höhe/Geschwindigkeit/Kurs/Piloten-Standort laut eigener
+      Doku) sowie Apple/Google/Samsung/Tile-Tracker und Flock-Safety/Axon-Bodycam/
+      Smart-Glasses-Signaturen (editierbare Liste). Kein Display nötig — Buzzer-/
+      WS2812-LED-Alarmierung mit je eigenem Muster pro Kategorie, Konfiguration/Log-Abruf über
+      eine WebSerial-/BLE-Webapp oder Android-APK. Kein Flipper-FAP — eigenständiges
+      Zweitgerät ohne jede Berührung mit `mntm-012`/API 87.1.
+- [x] Projektdokumentation (README/`docs/README-full.md`) geprüft, ob eine engere
+      Flipper-Anbindung (UART-Companion nach `Argus`-Muster) aus der vorhandenen Doku ableitbar
+      wäre: dokumentiert ist nur ein zeilenbasiertes JSON-/Rohbefehls-Protokoll über native
+      USB-CDC (`CMD:CFG`, `CMD:SIGS:RESET`, `CMD:RXONLY:ON|OFF`, `CMD:BLE_SCAN:ON|OFF`,
+      `CMD:WIFI_SCAN:ON|OFF`, `CMD:HOST`-Keepalive, `{"beep_mask":N}`/`{"led":0..3}`), aber kein
+      Ausgabeformat für einzelne Erkennungs-Events (einzige dokumentierte Antwort ist
+      `CMD:CFG`, ein reiner Konfigurationsstatus) — eine Flipper-Anbindung wäre nur nach
+      eigener Sichtung des tatsächlichen Firmware-Quelltexts (nicht nur der Doku) seriös
+      planbar, für diese Sitzung bewusst nicht vertieft.
+- [x] Sicherheitsrahmen geprüft: Projekt bezeichnet sich selbst ausdrücklich als reinen
+      Empfänger ("It's a receiver", "The only winning move is not to transmit"), keine
+      Jamming-/Deauth-/Injection-/Spoofing-Funktion — deckt sich mit meinem eigenen
+      defensiven/autorisierten Rahmen.
+- [x] Vollständiger Eintrag (Quelle, Was, Nutzen, Firmware-/Kompatibilitäts-Status,
+      Sicherheitsrahmen, Risiko, nächster Schritt) in
+      `ideas/signalsweep-drone-remote-id-counter-surveillance-recherche.md`.
+      `ideas/pentest-app-katalog.md` erweitert: neue Zeile unter "Counter-Surveillance /
+      TSCM", neuer Rechercheauftrag-Eintrag am Ende.
+- [ ] Lokal zu tun: Anschaffung eines XIAO ESP32-C5 (oder ersatzweise S3) plus Antenne,
+      Firmware vom Haupt-Repository flashen, als eigenständiges Zweitgerät neben dem Flipper
+      bei einer autorisierten TSCM-Begehung gegen ein eigenes/autorisiertes Testdrohnenflugzeug
+      und einen eigenen BLE-Tracker verifizieren.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump),
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SubGhzBlockGenericGlobal übrige ~13 Rolling-Code-Protokolle (vier Dateinamen aus
+      der ursprünglichen Liste existieren bei mir gar nicht als eigenständige
+      Protokolldateien — Status klären), dann `endless_tx`-Anschluss, sowie Phase 4
+      (separater SubGhz-Remote-Port), ProtoViews restliche vier Protokoll-Decoder sowie
+      die Bit-Edit-/Keyboard-Ansicht (noch nicht Zeile für Zeile auf eigene
+      Logikfehler durchgesehen), SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`.
