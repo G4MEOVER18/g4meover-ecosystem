@@ -1,5 +1,26 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 4):** zweites Nachzieh-Protokoll (Security+ 1.0, `secplus_v1`) angeschlossen —
+siehe "Phase 4: Security+ 1.0" sowie "Verifikation Phase 4" unten. Außerdem die bereits in
+Phase 3 festgestellte, im letzten Arbeits-Log noch als offen vermerkte Beobachtung mit einem
+komplett frischen `G4MEOVER-FW`-Clone erneut bestätigt: die vier in der ursprünglichen
+~15-Protokoll-Liste genannten Dateien `beninca_arc.c`, `jarolift.c`, `prastel.c`,
+`ditec_gol4.c` existieren bei mir weiterhin nicht als eigenständige Protokolldateien in
+`lib/subghz/protocols/` (`find`/`ls` gegen den vollständigen Checkout, kein Treffer für alle
+vier Dateinamen), sondern bislang nur als separate, eigene Port-Vorschläge in diesem
+Repository dokumentiert (`jarolift-keeloq-subghz-port.md`, `beninca-arc-aes-subghz-port.md`,
+`prastel-42bit-rolling-code-port.md` — `ditec_gol4` hat noch keinen eigenen Port-Vorschlag).
+Der hier beschriebene Override-Anschluss betrifft sie also
+erst, sobald/falls diese vier Protokoll-Ports tatsächlich in die eigene Firmware übernommen
+wurden — bis dahin bleiben von der ursprünglich gezählten Liste nur 11 der ~15 Protokolle, die
+bei mir heute tatsächlich als eigenständige Datei existieren und für den Override-Anschluss
+infrage kommen. Davon sind KeeLoq (Phase 2) und jetzt Secplus v1 (Phase 4) bereits
+angeschlossen — macht 2 von 11, 9 offen (FAAC SLH, Secplus v2, Alutech AT-4N, Phoenix V2, Nice
+FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis, Somfy Telis). Princeton (Phase 3) kommt
+als zusätzlicher, nicht in der ursprünglichen Liste gezählter Fund hinzu — macht insgesamt 3
+angeschlossene Protokolle. Siehe "Port-Skizze" für den aktualisierten Diff-Größen-Überblick der
+verbleibenden 9.
+
 ## Was
 
 Ich habe `lib/subghz/` zwischen meiner eigenen Basis (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
@@ -122,16 +143,29 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase3/` — Host-Repro (siehe
   "Verifikation Phase 3").
 
-**Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** die übrigen
-~13 der oben genannten Rolling-Code-Protokolldateien, die den Mechanismus bei Unleashed bereits
-nutzen, plus ggf. weitere Festcode-Protokolle wie Princeton, die den Mechanismus ebenfalls nur
-für die Taste nutzen (noch nicht systematisch durchsucht) — pro Datei derselbe kleine, lokal
-begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton, sofern sich der Gesamtdiff (auch bei
-KeeLoq/Princeton teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug
-von Hand auftrennen lässt. Bei Protokollen mit deutlich größerem Gesamtdiff (FAAC SLH: 712
-Zeilen, Secplus v2: 1133, Nice FloR-S: 1284 u. a.) ist derselbe sorgfältige Einzelabgleich wie bei
-KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht versucht. Keine dieser Dateien ist
-in dieser Sitzung angefasst.
+**Jetzt geliefert (Phase 4, zweites Nachzieh-Protokoll Security+ 1.0):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/secplus_v1.c`
+  — meine eigene `secplus_v1.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, per frischem
+  `git clone` zu Sitzungsbeginn als unverändert aktueller `HEAD`-Stand bestätigt), additiv um
+  die zwei Anschlussstellen erweitert (siehe "Phase 4: Security+ 1.0" unten). Fertige
+  Zieldatei zum direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/secplus_v1.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/secplus_v1_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase4/` — Host-Repro
+  (siehe "Verifikation Phase 4").
+
+**Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
+ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
+Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
+"Update (Phase 4)" oben) — es bleiben 9 echte Kandidaten: FAAC SLH, Secplus v2, Alutech AT-4N,
+Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis, Somfy Telis. Pro Datei
+derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1, sofern
+sich der Gesamtdiff (teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht) klein
+genug von Hand auftrennen lässt — bei Secplus v1 (231 Diff-Zeilen, siehe "Phase 4") hat das
+wie bei Princeton (214 Zeilen) zuverlässig funktioniert. Bei Protokollen mit deutlich größerem
+Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2: 1133, Nice FloR-S: 1284 u. a.) ist derselbe
+sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch
+nicht versucht. Keine dieser Dateien ist in dieser Sitzung angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -202,6 +236,44 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
    Bitlänge), `btn_length_bit` pro Zweig passend zur bestehenden Anzeigeaufteilung (8 für die vier
    8-Bit-Codes, 4 für alle anderen) — exakt Unleasheds eigene Anbindung, byte-für-byte übernommen
    (siehe "Verifikation Phase 3").
+
+### Phase 4: Security+ 1.0 (zweites Protokoll der Nachzieh-Liste)
+
+**Was:** `secplus_v1` ist bei Unleashed Mitglied der ursprünglich gezählten Rolling-Code-
+Protokolle — anders als KeeLoq und Princeton nutzt es aber keine Modus-Tabelle für den Zähler,
+sondern eine eigene, mehrstufige "OFEX" (Overflow-Experimental)-Logik mit einem zweiten
+Sentinel-Wert (`-0x7FFFFFFF`) für `furi_hal_subghz_get_rolling_counter_mult()`. Beim Diff
+meiner eigenen `secplus_v1.c` gegen Unleasheds aktuellen Standard-Branch zeigte sich dieselbe
+Situation wie bei Princeton: Unleasheds separater `common.c`-Encoder-/Decoder-Basis-Umbau
+betrifft auch diese Datei (neue `#include "common.h"`, `SUBGHZ_ASSERT_*_LAYOUT`, `alloc`/`free`
+über `subghz_protocol_*_common_alloc/_free`, eigene `subghz_protocol_encoder_common_stop/_yield`
+statt eigenem Encoder-Loop), aber der Gesamtdiff ist mit 231 Zeilen (ähnlich Princetons
+214) klein genug, die zwei tatsächlich override-relevanten Anschlussstellen von Hand
+herauszutrennen, ohne den `common.c`-Umbau selbst zu übernehmen. Unleasheds eigener Override-
+Anschluss ersetzt dabei einen großen Teil der alten Zähler-Logik komplett (die bei Unleashed
+inzwischen entfernten `multicntr`-Berechnung und die Sonderfallbehandlung für `rolling == 0`);
+meine eigene `secplus_v1.c` hat diesen Umbau nicht mitgemacht — sie ist strukturell noch die
+"alte" Logik, die Unleashed vor seinem eigenen Refactor ebenfalls hatte. Ein blinder
+Dateiersatz hätte wie bei KeeLoq in Phase 2 die eigene, unveränderte `multicntr`-/OFEX-Logik
+ersatzlos gelöscht. Stattdessen, wie bei KeeLoq, die Override-Abfrage als zusätzlicher,
+vorangestellter Zweig einer bestehenden `if`/`else if`-Kette eingefügt, ohne die beiden
+bestehenden Zweige (Standard-Inkrement, OFEX-Modus) inhaltlich anzutasten:
+
+1. `subghz_protocol_secplus_v1_encode()`: die bestehende `if(furi_hal_subghz_get_
+   rolling_counter_mult() != -0x7FFFFFFF) { ... } else { /* OFEX */ }`-Verzweigung bleibt
+   vollständig erhalten, bekommt aber einen neuen, vorangestellten Zweig:
+   `if(subghz_block_generic_global_counter_override_get(&rolling)) { /* Override direkt
+   verwendet */ } else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) { ... }
+   else { /* OFEX, unverändert */ }`. Bei anhängendem Override wird weder der Standard-
+   Inkrement-Pfad noch der OFEX-Pfad erreicht — beide bleiben für den unveränderten Fall exakt
+   wie vorher.
+2. `subghz_protocol_decoder_secplus_v1_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   der bestehenden `fixed`/`cnt`/`btn`-Berechnung gesetzt — exakt Unleasheds eigene Anbindung,
+   byte-für-byte übernommen (siehe "Verifikation Phase 4"). `btn_is_available` ist dabei `false`:
+   Secplus v1s Tastenwert ist aus dem Festcode-Teil (`fixed % 3`) abgeleitet, nicht unabhängig
+   editierbar — dieselbe Festlegung, die Unleashed selbst trifft (kein eigener Fund, einfach
+   übernommen).
 
 ## Risiko
 
@@ -398,6 +470,51 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
     -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 4 (Security+ 1.0)
+
+- **Patch additiv, byte-identisch:** `connective-patches/secplus_v1_c.patch` per `git apply
+  --check` sowie real per `git apply` gegen zwei frische, unabhängige Zweitkopien meiner
+  eigenen `secplus_v1.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, per frischem `git clone` zu
+  Sitzungsbeginn geholt) angewendet — beide Ergebnisse per `md5sum` byte-identisch zueinander
+  und zur mitgelieferten Zieldatei bestätigt (zusätzlich per `git apply` in einer dritten
+  Zweitkopie bestätigt). `git diff --stat` nach dem Anwenden: **14 Zeilen Hinzufügung,
+  1 Löschung** (die eine Löschung ist die bestehende `if(furi_hal_subghz_get_rolling_counter_
+  mult() != -0x7FFFFFFF) {`-Zeile, die durch die um den neuen Override-Zweig erweiterte Zeile
+  `} else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {` ersetzt wird — keine
+  inhaltliche Löschung, reine Zeilenverschiebung in dieselbe Bedingung).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase4/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die zwei neuen
+  Anschlussstellen selbst sind per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten,
+  bereits gepatchten `secplus_v1.c` in eigene `.inc`-Fragmente extrahiert und in minimalen
+  Wrapper-Funktionen eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar: `sed 228,274p` für den Zähler-Override-Zweig plus die unveränderten
+  Geschwister-Zweige, `sed 613,621p` für den `get_string()`-Push-Block). Geprüft (18 Prüfungen):
+  1. Zähler-Override verwendet den überschriebenen Wert verbatim und überspringt dabei sowohl
+     den Standard-Inkrement-Pfad als auch den OFEX-Pfad vollständig — auch dann, wenn
+     `furi_hal_subghz_get_rolling_counter_mult()` gleichzeitig auf den OFEX-Sentinel-Wert
+     gesetzt ist (Beleg, dass der neue Zweig strikt vor der gesamten bestehenden `if`/`else
+     if`-Kette läuft, nicht nur vor deren Standard-Hälfte). Override verbraucht sich einmalig.
+  2. Ohne anhängenden Override läuft die bestehende Standard-Inkrement-Logik unverändert (die
+     `rolling == 0`-Sonderbehandlung mit dem kleinen `multicntr`-Zweig sowie der normale
+     `rolling += multicntr`-Zweig).
+  3. Ohne anhängenden Override läuft die bestehende OFEX-Logik unverändert — sowohl der
+     einfache `rolling++`-Fall unterhalb der `0xE6000000`-Schwelle als auch der
+     Sprung-auf-`0xFFFFFFFE`-Fall bei/oberhalb der Schwelle (Regression gegen beide
+     dokumentierten Verzweigungen, nicht nur den einfachen Inkrement-Fall).
+  4. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+     unbedingt `32`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `false`/
+     `current_btn`/`btn_length_bit` korrekt, für zwei unterschiedliche Zähler-/Tastenwerte
+     (inkl. des Randfalls beide `0`).
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **18 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus `firmware-mining/repro-subghz-block-generic-global-override-port-phase4/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -414,17 +531,27 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
    dem ersten `_override_get()`) wurde dabei am eigenen Host-Repro tatsächlich ausgelöst und
    korrekt eingehalten (siehe "Verifikation Phase 2"). Kein Modus-7/`bypass`-Mechanismus nötig,
    da mein `keeloq_counter_mode` kein Modus 7 kennt.
-3. **Phase 3 (begonnen, diese Sitzung — Princeton):** erstes Nachzieh-Protokoll angeschlossen,
-   nur die Tasten-Hälfte des Mechanismus (Princeton ist Festcode, kein Zähler). Gesamtdiff mit
-   214 Zeilen klein genug, um die zwei override-relevanten Anschlussstellen von Hand aus dem
-   (auch bei Princeton vorhandenen, aber hier nicht übernommenen) `common.c`-Umbau-Diff
-   herauszutrennen. Weiterhin offen: die übrigen ~13 der ursprünglich gezählten Rolling-Code-Protokolle (gleiches
-   Muster wie KeeLoq, siehe "Betroffene Dateien" — pro Protokoll eigener Diff gegen Unleashed
-   nötig, da bereits bei KeeLoq erhebliche strukturelle Abweichungen von der aktuellen
-   Unleashed-Version bestanden, und bei den auf `common.c` umgebauten Protokollen wie FAAC SLH
-   ein deutlich größerer Diff als bei KeeLoq/Princeton zu erwarten ist), dann `endless_tx` an die
-   eigene SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
-4. **Phase 4 (separater, deutlich größerer Port, nicht Teil dieser Port-Skizze):** erst ab hier
+3. **Phase 3 (geliefert, vorherige Sitzung — Princeton):** erstes Nachzieh-Protokoll
+   angeschlossen, nur die Tasten-Hälfte des Mechanismus (Princeton ist Festcode, kein Zähler).
+   Gesamtdiff mit 214 Zeilen klein genug, um die zwei override-relevanten Anschlussstellen von
+   Hand aus dem (auch bei Princeton vorhandenen, aber hier nicht übernommenen)
+   `common.c`-Umbau-Diff herauszutrennen.
+4. **Phase 4 (geliefert, diese Sitzung — Security+ 1.0):** zweites Nachzieh-Protokoll
+   angeschlossen, erstes Nachzieh-Protokoll mit tatsächlicher Zähler-Hälfte (zusätzlich zur
+   Tasten-Hälfte). Gesamtdiff mit 231 Zeilen ähnlich klein wie bei Princeton; die bestehende
+   eigene OFEX-/`multicntr`-Logik bleibt dabei (wie KeeLoq in Phase 2) vollständig erhalten,
+   der Override nur als vorangestellter Zweig davor eingefügt. Dabei geklärt: vier der
+   ursprünglich gezählten ~15 Protokolldateien (Beninca ARC, Jarolift, Prastel, Ditec GOL4)
+   existieren bei mir noch nicht als eigene Datei — siehe "Update (Phase 4)" oben. Weiterhin
+   offen: die übrigen 9 der tatsächlich existierenden Nachzieh-Kandidaten (FAAC SLH,
+   Secplus v2, Alutech AT-4N, Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy
+   Keytis, Somfy Telis — gleiches Muster wie KeeLoq/Secplus v1, siehe "Betroffene Dateien" —
+   pro Protokoll eigener Diff gegen Unleashed nötig, da bereits bei KeeLoq erhebliche
+   strukturelle Abweichungen von der aktuellen Unleashed-Version bestanden, und bei den auf
+   `common.c` umgebauten Protokollen wie FAAC SLH ein deutlich größerer Diff als bei
+   KeeLoq/Princeton/Secplus v1 zu erwarten ist), dann `endless_tx` an die eigene
+   SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
+5. **Phase 5 (separater, deutlich größerer Port, nicht Teil dieser Port-Skizze):** erst ab hier
    wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll — ihr `subrem_tx_start_sub()`
    braucht exakt den hier gelieferten Mechanismus, um den Tastenwert vor dem Senden zu
    überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener Port-Skizze (Map-Datei-
@@ -433,7 +560,7 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
    bei einem ersten Blick bereits mehrere funktionale Unterschiede sichtbar, u. a. der
    OTG-Einschaltpfad: die App nutzt einen begrenzten `furi_hal_power_enable_otg()`-Retry mit
    5 Versuchen, meine eigene Version einen einmaligen Aufruf über den `Power`-Service).
-5. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
+6. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
    Compile-Fehler durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
@@ -441,7 +568,10 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
    getestetes Garagentor/Empfänger) beobachten, ob/wie der geänderte Zähler akzeptiert wird. Nach
    Phase 3 zusätzlich mit Princeton testbar: Festcode-Signal erfassen, über ein künftiges
    Edit-Menü die Taste ändern, erneut senden, am Zielgerät beobachten, ob der geänderte
-   Tastenwert erwartungsgemäß erkannt wird.
+   Tastenwert erwartungsgemäß erkannt wird. Nach Phase 4 zusätzlich mit Secplus v1 testbar:
+   Rolling-Code-Signal erfassen, über ein künftiges Edit-Menü den Zähler ändern, erneut senden,
+   am Zielgerät (eigenes, autorisiert getestetes Garagentor/Empfänger) beobachten, ob/wie der
+   geänderte Zähler akzeptiert wird.
 
 ## Quelle
 
@@ -458,7 +588,7 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
   Unleashed unter `applications/main/subghz_remote` eingebunden, `.gitmodules`): Auslöser dieser
   Recherche, `subghz_remote_app_i.c` (`subrem_tx_start_sub`/`_stop_sub`) als Beleg für den
   tatsächlichen Nutzungsfall des hier portierten Mechanismus bei einer externen App; eigener Port
-  dieser App bewusst nicht Teil dieser Sitzung (siehe "Port-Skizze", Phase 4).
+  dieser App bewusst nicht Teil dieser Sitzung (siehe "Port-Skizze", Phase 5).
 - `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
   (2026-08-18, per `git ls-remote` sowohl zu Sitzungsbeginn Phase 1 als auch erneut zu
   Sitzungsbeginn Phase 2 als unverändert aktueller `HEAD`-Stand bestätigt): eigene Basis für den
@@ -486,3 +616,18 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `princeton.c`
   (per `git ls-remote` zu Sitzungsbeginn Phase 3 erneut als unverändert aktueller `HEAD`-Stand
   bestätigt, identisch zu Phase 1/2): eigene Basis für `lib/subghz/protocols/princeton.c` sowie
   Ausgangspunkt für `connective-patches/princeton_c.patch`.
+- (Phase 4) Unleashed-Firmware, Standard-Branch, Commit
+  `44ef0b91eafeb59215626cffb2cac9be1fc2f310` (2026-10-24, per frischem `git clone` zu
+  Sitzungsbeginn geholt): `lib/subghz/protocols/secplus_v1.c` zum Abgleich geholt, die zwei
+  Counter-/Availability-Override-Anschlusspunkte (siehe "Phase 4: Security+ 1.0") daraus
+  übernommen; der übrige, hier nicht übernommene Teil des Diffs besteht wie bei Princeton
+  ausschließlich aus Unleasheds separatem `common.c`-Encoder-/Decoder-Basis-Umbau, der mit
+  diesem Port nicht zusammenhängt und nicht übernommen wird.
+- (Phase 4) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per frischem `git clone` zu Sitzungsbeginn Phase 4 erneut als unverändert aktueller
+  `HEAD`-Stand bestätigt, identisch zu Phase 1/2/3): eigene Basis für
+  `lib/subghz/protocols/secplus_v1.c` sowie Ausgangspunkt für
+  `connective-patches/secplus_v1_c.patch`; gleichzeitig Fundort/Beleg für die in "Update
+  (Phase 4)" dokumentierte Klärung, dass `beninca_arc.c`, `jarolift.c`, `prastel.c`,
+  `ditec_gol4.c` hier (noch) nicht existieren (`find lib/subghz/protocols -iname` gegen den
+  vollständigen, frisch geklonten Checkout, kein Treffer für alle vier Dateinamen).

@@ -8766,3 +8766,93 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       die Bit-Edit-/Keyboard-Ansicht (noch nicht Zeile für Zeile auf eigene
       Logikfehler durchgesehen), SignalSweep-Firmware-Quelltextsichtung für eine mögliche
       Flipper-UART-Anbindung, veraltete `README.md`.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 4 — Security+ 1.0 als zweites Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `BACKLOG.md`-Ende
+      durchgesehen: letzte Sitzung war Ideen-Recherche (SignalSweep), davor App-Verbesserung
+      (RollLab), davor Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 3, Princeton) —
+      nach dem etablierten Rotationsmuster (die am längsten zurückliegende Kategorie zuerst)
+      war Firmware-Feature-Mining für diese Sitzung an der Reihe. Eigenen Zustandsfehler im
+      lokalen Checkout korrigiert: `HEAD` stand detached auf `origin/main`s Stand, aber die
+      lokale `main`-Branch-Referenz lag drei Commits zurück — per `git checkout main` und
+      `git merge --ff-only origin/main` nachgezogen, kein Push nötig. Git-Identität vor dem
+      ersten eigenen Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Port-Skizze aus Phase 1/2/3 aufgegriffen: von den ursprünglich ~15 gezählten
+      Rolling-Code-Kandidaten gegen einen frischen `G4MEOVER-FW`-Clone
+      (`b359f6fc32f282ce7217dd2d48a4e3478771852e`, unverändert identisch zu Phase 1/2/3) und
+      einen frischen Unleashed-Clone (Standard-Branch, `44ef0b91eafeb59215626cffb2cac9be1fc2f310`)
+      systematisch die Diff-Größe jeder tatsächlich vorhandenen Protokolldatei erhoben: Secplus
+      v1 und Somfy Telis mit je 231 Diff-Zeilen die beiden kleinsten verbliebenen Kandidaten
+      (ähnlich Princetons 214 aus Phase 3), CAME Atomo/Alutech AT-4N/Somfy Keytis im
+      400er-Bereich, Phoenix V2 bei 324, der Rest (FAAC SLH 712, Secplus v2 1133, Nice FloR-S
+      1284) weiterhin deutlich zu groß für einen Einzelabgleich in dieser Sitzung. Security+ 1.0
+      (`secplus_v1`) gewählt: einziger Kandidat aus der ursprünglichen Liste mit kleinem Diff,
+      der zusätzlich tatsächlich die Zähler- (nicht nur die Tasten-)Hälfte des Mechanismus nutzt
+      — Somfy Telis existiert bei mir nicht als eigenständige Protokolldatei, wäre also derselbe
+      Rückstellpunkt wie Beninca ARC/Jarolift/Prastel/Ditec GOL4 geworden.
+- [x] Die seit Phase 3 offene, im letzten Arbeits-Log noch als zu klärend vermerkte Frage mit
+      diesem frischen Clone erneut bestätigt: `beninca_arc.c`, `jarolift.c`, `prastel.c`,
+      `ditec_gol4.c` existieren bei mir weiterhin nicht als eigenständige Dateien unter
+      `lib/subghz/protocols/` — bleiben eigene, noch nicht in die Firmware übernommene
+      Port-Vorschläge in diesem Repository. Damit bleiben von der ursprünglichen Liste 11
+      tatsächlich vorhandene Kandidaten, davon jetzt 2 angeschlossen (KeeLoq, Secplus v1), 9
+      offen.
+- [x] Meine eigene `secplus_v1.c` gegen Unleasheds Fund gegengelesen: wie bei KeeLoq (Phase 2)
+      keine 1:1-Kopie — meine Basis hat die alte, bei Unleashed inzwischen durch einen direkten
+      Override-Aufruf ersetzte `multicntr`-/OFEX-Sonderfall-Logik noch vollständig. Ein blinder
+      Dateiersatz hätte sie ersatzlos gelöscht. Stattdessen, wie bei KeeLoq, die Override-Abfrage
+      als zusätzlicher, vorangestellter Zweig einer bestehenden `if`/`else if`-Kette eingefügt,
+      beide bestehenden Zweige (Standard-Inkrement, OFEX) unverändert gelassen. Siehe
+      `firmware-mining/subghz-block-generic-global-override-port.md`, Abschnitt "Phase 4:
+      Security+ 1.0".
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      secplus_v1_c.patch`) gegen drei frische, unabhängige Zweitkopien meiner eigenen
+      `secplus_v1.c` mit `patch`/`git apply --check` verifiziert, real angewendet, Ergebnis per
+      `md5sum` byte-für-byte abgeglichen — identisch (14 Zeilen Hinzufügung, 1 Löschung laut
+      `git diff --stat` — die eine Löschung ist eine reine Zeilenverschiebung derselben
+      Bedingung in die um den neuen Zweig erweiterte `else if`, keine inhaltliche Löschung).
+      Zieldatei zum direkten Ersetzen ebenfalls mitgeliefert.
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase4/`):
+      die zwei neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus der gepatchten
+      `secplus_v1.c` extrahiert, gegen die echte, unveränderte Phase-1-`generic.c` verlinkt. 18
+      Prüfungen (Zähler-Override verdrängt sowohl den Standard- als auch den OFEX-Pfad
+      vollständig, auch wenn beide gleichzeitig aktiv wären; Einmal-Verbrauch; unveränderte
+      Standard- und OFEX-Regression inkl. des OFEX-Sprung-auf-`0xFFFFFFFE`-Falls;
+      `get_string()`-Push-Block setzt Zähler-Verfügbarkeit/-Länge/-Wert und
+      Tasten-Verfügbarkeit (immer `false`, wie bei Unleashed)/-Länge/-Wert korrekt) unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED**, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` bleibt bei 0.
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` entsprechend erweitert
+      (neuer Abschnitt "Phase 4: Security+ 1.0" unter "Betroffene Dateien", neuer Abschnitt
+      "Verifikation Phase 4", "Port-Skizze" um Phase 4 ergänzt und der bisherige SubGhz-Remote-
+      Punkt zu Phase 5 verschoben, "Quelle" um beide Phase-4-Commits ergänzt, Kopf-Update-Hinweis
+      für die Beninca-ARC-/Jarolift-/Prastel-/Ditec-GOL4-Klärung ergänzt).
+- [ ] Lokal zu tun: Patch gegen die eigene `secplus_v1.c` anwenden, mit `ufbt`/`fbt firmware_all`
+      bauen (reine Ergänzung an bereits vorhandener, aktiver Datei — sollte ohne Compile-Fehler
+      durchlaufen, da beide neuen Symbole bereits aus dem Phase-1-`generic.h`-Patch kommen).
+      Funktionstest mit Hardware: ein eigenes Security+-1.0-Rolling-Code-Signal (eigenes,
+      autorisiert getestetes Garagentor/Empfänger) erfassen, über das noch zu bauende
+      Signal-Einstellungen-Menü (existiert als UI noch nicht — siehe Phase 5) ersatzweise direkt
+      per Debugger/Testaufruf `subghz_block_generic_global_counter_override_set()` setzen, erneut
+      senden, beobachten, ob der geänderte Zähler tatsächlich ankommt. Regressionsfall: Signal
+      ohne gesetzten Override normal erneut senden — Zähler muss sich wie vor dem Patch
+      verhalten.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 9 Rolling-Code-Protokolle (FAAC SLH,
+      Secplus v2, Alutech AT-4N, Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy
+      Keytis, Somfy Telis — gleiches Muster wie KeeLoq/Secplus v1 nötig, kein blinder
+      Dateiersatz, bei den auf `common.c` umgebauten größeren Kandidaten deutlich mehr Aufwand),
+      dann `endless_tx`-Anschluss, sowie Phase 5 (separater SubGhz-Remote-Port), ProtoViews
+      restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete
+      `README.md`.
