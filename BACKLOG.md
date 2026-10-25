@@ -9020,3 +9020,93 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       veraltete `README.md`, `g4meover-companion` restlicher Code vollständig gelesen ohne
       weiteren Fund (bei künftiger Weiterentwicklung gegenprüfen), lokaler Test des
       `webdeck.py`-`_apps_cache`-TTL-Fixes.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 5 — Somfy Telis als drittes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis durchgesehen: letzte
+      Sitzung war Ideen-Recherche (Unitemp), davor App-Verbesserung (g4meover-companion), davor
+      Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 4, Security+ 1.0) — nach dem
+      etablierten Rotationsmuster war Firmware-Feature-Mining für diese Sitzung an der Reihe.
+      Eigenen Zustandsfehler im lokalen Checkout korrigiert: `HEAD` (detached) stand bereits
+      exakt auf `origin/main`, nur der lokale `main`-Branch-Zeiger lag sieben Commits zurück —
+      per `git fetch origin main` + `git merge --ff-only origin/main` nachgezogen, kein Push
+      nötig. Git-Identität vor dem ersten eigenen Commit gesetzt (`G4MEOVER18
+      <g4me.over.18@gmail.com>`).
+- [x] Die sechs bis dahin noch nicht geprüften echten Nachzieh-Kandidaten (Alutech AT-4N,
+      Phoenix V2, CAME Atomo, KingGates Stylo4K, Somfy Keytis, Somfy Telis) per frischem
+      Doppel-Clone (eigene Basis `G4MEOVER18/G4MEOVER-FW`, `main`,
+      `b359f6fc32f282ce7217dd2d48a4e3478771852e`, unverändert identisch zu Phase 1–4; Unleashed,
+      Standard-Branch, `0d295f581c1e34cd56e2e590ea85625a64c2b724`) systematisch per `diff -u`
+      gegeneinander geprüft: Somfy Telis (231 Diff-Zeilen) und Phoenix V2 (324) die beiden
+      kleinsten, der Rest (Alutech AT-4N 404, CAME Atomo 403, KingGates Stylo4K 496, Somfy
+      Keytis 405) alle über 400 Zeilen. Phoenix V2 zusätzlich per `grep` auf einen eigenen
+      `cnt_need_override`/`bypass`-Mechanismus geprüft (ähnlich KeeLoqs Modus-7-Pfad aus
+      Phase 2) — strukturell aufwändiger als ein reiner Diff-Größenvergleich nahelegt. Somfy
+      Telis gewählt: kleinster und zugleich strukturell sauberster Kandidat, folgt demselben
+      OFEX-Zähler-Muster, das bei Secplus v1 in Phase 4 bereits erfolgreich angeschlossen wurde.
+- [x] Meine eigene `somfy_telis.c` gegen Unleasheds Fund gegengelesen: wie bei Secplus v1 keine
+      1:1-Kopie — der Gesamtdiff besteht neben den zwei Override-Anschlussstellen ausschließlich
+      aus Unleasheds separatem `common.c`-Encoder-/Decoder-Basis-Umbau, der hier nicht übernommen
+      wird. Dieselbe Override-Abfrage wie bei Secplus v1 als zusätzlicher, vorangestellter Zweig
+      einer bestehenden `if`/`else if`-Kette eingefügt (Standard-Wrap-Pfad, OFEX-Sprung-Pfad
+      beide unverändert gelassen), zusätzlich ein Tasten-Override-Aufruf direkt nach der
+      bestehenden `get_btn_code()`-Zuweisung (wie bei KeeLoq/Princeton) — anders als Secplus v1
+      ist Somfy Telis' Tastenwert unabhängig editierbar, `btn_is_available` deshalb `true`.
+      Siehe `firmware-mining/subghz-block-generic-global-override-port.md`, Abschnitt "Phase 5:
+      Somfy Telis".
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      somfy_telis_c.patch`) gegen drei frische, unabhängige Zweitkopien meiner eigenen
+      `somfy_telis.c` mit `git apply --check` verifiziert, real angewendet, Ergebnis per
+      `md5sum` byte-für-byte abgeglichen — identisch (20 Zeilen Hinzufügung, 1 Löschung laut
+      `git diff --stat` — die eine Löschung ist dieselbe Art Zeilenverschiebung wie bei
+      Secplus v1 in Phase 4, keine inhaltliche Löschung). Zieldatei zum direkten Ersetzen
+      ebenfalls mitgeliefert.
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase5/`):
+      die zwei neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus der gepatchten
+      `somfy_telis.c` extrahiert, gegen die echte, unveränderte Phase-1-`generic.c` verlinkt.
+      25 Prüfungen (Tasten-/Zähler-Override je einmalig verbraucht, inkl. Masken-Formel für die
+      realen Bitbreiten 4/16; Zähler-Override verdrängt sowohl den Standard- als auch den
+      OFEX-Pfad vollständig, auch wenn beide gleichzeitig aktiv wären; unveränderte Standard-
+      und alle drei OFEX-Teilfall-Regressionen; `get_string()`-Push-Block setzt Zähler- und
+      Tasten-Verfügbarkeit/-Länge/-Wert korrekt (beide immer `true`); Reihenfolge-Abhängigkeit
+      aus Phase 1 für die realen Bitbreiten explizit durchexerziert) unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED (25 total)**, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` bleibt bei 0.
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` entsprechend erweitert
+      (neuer Abschnitt "Phase 5: Somfy Telis" unter "Betroffene Dateien", neuer Abschnitt
+      "Verifikation Phase 5", "Port-Skizze" um Phase 5 ergänzt und der bisherige SubGhz-Remote-
+      Punkt zu Phase 6 verschoben, "Quelle" um beide Phase-5-Commits ergänzt, Kopf-Update-Hinweis
+      für Phase 5 ergänzt, "9 offen" auf "8 offen" reduziert und die Liste entsprechend
+      angepasst).
+- [ ] Lokal zu tun: Patch gegen die eigene `somfy_telis.c` anwenden, mit `ufbt`/`fbt
+      firmware_all` bauen (reine Ergänzung an bereits vorhandener, aktiver Datei — sollte ohne
+      Compile-Fehler durchlaufen, da beide neuen Symbole bereits aus dem Phase-1-`generic.h`-
+      Patch kommen). Funktionstest mit Hardware: ein eigenes Somfy-Telis-Rolling-Code-Signal
+      (eigenes, autorisiert getestetes Somfy-Antrieb/Empfänger) erfassen, über das noch zu
+      bauende Signal-Einstellungen-Menü (existiert als UI noch nicht — siehe Phase 6)
+      ersatzweise direkt per Debugger/Testaufruf
+      `subghz_block_generic_global_counter_override_set()`/`_button_override_set()` setzen,
+      erneut senden, beobachten, ob der geänderte Zähler/Tastenwert tatsächlich ankommt.
+      Regressionsfall: Signal ohne gesetzten Override normal erneut senden — Zähler/Taste
+      müssen sich wie vor dem Patch verhalten.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, Zähler aktualisiert): `texkom`
+      Phase 5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 8 Rolling-Code-Protokolle (FAAC SLH,
+      Secplus v2, Alutech AT-4N, Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy
+      Keytis — Phoenix V2 zusätzlich mit eigenem `bypass`-Mechanismus, gleiches Muster wie
+      KeeLoq nötig), dann `endless_tx`-Anschluss, sowie Phase 6 (separater
+      SubGhz-Remote-Port), ProtoViews restliche vier Protokoll-Decoder sowie die
+      Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, `g4meover-companion` restlicher Code
+      vollständig gelesen ohne weiteren Fund (bei künftiger Weiterentwicklung gegenprüfen),
+      lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des
+      Unitemp-`sscanf()`-Overflow-Fixes.
