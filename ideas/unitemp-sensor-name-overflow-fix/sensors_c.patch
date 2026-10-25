@@ -1,0 +1,11 @@
+--- a/sensors.c
++++ b/sensors.c
+@@ -371,7 +371,7 @@
+             int str_offset;
+ 
+             const char* line_cstr = furi_string_get_cstr(line);
+-            sscanf(line_cstr, "%s %s %d %n", name, model, &temp_offset, &str_offset);
++            sscanf(line_cstr, "%10s %10s %d %n", name, model, &temp_offset, &str_offset);
+             char* args = ((char*)(line_cstr + str_offset));
+ 
+             //Replacement ?

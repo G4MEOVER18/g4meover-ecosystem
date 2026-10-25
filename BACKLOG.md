@@ -8933,3 +8933,90 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`flipperbridge.py`/`cockpit.py`/`magtool.py`/`vault_organizer.py` jetzt vollständig
       gelesen, aktuell ohne weiteren belastbaren Fund — bei künftiger Weiterentwicklung dieser
       Dateien gegenprüfen).
+
+## Ideen-Recherche: Unitemp (quen0n) — neue Zeile unter GPIO / Serial Bus, Sensorname-Overflow-Fund
+
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (g4meover-companion,
+      `_apps_cache`-TTL-Fix), davor Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 4,
+      Security+ 1.0), davor Ideen-Recherche (SignalSweep) — nach dem etablierten
+      Rotationsmuster (die am längsten zurückliegende Kategorie zuerst) war Ideen-Recherche für
+      diese Sitzung an der Reihe. Eigenen Zustandsfehler im lokalen Checkout korrigiert: `HEAD`
+      stand detached bereits exakt auf `origin/main`, nur der lokale `main`-Branch lag fünf
+      Commits zurück — per `git checkout main` + `git merge --ff-only` nachgezogen, kein Push
+      nötig. Git-Identität vor dem ersten eigenen Commit gesetzt (`G4MEOVER18
+      <g4me.over.18@gmail.com>`).
+- [x] Gezielt nach einer bislang komplett fehlenden Kategorie am Erweiterungsport gesucht:
+      alle bisherigen GPIO/Serial-Bus-Funde (GPIO Logic Analyzer, i2c Tools, UART Sniff,
+      RS485 Modbus, SPI Flash Dump, SWD Probe) sind reine Bus-/Protokoll-/Debug-Werkzeuge,
+      keines davon dekodiert tatsächliche Sensordaten. Mehrere Web-Recherchen zu
+      Flipper-nativen Zigbee-/DMX512-/LIN-Bus-/GPS-Spoofing-Detektor-/Powerline-/EMV-Relay-/
+      Ultraschall-Apps blieben erfolglos (kein existierender Flipper-FAP für diese
+      Kategorien gefunden).
+- [x] **Unitemp** (`quen0n/unitemp-flipperzero`, `master`, Commit `ae62710`, 03.06.2026,
+      GPL-3.0, `fap_version 2.1`, 353 Sterne, 46 Forks) gefunden — Umweltsensor-Multireader
+      für 23 Sensormodelle (DHTxx/AHTxx/SHTxx/BMx280/BME680/DS18x2x/MAX6675/MAX31855/
+      SCD3x/4x u. a.) über Single-Wire/1-Wire/I²C/SPI am Erweiterungsport, per `git clone`
+      geladen, vollständig gelesen (10936 Zeilen über 70 Quelldateien: Kern `sensors.c`/
+      `unitemp.c`, vier Interface-Abstraktionen, 23 Sensortreiber, Szenen/Views).
+- [x] API-87-Status verifiziert gegen einen frischen, blobfreien Sparse-Checkout von
+      `G4MEOVER18/G4MEOVER-FW` (`main`, Commit `b359f6f`, derselbe bereits mehrfach
+      verifizierte Stand): `furi_hal_gpio_init()`/`_write()`/`_read()` exakt wie in
+      `targets/f7/furi_hal/furi_hal_gpio.h` deklariert, `furi_hal_spi_bus_handle_init()`/
+      `_acquire()`/`_bus_rx()`/`_release()` exakt wie in
+      `targets/furi_hal_include/furi_hal_spi.h` deklariert; I²C läuft über dieselbe bereits
+      bei `ublox`/i2c Tools/RS485 Modbus verifizierte `furi_hal_i2c_*`-API — kein
+      Firmware-Patch nötig.
+- [x] Fund in `sensors.c::unitemp_sensors_load()`: die Funktion zerlegt jede Zeile der eigenen
+      Konfigurationsdatei `sensors.list` (SD-Karte) mit `sscanf(line_cstr, "%s %s %d %n", name,
+      model, &temp_offset, &str_offset)` in zwei 11-Byte-Stack-Puffer (`char name[11]`/
+      `char model[11]`) — `%s` ohne Feldbreitenbegrenzung schreibt beliebig viele Zeichen bis
+      zum nächsten Whitespace, unabhängig von der Puffergröße. Ein über zehn Zeichen langer
+      erster Eintrag (von Hand editierte Datei, oder der eigene Alt-Format-Migrationspfad aus
+      `/ext/unitemp/sensors.cfg`) überschreibt den Stack-Puffer (Stack-Buffer-Overflow,
+      CWE-121) ohne jede Nutzerinteraktion beim App-Start. Die unmittelbar folgende Prüfung
+      `sizeof(name) > 0 && sizeof(name) <= 11` verhindert das nicht: `sizeof(name)` ist bei
+      einem als `char[11]` deklarierten Array eine Compile-Zeit-Konstante, unabhängig vom
+      tatsächlich eingelesenen Inhalt — wirkungsloses No-Op, zudem erst nach dem schon
+      abgelaufenen `sscanf()`. Über die eigene Tastatur-Eingabe (`text_input`, fest auf
+      11 Byte inkl. Nullterminator begrenzt) ist der Fund nicht erreichbar — nur über die
+      Konfigurationsdatei selbst.
+- [x] Fix (additiv, ein Zeichen): `sscanf(line_cstr, "%10s %10s %d %n", ...)` — Feldbreite 10
+      für beide `%s`-Konvertierungen, Platz für den Nullterminator bleibt erhalten. Patch
+      (`ideas/unitemp-sensor-name-overflow-fix/sensors_c.patch`) gegen zwei frische,
+      unabhängige Zweitkopien von `quen0n/unitemp-flipperzero` (`master`, Commit `ae62710`)
+      mit `git apply --check` verifiziert, real angewendet, per `md5sum` byte-für-byte
+      abgeglichen — identisch.
+- [x] Host-Repro (`ideas/repro-unitemp-sensor-name-overflow/repro.c`): reale Pufferdeklaration
+      und realer `sscanf()`-Aufruf 1:1 übernommen (nur `furi_string_get_cstr()` durch
+      `const char*` ersetzt). Fall 1 (Name ≤10 Zeichen, wie über die eigene Tastatur
+      erzeugbar): ALT/NEU identisch, kein Fund. Fall 2 (Name == 11 Zeichen, wie aus einer
+      manuell editierten/beschädigten `sensors.list`): unter `gcc -fsanitize=address,undefined`
+      bei `-O0` **und** `-O1` bricht ALT mit `stack-buffer-overflow` exakt in der
+      `sscanf()`-Zeile ab; NEU (Feldbreite `%10s`) besteht beide Fälle ohne Abbruch (Name wird
+      sauber auf 10 Zeichen gekappt statt den Stack zu überschreiben).
+- [x] Vollständiger Eintrag (Quelle, Was, Nutzen, API-87-Status, Fund, Fix, Host-Repro,
+      Testhinweis, Sicherheitsrahmen, Risiko, nächster Schritt) in
+      `ideas/unitemp-environmental-sensors-app-status.md`. `ideas/pentest-app-katalog.md`
+      erweitert: neue Zeile unter "GPIO / Serial Bus" (erste reine Sensordaten-Kategorie am
+      Erweiterungsport), neuer Rechercheauftrag-Eintrag am Ende.
+- [ ] Lokal zu tun: Patch gegen die eigene `unitemp-flipperzero`-Kopie anwenden, bauen/flashen.
+      Über das Menü einen Sensor mit zehn Zeichen langem Namen anlegen (Regressionsfall, bleibt
+      unverändert); danach `sensors.list` auf der SD-Karte von Hand öffnen und die erste Zeile
+      auf einen über zehn Zeichen langen ersten Eintrag verlängern, App neu starten — vor dem
+      Fix undefiniertes Verhalten durch Stack-Überschreibung, nach dem Fix saubere Kappung auf
+      zehn Zeichen ohne Absturz. Ggf. Upstream-PR gegen `quen0n/unitemp-flipperzero` erwägen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 9 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie Phase 5 (separater SubGhz-Remote-Port), ProtoViews
+      restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, `g4meover-companion` restlicher Code vollständig gelesen ohne
+      weiteren Fund (bei künftiger Weiterentwicklung gegenprüfen), lokaler Test des
+      `webdeck.py`-`_apps_cache`-TTL-Fixes.
