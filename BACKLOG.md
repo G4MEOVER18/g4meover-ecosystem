@@ -9110,3 +9110,79 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       vollständig gelesen ohne weiteren Fund (bei künftiger Weiterentwicklung gegenprüfen),
       lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des
       Unitemp-`sscanf()`-Overflow-Fixes.
+
+## App-Verbesserung: lilygo-ukfe-rx — wifi_attack_scan() reißt einen laufenden Festkanal-Deauth dauerhaft vom Zielkanal ab
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis durchgesehen: letzte
+      Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 5, Somfy Telis),
+      davor Ideen-Recherche (Unitemp), davor App-Verbesserung (g4meover-companion) — nach dem
+      etablierten Rotationsmuster war App-Verbesserung für diese Sitzung an der Reihe.
+      `lilygo-ukfe-rx` gewählt: bisher nur ein Fund dokumentiert
+      (`rf-counter-replay-window-reset-on-reboot-fix`), `src/wifi_attack.cpp`/`.h` und
+      `src/ble_spam.cpp`/`.h` waren noch in keinem bisherigen Durchgang erfasst.
+- [x] Frischer `git clone --depth 1` von `G4MEOVER18/lilygo-ukfe-rx` (`main`,
+      Commit `aa8a285`) in drei unabhängige Kopien. `src/main.cpp`, `src/wifi_attack.cpp`,
+      `src/ble_spam.cpp`, `src/ducky.h` vollständig gelesen. `respCounter`/`send_espnow_ack()`
+      bewusst nicht erneut aufgegriffen — bereits in
+      `app-improvements/g4meover-wifi-relay/sat-resp-ack-replay-missing-counter-check-fix.md`
+      als gegenstandslos korrigiert geschlossen. Die geteilte `ducky.h`-Überlang-Zeilen-Lücke
+      ist für `lilygo-ukfe-rx` bereits über
+      `app-improvements/ukfe-ducky-overlong-line-reinterpret-fix.md` behoben.
+- [x] Fund in `src/wifi_attack.cpp::wifi_attack_scan()`: Festkanal-Deauth
+      (`wifi_attack_deauth(..., channel != 0, ...)`) setzt den Funkkanal nur einmal bei
+      Angriffsstart; `wifi_attack_tick()`s Hopping greift laut eigener Bedingung
+      (`s_mode == M_DEAUTH && s_fixedCh == 0`) für diesen Fall nie. `wifi_attack_scan()`
+      ruft am Ende aber bedingungslos `set_channel(s_espnowCh)` auf, unabhängig davon, ob
+      gerade ein Angriff läuft — `main.cpp`s `UkfeRfCmdWifiScan`-Handler prüft `wifi_attack_busy()`
+      nicht. Ein während eines laufenden Festkanal-Deauths zusätzlich ausgelöster `WifiScan`-
+      Befehl verschiebt den Funkkanal dauerhaft auf den ESP-NOW-Kontrollkanal — jeder weitere
+      Deauth-Burst bis zum 20-s-Sicherheitstimeout geht wirkungslos auf dem falschen Kanal
+      heraus, ohne dass `s_txOk` das anzeigt (`esp_wifi_80211_tx()` liefert `ESP_OK`
+      unabhängig vom Kanal). Derselbe Effekt betrifft nebenbei auch Hopping-Deauth und
+      Beacon-Spam (dort nur vorübergehend, bis zum nächsten Hop-Tick).
+- [x] Fix (additiv, eine Zeile): `set_channel(s_espnowCh)` → `set_channel(s_mode == M_NONE ?
+      s_espnowCh : (s_fixedCh ? s_fixedCh : s_hopCh))` — wiederverwendet exakt das bereits in
+      `wifi_attack_tick()`s Beacon-Pfad etablierte `s_fixedCh ? s_fixedCh : s_hopCh`-Muster.
+      Patch (`app-improvements/lilygo-ukfe-rx/wifi-attack-scan-channel-restore-fix/
+      wifi_attack_c.patch`) gegen zwei frische, unabhängige Zweitkopien mit `git apply --check`
+      verifiziert, real angewendet, alle drei Ergebnisse per `md5sum` byte-für-byte
+      abgeglichen — identisch (`156e92ecc1104abc53452f9aed35ade4`).
+- [x] Host-Repro (`app-improvements/lilygo-ukfe-rx/repro-wifi-attack-scan-channel-restore/
+      repro.c`): `set_channel()`/`wifi_attack_deauth()`/`wifi_attack_tick()` sowie ALT- und
+      NEU-Fassung von `wifi_attack_scan()` Zeile für Zeile nachgebaut,
+      `esp_wifi_set_channel()`/`esp_wifi_80211_tx()` durch instrumentierte Mocks ersetzt.
+      **13 Prüfungen** unter `gcc -std=c11 -Wall -Wextra -O0`/`-O1
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED
+      (13 total)**, identischer Output beider Optimierungsstufen, keine Compiler-Warnungen,
+      keine Sanitizer-Befunde. Geprüft: Festkanal-Deauth mit dazwischengefunktem Scan (ALT
+      bricht dauerhaft auf den falschen Kanal ab, keine Selbstheilung über mehrere Ticks;
+      NEU bleibt korrekt auf dem Zielkanal), Regression Hopping-Deauth (Scan stellt den
+      aktuellen Hop-Kanal wieder her), Regression ohne laufenden Angriff (unverändert
+      ESP-NOW-Kanal), Regression Beacon-Spam (Scan unterbricht das Hop-Muster nicht).
+- [x] Vollständiger Eintrag (Was, Nutzen, Betroffene Dateien, Risiko, Port-Skizze/Fix,
+      Testhinweis, Quelle) in
+      `app-improvements/lilygo-ukfe-rx/wifi-attack-scan-channel-restore-fix.md`.
+- [ ] Lokal zu tun: Patch gegen die eigene `wifi_attack.cpp` anwenden, PlatformIO-Build auf den
+      LilyGo T-Dongle S3 flashen. Funktionstest: `WifiDeauth` mit festem Kanal (z. B. Kanal 6,
+      eigener autorisiert getesteter AP/Client) auslösen, mit einem zweiten Gerät im
+      Monitor-Modus auf Kanal 6 den Burst bestätigen, währenddessen zusätzlich `WifiScan`
+      auslösen — vor dem Fix bricht der Deauth-Empfang auf Kanal 6 sofort danach ab, nach dem
+      Fix läuft er unverändert bis zum 20-s-Timeout weiter. Regressionsfall: denselben Ablauf
+      mit Hopping-Deauth (`channel=0`) und mit Beacon-Spam wiederholen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-
+      Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-
+      Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 8 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie Phase 6 (separater SubGhz-Remote-Port), ProtoViews
+      restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler
+      Test des Unitemp-`sscanf()`-Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` sowie
+      `src/wifi_attack.h` weiterhin ungeprüft über den hier gefundenen Punkt hinaus (bei
+      künftiger Weiterentwicklung gegenprüfen), lokaler Test des hier gelieferten
+      `wifi_attack_scan()`-Kanal-Fixes.

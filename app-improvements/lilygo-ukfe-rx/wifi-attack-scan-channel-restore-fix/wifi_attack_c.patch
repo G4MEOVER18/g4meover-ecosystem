@@ -1,0 +1,28 @@
+diff --git a/src/wifi_attack.cpp b/src/wifi_attack.cpp
+index d87fb20..872bae5 100644
+--- a/src/wifi_attack.cpp
++++ b/src/wifi_attack.cpp
+@@ -90,7 +90,7 @@ void wifi_attack_init(uint8_t espnow_channel) {
+ }
+ 
+ uint8_t wifi_attack_scan() {
+-    // Synchroner Scan (zeigt versteckte). Danach ESP-NOW-Kanal wiederherstellen.
++    // Synchroner Scan (zeigt versteckte). Danach Kanal wiederherstellen.
+     int n = WiFi.scanNetworks(false, true);
+     s_scanCount = (n < 0) ? 0 : (n > 255 ? 255 : n);
+     for(int i = 0; i < n; i++) {
+@@ -98,7 +98,13 @@ uint8_t wifi_attack_scan() {
+                       i, WiFi.channel(i), WiFi.RSSI(i), WiFi.SSID(i).c_str());
+     }
+     WiFi.scanDelete();
+-    set_channel(s_espnowCh);
++    // Nicht blind den ESP-NOW-Kontrollkanal setzen: laeuft gerade ein
++    // Festkanal-Deauth (s_fixedCh != 0), wuerde das den Angriff dauerhaft auf
++    // den falschen Kanal verschieben, da das Hopping in wifi_attack_tick()
++    // nur bei s_fixedCh == 0 greift und ihn sonst nie zurueckholt. Waehrend
++    // eines laufenden Angriffs den dafuer vorgesehenen Kanal wiederherstellen,
++    // sonst wie bisher den ESP-NOW-Kanal.
++    set_channel(s_mode == M_NONE ? s_espnowCh : (s_fixedCh ? s_fixedCh : s_hopCh));
+     return s_scanCount;
+ }
+ 
