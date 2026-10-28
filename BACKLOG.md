@@ -9186,3 +9186,89 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `src/wifi_attack.h` weiterhin ungeprüft über den hier gefundenen Punkt hinaus (bei
       künftiger Weiterentwicklung gegenprüfen), lokaler Test des hier gelieferten
       `wifi_attack_scan()`-Kanal-Fixes.
+
+## Ideen-Recherche: Simultaneous UHF RFID Reader (haffnerriley) — neue Zeile unter NFC / RFID, Ringpuffer-Leerzeilen-Fund
+
+- [x] `reports/` durchgesehen: letzte Sitzung war App-Verbesserung (lilygo-ukfe-rx,
+      `wifi_attack_scan()`-Kanal-Fix), davor Firmware-Feature-Mining (SubGhzBlockGenericGlobal
+      Phase 5, Somfy Telis), davor Ideen-Recherche (Unitemp) — nach dem etablierten
+      Rotationsmuster war Ideen-Recherche für diese Sitzung an der Reihe. Git-Identität vor dem
+      ersten eigenen Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Letzten noch unbenannten Kandidaten aus dem Rückstellpunkt "restlicher NFC-/RFID-
+      Werkzeug-Cluster" aufgegriffen: **simultaneous_rfid_reader**, in einer früheren Sitzung
+      (siehe NFC-Comparator-Eintrag) zusammen mit `uhf_rfid` vorschnell als reiner
+      Fremdhardware-Fall ohne eigene Quelltextprüfung abgeschlossen. Per Web-Recherche
+      tatsächliches, eigenständig im Flipper-App-Katalog gelistetes Projekt gefunden:
+      `haffnerriley/Simultaneous-UHF-RFID-FlipperZero` (Commit `1dfefed`, 07.05.2025) — laut
+      eigener README-Danksagung eine direkte Erweiterung des bereits geprüften `uhf_rfid` um
+      Lock/Kill-Operationen, ein Konfigurationsmenü, Multi-Tag-Übersicht und einen zusätzlichen
+      M6E-Nano-/M7E-Hecto-Pfad über eine Raspberry-Pi-Zero-ThingMagic-Mercury-Brücke. Per
+      `git clone` geladen, 8513 Zeilen über Kern/Helfer/zwölf UI-Dateien.
+- [x] API-87-Status verifiziert: identisches, bereits mehrfach gegen `G4MEOVER18/G4MEOVER-FW`
+      bestätigtes `furi_hal_serial_control_acquire()`/`_init()`/`_set_br()`/`_async_rx_start()`/
+      `_tx()`/`_tx_wait_complete()`/`_control_release()`/`_deinit()`-Muster über
+      `FuriHalSerialIdUsart`, dieselbe `expansion_enable()`/`_disable()`-Klammerung und
+      `furi_hal_power_is_otg_enabled()`/`_enable_otg()`/`_disable_otg()`-Wächterlogik wie
+      `uhf_rfid`/`uart_sniff`/`rogue_ap_detector` — keine erneute Einzelprüfung, kein
+      Firmware-Patch nötig.
+- [x] Gezielt auf das von diesem Fork tatsächlich neu hinzugefügte Teilstück geprüft (die vom
+      Original `uhf_rfid` übernommene YRM100-Kernlogik `yrm100x_*` bleibt für eine künftige
+      Sitzung offen): die M6E/M7E-Pi-Zero-Textprotokoll-Brücke
+      (`helpers/ring_buffer.c`/`helpers/uart_helper.c`), laut README von Derek Jamisons
+      `flipper-zero-tutorials`-UART-Demo übernommen, vollständig gelesen.
+- [x] Fund in `ring_buffer_extract_line()`: die Entscheidung "Zeile in einem Stück" vs. "Zeile
+      über die Pufferkante gewickelt" prüft `delim_index > ring_buffer_read` mit echtem `>`
+      statt `>=`. Eine Leerzeile direkt am Lesezeiger (zwei aufeinanderfolgende `\n` im
+      seriellen Strom — realistisch bei einem zeilenbasierten Python-`print()`-Protokoll wie
+      dem beigelegten `pi-zero-uhf.py`) ist kein Ringpuffer-Umlauf, wird aber fälschlich in den
+      Umlauf-Zweig geschickt und liefert bis zu 4096 Byte nie beschriebenen Heap-Inhalt (reiner
+      `malloc()`, keine Nullinitialisierung) statt der korrekten leeren Zeile an den
+      `process_line`-Callback weiter.
+- [x] Fix (additiv, ein Zeichen): `>` → `>=`. Patch
+      (`ideas/simultaneous-rfid-reader-ring-buffer-empty-line-fix/ring_buffer_c.patch`) gegen
+      drei frische, unabhängige Zweitkopien des Original-Repos mit `git apply --check`
+      verifiziert, real angewendet, `md5sum`-identisch (`08a7482f3fcb2da649fd0ab8f2ebb154`).
+- [x] Host-Repro (`ideas/repro-simultaneous-rfid-reader-ring-buffer-empty-line/`):
+      `ring_buffer_old.c`/`ring_buffer_new.c` byteidentisch aus `helpers/ring_buffer.c`
+      übernommen, nur `<furi.h>` durch einen minimalen `FuriString`-Host-Mock ersetzt, Puffer
+      vor jedem Testfall mit Wächter-Byte `0xAA` vorbelegt (simuliert nie beschriebenen
+      Heap-Speicher). Vier Fälle unter `gcc -std=c11 -Wall -Wextra -O0`/`-O1
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined`: ALT **2 von 10 Prüfungen
+      fehlgeschlagen** (Leerzeile ganz am Pufferanfang liefert Länge 4096 statt 0, ebenso eine
+      Leerzeile zwischen zwei Nutzzeilen), NEU **ALL CHECKS PASSED (10 total)**, ein echter
+      Ringpuffer-Umlauf-Fall (Fall 4) bleibt in beiden Fassungen unverändert korrekt (reiner
+      Logikfehler, kein ASan-/UBSan-Fund, da der Zugriff innerhalb der 4096-Byte-Allokation
+      bleibt).
+- [x] Vollständiger Eintrag in `ideas/simultaneous-rfid-reader-app-status.md`.
+      `ideas/pentest-app-katalog.md` um eine neue Zeile unter "NFC / RFID" sowie einen
+      Rechercheauftrag-Eintrag am Ende ergänzt; die vorherige voreilige
+      Fremdhardware-Abschluss-Notiz in der NFC-Comparator-Zeile bleibt unverändert als
+      historischer Hinweis stehen, der neue Eintrag ordnet sie richtig ein. Der Rückstellpunkt
+      "restlicher NFC-/RFID-Werkzeug-Cluster" ist damit vollständig abgearbeitet.
+- [ ] Lokal zu tun (YRM100- oder Pi-Zero-Hardware nötig): Patch gegen die eigene
+      `Simultaneous-UHF-RFID-FlipperZero`-Kopie anwenden, mit `ufbt`/`fbt` bauen/flashen. Im
+      Begleitskript `pi-zero-uhf.py` gezielt eine leere Zeile vor einer regulären Antwortzeile
+      einfügen (z. B. ein zusätzliches `print()` ohne Argumente) und prüfen, ob die folgende
+      reguläre Zeile weiterhin korrekt erkannt wird (vor dem Fix verschiebt die überlange
+      "Leerzeile" die gesamte nachfolgende Zeilenzuordnung; nach dem Fix wird sie folgenlos
+      übersprungen). Regressionsfall: normale Mehrfach-Tag-Lesesequenz ohne Leerzeilen muss
+      unverändert funktionieren.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, Zähler aktualisiert): `texkom`
+      Phase 5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 8 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie Phase 6 (separater SubGhz-Remote-Port), ProtoViews
+      restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler
+      Test des Unitemp-`sscanf()`-Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` sowie
+      `src/wifi_attack.h` weiterhin ungeprüft, lokaler Test des `wifi_attack_scan()`-Kanal-Fixes,
+      YRM100-Kernlogik (`yrm100x_module.c`/`_tag.c`/`_worker.c`/`_buffer.c`) sowie die zwölf
+      UI-`views/*.c`-Dateien von `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler
+      Test des hier gelieferten `ring_buffer_extract_line()`-Fixes.

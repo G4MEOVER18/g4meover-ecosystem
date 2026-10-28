@@ -1,0 +1,13 @@
+diff --git a/simultaneous_rfid_reader/helpers/ring_buffer.c b/simultaneous_rfid_reader/helpers/ring_buffer.c
+index c8ced8b..e602f2b 100644
+--- a/simultaneous_rfid_reader/helpers/ring_buffer.c
++++ b/simultaneous_rfid_reader/helpers/ring_buffer.c
+@@ -128,7 +128,7 @@ size_t ring_buffer_find_delim(RingBuffer* rb) {
+ }
+ 
+ void ring_buffer_extract_line(RingBuffer* rb, size_t delim_index, FuriString* line) {
+-    if(delim_index > rb->ring_buffer_read) {
++    if(delim_index >= rb->ring_buffer_read) {
+         // line is in one chunk
+         furi_string_set_strn(
+             line,
