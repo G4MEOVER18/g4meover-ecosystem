@@ -1,5 +1,28 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 6):** viertes Nachzieh-Protokoll (Phoenix V2, `phoenix_v2`) angeschlossen — siehe
+"Phase 6: Phoenix V2" sowie "Verifikation Phase 6" unten. Von den sechs in Phase 5 verglichenen,
+bis dahin noch nicht einzeln geprüften Kandidaten (Alutech AT-4N: 404 Diff-Zeilen, Phoenix V2:
+324, CAME Atomo: 403, KingGates Stylo4K: 496, Somfy Keytis: 405, Somfy Telis: 231 — Somfy Telis
+bereits in Phase 5 angeschlossen) war Phoenix V2 der nächstkleinste Gesamtdiff; dort bereits als
+Vorbehalt vermerkt war ein zusätzlicher `cnt_need_override`/`bypass`-Mechanismus (ähnlich KeeLoqs
+Modus-7-Pfad aus Phase 2). Beim tatsächlichen Diff gegen Unleashed zeigte sich: dieser
+Mechanismus gehört zu einem bei Unleashed zusätzlich vorhandenen, eigenständigen
+"CounterMode"-Feature (ein per `.sub`-Dateifeld wählbares, drittes Zähler-Schema), das mit dem
+hier portierten Override-Mechanismus nur über das `bypass`-Flag verzahnt ist, selbst aber eine
+eigene, deutlich größere Erweiterung ist — meine eigene `phoenix_v2.c` kennt kein "CounterMode"
+und läuft, wie vor Unleasheds eigener Einführung dieses Features, ausschließlich über die
+bestehende Standard-/OFEX-Verzweigung. Dieselbe Begründung wie bei KeeLoqs Modus 7 in Phase 2: ein
+Feature, das mein eigener Code strukturell nicht kennt, wird nicht blind mitportiert — siehe
+"Phase 6: Phoenix V2" für die zwei tatsächlich übernommenen, override-relevanten
+Anschlussstellen. Damit sind von den ursprünglich gezählten ~15 Protokollen weiterhin vier
+(Beninca ARC, Jarolift, Prastel, Ditec GOL4) ohne eigenständige Protokolldatei (unverändert seit
+"Update (Phase 4)"), es bleiben 11 echte Kandidaten. Davon sind KeeLoq (Phase 2), Secplus v1
+(Phase 4), Somfy Telis (Phase 5) und jetzt Phoenix V2 (Phase 6) angeschlossen — macht 4 von 11, 7
+offen (FAAC SLH, Secplus v2, Alutech AT-4N, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy
+Keytis). Princeton (Phase 3) bleibt der zusätzliche, nicht in der ursprünglichen Liste gezählte
+Fund — macht insgesamt 5 angeschlossene Protokolle.
+
 **Update (Phase 5):** drittes Nachzieh-Protokoll (Somfy Telis, `somfy_telis`) angeschlossen —
 siehe "Phase 5: Somfy Telis" sowie "Verifikation Phase 5" unten. Dafür gezielt die sechs bis
 dahin noch nicht geprüften echten Kandidaten (Alutech AT-4N, Phoenix V2, CAME Atomo, KingGates
@@ -184,23 +207,33 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase5/` — Host-Repro
   (siehe "Verifikation Phase 5").
 
+**Jetzt geliefert (Phase 6, viertes Nachzieh-Protokoll Phoenix V2):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/phoenix_v2.c`
+  — meine eigene `phoenix_v2.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, per frischem
+  `git clone` zu Sitzungsbeginn als unverändert aktueller `HEAD`-Stand bestätigt), additiv um
+  die zwei Anschlussstellen erweitert (siehe "Phase 6: Phoenix V2" unten). Fertige Zieldatei
+  zum direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/phoenix_v2.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/phoenix_v2_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase6/` — Host-Repro
+  (siehe "Verifikation Phase 6").
+
 **Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
 ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
 Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
-"Update (Phase 4)" oben) — es bleiben 8 echte Kandidaten: FAAC SLH, Secplus v2, Alutech AT-4N,
-Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis. Pro Datei derselbe
-kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy Telis,
-sofern sich der Gesamtdiff (teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht)
-klein genug von Hand auftrennen lässt — bei Somfy Telis (231 Diff-Zeilen, siehe "Phase 5") hat
-das wie bei Secplus v1 (231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert. Von
-den verbliebenen 8 ist Phoenix V2 mit 324 Diff-Zeilen der nächstkleinste, hat aber einen
-zusätzlichen `cnt_need_override`/`bypass`-Mechanismus (ähnlich KeeLoqs Modus-7-Pfad in Phase 2)
-— hier ist derselbe sorgfältige Einzelabgleich wie bei KeeLoq nötig, kein blinder Dateiersatz.
-Bei Protokollen mit deutlich größerem Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2: 1133, Nice
-FloR-S: 1284, Alutech AT-4N: 404, CAME Atomo: 403, KingGates Stylo4K: 496, Somfy Keytis: 405
-u. a.) ist ebenfalls derselbe sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein
-blinder Dateiersatz — noch nicht versucht. Keine dieser Dateien ist in dieser Sitzung
-angefasst.
+"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen Phoenix V2 (Phase 6), 7
+echte Kandidaten: FAAC SLH, Secplus v2, Alutech AT-4N, Nice FloR-S, CAME Atomo, KingGates
+Stylo4K, Somfy Keytis. Pro Datei derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei
+KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2, sofern sich der Gesamtdiff (teilweise durch
+Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen lässt — bei
+Somfy Telis (231 Diff-Zeilen, siehe "Phase 5") und Phoenix V2 (324 Zeilen, siehe "Phase 6") hat
+das wie bei Secplus v1 (231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert, obwohl
+Phoenix V2 zusätzlich Unleasheds eigenständiges "CounterMode"-Feature im Diff hatte (siehe
+"Update (Phase 6)" — bewusst nicht mitportiert). Bei Protokollen mit deutlich größerem
+Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2: 1133, Nice FloR-S: 1284, Alutech AT-4N: 404, CAME
+Atomo: 403, KingGates Stylo4K: 496, Somfy Keytis: 405 u. a.) ist derselbe sorgfältige
+Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht versucht.
+Keine dieser Dateien ist in dieser Sitzung angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -368,6 +401,58 @@ OFEX-Sprung) inhaltlich anzutasten:
    bei sich zusätzlich auf `"Btn:%X - %s\r\n"` umgestellt, das ist aber eine reine
    Anzeige-Kosmetik ohne Bezug zum Override-Mechanismus und kein Teil der zwei tatsächlich
    override-relevanten Anschlussstellen, deshalb hier nicht übernommen.
+
+### Phase 6: Phoenix V2 (viertes Protokoll der Nachzieh-Liste)
+
+**Was:** `phoenix_v2` ist bei Unleashed Mitglied der ursprünglich gezählten Rolling-Code-
+Protokolle und nutzt, wie Secplus v1 (Phase 4) und Somfy Telis (Phase 5), dieselbe OFEX
+(Overflow-Experimental)-Sentinel-Logik für `furi_hal_subghz_get_rolling_counter_mult()`
+(`-0x7FFFFFFF`), mit demselben 16-Bit-Zählerbereich und denselben Wrap-/Sprung-Formeln wie
+Somfy Telis (Standard-Modus: Addition mit Wrap auf 0 bei Überschreiten von `0xFFFF`;
+OFEX-Modus: Sprung auf `0xFFFE` statt einfachem Inkrement, außer bei den beiden Randwerten `0`
+und `0xFFFE` selbst). Beim Diff meiner eigenen `phoenix_v2.c` gegen Unleasheds aktuellen
+Standard-Branch (siehe "Quelle") zeigte sich derselbe Gesamtdiff-Umfang wie in Phase 5
+angekündigt: 324 Zeilen, davon ein erster, hier nicht relevanter Block aus Unleasheds separatem
+`common.c`-Encoder-/Decoder-Basis-Umbau (`#include "common.h"`, `SUBGHZ_ASSERT_*_LAYOUT`,
+`alloc`/`free` über `subghz_protocol_*_common_alloc/_free`, eigene
+`subghz_protocol_encoder_common_stop/_yield` statt eigenem Encoder-Loop). Zusätzlich, anders als
+bei Princeton/Secplus v1/Somfy Telis, ein zweiter, hier ebenfalls nicht übernommener Block:
+Unleasheds eigenes, zusätzliches "CounterMode"-Feature — ein per `.sub`-Dateifeld (`CounterMode`)
+wählbares drittes Zähler-Schema (Modus 2: fester Bereich `0x0000`–`0x0004`) plus eine
+Modul-globale `v2_phoenix_counter_mode`-Variable und eine `bypass`-Variable, die den
+Standard-/OFEX-Zweig nur noch für `v2_phoenix_counter_mode == 0` durchläuft. Dieses Feature ist
+bei mir strukturell nicht vorhanden (meine eigene `phoenix_v2.c` kennt kein `CounterMode`-Feld
+und lief schon vor Unleasheds eigener Einführung dieses Features ausschließlich über die hier
+gezeigte Standard-/OFEX-Verzweigung) und hängt mit dem hier portierten Override-Mechanismus nur
+über das `bypass`-Flag zusammen (`if(subghz_block_generic_global.cnt_need_override) bypass =
+true;`) — dieselbe Art Seitenfeature wie KeeLoqs Modus-7-Lernsequenz in Phase 2, bewusst nicht
+mitportiert, da mein Code dafür keine Entsprechung hat. Nach Abzug beider Blöcke bleiben exakt
+dieselben zwei override-relevanten Anschlussstellen wie bei Somfy Telis übrig, strukturell 1:1
+übertragbar, da meine eigene `phoenix_v2.c` vor diesen beiden Unleashed-Umbauten strukturell
+identisch zu Unleasheds eigener Vor-Umbau-Version ist.
+
+Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c`:
+1. `subghz_protocol_encoder_phoenix_v2_get_upload()`: direkt nach der bestehenden
+   `btn = subghz_protocol_phoenix_v2_get_btn_code();`-Zeile (meine eigene, unveränderte, durch
+   ein eventuell gesetztes Custom-Button eigenständig überschriebene Tastencode-Zuweisung) ein
+   `subghz_block_generic_global_button_override_get(&btn)`-Aufruf, der den endgültigen
+   Tastenwert vor der anschließenden Zähler-Logik und Datenrekonstruktion überschreibt —
+   dieselbe Reihenfolge wie bei KeeLoqs/Princetons/Somfy Telis' Encoder-Anschluss. Direkt danach
+   bekommt die bestehende `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) { ...
+   } else { /* OFEX */ }`-Verzweigung einen neuen, vorangestellten Zweig:
+   `if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) { /* Override
+   direkt verwendet */ } else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF)
+   { ... } else { /* OFEX, unverändert */ }`. Bei anhängendem Override wird weder der
+   Standard-Wrap-Pfad noch der OFEX-Sprung-Pfad erreicht — beide bleiben für den unveränderten
+   Fall exakt wie vorher (identische Struktur zu Phase 5, da Phoenix V2 denselben
+   16-Bit-Wrap-/Sprung-Formelsatz wie Somfy Telis verwendet).
+2. `subghz_protocol_decoder_phoenix_v2_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   dem bestehenden `check_remote_controller()`-Aufruf gesetzt — exakt Unleasheds eigene
+   Anbindung, byte-für-byte übernommen (siehe "Verifikation Phase 6"). `btn_is_available` ist
+   dabei `true`: Phoenix V2s Tastenwert (`instance->generic.btn`, gesetzt in
+   `check_remote_controller()` aus dem entschlüsselten Datenfeld) ist unabhängig editierbar,
+   dieselbe Festlegung, die Unleashed selbst trifft, wie bei KeeLoq/Princeton/Somfy Telis.
 
 ## Risiko
 
@@ -669,6 +754,67 @@ OFEX-Sprung) inhaltlich anzutasten:
     -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 6 (Phoenix V2)
+
+- **Patch additiv, byte-identisch:** `connective-patches/phoenix_v2_c.patch` per `patch -p1
+  --dry-run` sowie real per `patch -p1` gegen zwei frische, unabhängige Zweitkopien meiner
+  eigenen `phoenix_v2.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem `git clone` zu Sitzungsbeginn
+  bestätigt unverändert aktueller `HEAD`-Stand) angewendet — beide Ergebnisse per `md5sum`
+  byte-identisch zueinander und zur mitgelieferten Zieldatei bestätigt. `git diff --stat` nach
+  dem Anwenden: **20 Zeilen Hinzufügung, 1 Löschung** (dieselbe Art Zeilenverschiebung wie bei
+  Secplus v1/Somfy Telis: die bestehende
+  `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {`-Zeile wird durch die um den
+  neuen Override-Zweig erweiterte Zeile
+  `} else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {` ersetzt — keine
+  inhaltliche Löschung, reine Verschiebung in dieselbe Bedingung).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase6/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die zwei neuen
+  Anschlussstellen selbst sind per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten,
+  bereits gepatchten `phoenix_v2.c` in eigene `.inc`-Fragmente extrahiert und in minimalen
+  Wrapper-Funktionen eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar: `sed 256,280p` für den Tasten-Override- und den Zähler-Override-Zweig plus
+  die zwei unveränderten Geschwister-Zweige, `sed 602,610p` für den `get_string()`-Push-Block).
+  Geprüft (25 Prüfungen):
+  1. Tasten-Override verbraucht sich einmalig, maskiert auf das reale `btn_length_bit` (4) —
+     ein außerhalb des 4-Bit-Bereichs liegender Override-Wert (`0x1F`) belegt dabei zugleich die
+     Masken-Formel für diese konkrete Protokoll-Bitbreite (`0x1F & 0xF == 0xF`).
+  2. Ohne anhängenden Tasten-Override bleibt der übergebene, vorbestehende
+     `get_btn_code()`-Wert unverändert (Regression).
+  3. Zähler-Override verwendet den überschriebenen, maskierten Wert verbatim und überspringt
+     dabei sowohl den Standard-Wrap-Pfad als auch den OFEX-Sprung-Pfad vollständig — auch dann,
+     wenn `furi_hal_subghz_get_rolling_counter_mult()` gleichzeitig auf den OFEX-Sentinel-Wert
+     gesetzt ist (Beleg, dass der neue Zweig strikt vor der gesamten bestehenden `if`/`else
+     if`-Kette läuft, nicht nur vor deren Standard-Hälfte) — ein außerhalb des 16-Bit-Bereichs
+     liegender Override-Wert (`0x1ABCD`) belegt dabei zugleich die Masken-Formel für den realen
+     16-Bit-Zähler dieses Protokolls (`0x1ABCD & 0xFFFF == 0xABCD`). Override verbraucht sich
+     einmalig.
+  4. Ohne anhängenden Override läuft die bestehende Standard-Wrap-Logik unverändert — sowohl
+     der einfache Inkrement-Fall als auch der Wrap-auf-0-Fall bei Überschreiten von `0xFFFF`.
+  5. Ohne anhängenden Override läuft die bestehende OFEX-Logik unverändert — alle drei real
+     vorhandenen Verzweigungen: Wrap-auf-0 bei `cnt == 0xFFFF`, Sprung-auf-`0xFFFE` für jeden
+     sonstigen Wert `>= 1`, sowie die beiden vom Sprung bewusst ausgenommenen
+     Rand-Inkrement-Fälle `cnt == 0` und `cnt == 0xFFFE` (Regression gegen alle vier
+     dokumentierten OFEX-Teilfälle, nicht nur den Sprung-Fall).
+  6. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+     unbedingt `16`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `true`/
+     `current_btn`/`btn_length_bit` unbedingt `4` korrekt, für zwei unterschiedliche
+     Zähler-/Tastenwerte (inkl. des Randfalls beide `0`).
+  7. Die in Phase 1 dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit`
+     vor dem ersten `_override_get()`-Aufruf) für die realen Bitbreiten dieses Protokolls (16/4)
+     explizit durchexerziert: `get_string()`-Fragment zuerst ausgeführt (setzt beide Längen),
+     danach ein Override-Set/Get-Durchlauf im `get_upload()`-Fragment unter Wiederverwendung
+     dieser Längen — kein UB, korrekt maskiertes Ergebnis.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **25 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus `firmware-mining/repro-subghz-block-generic-global-override-port-phase6/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -703,25 +849,37 @@ OFEX-Sprung) inhaltlich anzutasten:
    echten Kandidaten der kleinste und strukturell sauberste. Dasselbe OFEX-Sentinel-Muster wie
    bei Secplus v1, aber mit eigenem 16-Bit-Zählerbereich und eigenen Wrap-/Sprung-Formeln; die
    bestehende Standard-/OFEX-Logik bleibt dabei (wie bei Secplus v1) vollständig erhalten, der
-   Override nur als vorangestellter Zweig davor eingefügt. Weiterhin offen: die übrigen 8 der
-   tatsächlich existierenden Nachzieh-Kandidaten (FAAC SLH, Secplus v2, Alutech AT-4N,
-   Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis — gleiches Muster wie
-   KeeLoq/Secplus v1/Somfy Telis, siehe "Betroffene Dateien" — pro Protokoll eigener Diff gegen
-   Unleashed nötig, da bereits bei KeeLoq und jetzt bei Phoenix V2 erhebliche strukturelle
-   Abweichungen von der aktuellen Unleashed-Version bestanden bzw. zu erwarten sind, und bei
-   den auf `common.c` umgebauten Protokollen wie FAAC SLH ein deutlich größerer Diff als bei
-   KeeLoq/Princeton/Secplus v1/Somfy Telis zu erwarten ist), dann `endless_tx` an die eigene
-   SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
-6. **Phase 6 (separater, deutlich größerer Port, nicht Teil dieser Port-Skizze):** erst ab hier
-   wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll — ihr `subrem_tx_start_sub()`
-   braucht exakt den hier gelieferten Mechanismus, um den Tastenwert vor dem Senden zu
-   überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener Port-Skizze (Map-Datei-
-   Format, Szenen/Views, die 684-Zeilen-`subghz_txrx`-Kopie der App gegen meine eigene,
-   unabhängig weiterentwickelte `applications/main/subghz/helpers/subghz_txrx.c` abgleichen —
-   bei einem ersten Blick bereits mehrere funktionale Unterschiede sichtbar, u. a. der
-   OTG-Einschaltpfad: die App nutzt einen begrenzten `furi_hal_power_enable_otg()`-Retry mit
-   5 Versuchen, meine eigene Version einen einmaligen Aufruf über den `Power`-Service).
-7. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
+   Override nur als vorangestellter Zweig davor eingefügt. Weiterhin offen nach Phase 5: die
+   übrigen 8 der tatsächlich existierenden Nachzieh-Kandidaten (FAAC SLH, Secplus v2,
+   Alutech AT-4N, Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis).
+6. **Phase 6 (geliefert, diese Sitzung — Phoenix V2):** viertes Nachzieh-Protokoll angeschlossen,
+   drittes mit tatsächlicher Zähler-Hälfte. Gesamtdiff mit 324 Zeilen wie in Phase 5 angekündigt
+   der nächstkleinste der sechs verglichenen Kandidaten, enthielt zusätzlich zu Unleasheds
+   separatem `common.c`-Umbau ein eigenständiges, hier bewusst nicht mitportiertes
+   "CounterMode"-Feature (siehe "Update (Phase 6)" und "Phase 6: Phoenix V2") — nach Abzug
+   beider Blöcke dasselbe OFEX-Sentinel-Muster mit identischem 16-Bit-Zählerbereich und
+   identischen Wrap-/Sprung-Formeln wie Somfy Telis; die bestehende Standard-/OFEX-Logik bleibt
+   dabei vollständig erhalten, der Override nur als vorangestellter Zweig davor eingefügt.
+   Weiterhin offen: die übrigen 7 der tatsächlich existierenden Nachzieh-Kandidaten (FAAC SLH,
+   Secplus v2, Alutech AT-4N, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis —
+   gleiches Muster wie KeeLoq/Secplus v1/Somfy Telis/Phoenix V2, siehe "Betroffene Dateien" —
+   pro Protokoll eigener Diff gegen Unleashed nötig, da bei KeeLoq und Phoenix V2 bereits
+   erhebliche strukturelle Abweichungen bzw. zusätzliche Seitenfeatures gegenüber der aktuellen
+   Unleashed-Version bestanden, und bei den auf `common.c` umgebauten Protokollen wie FAAC SLH
+   ein deutlich größerer Diff als bei KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2 zu
+   erwarten ist), dann `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK =
+   Dauersenden statt fester Wiederholzahl).
+7. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
+   Port-Skizze):** erst ab hier wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll —
+   ihr `subrem_tx_start_sub()` braucht exakt den hier gelieferten Mechanismus, um den Tastenwert
+   vor dem Senden zu überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener
+   Port-Skizze (Map-Datei-Format, Szenen/Views, die 684-Zeilen-`subghz_txrx`-Kopie der App gegen
+   meine eigene, unabhängig weiterentwickelte
+   `applications/main/subghz/helpers/subghz_txrx.c` abgleichen — bei einem ersten Blick bereits
+   mehrere funktionale Unterschiede sichtbar, u. a. der OTG-Einschaltpfad: die App nutzt einen
+   begrenzten `furi_hal_power_enable_otg()`-Retry mit 5 Versuchen, meine eigene Version einen
+   einmaligen Aufruf über den `Power`-Service).
+8. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
    Compile-Fehler durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
@@ -734,7 +892,9 @@ OFEX-Sprung) inhaltlich anzutasten:
    am Zielgerät (eigenes, autorisiert getestetes Garagentor/Empfänger) beobachten, ob/wie der
    geänderte Zähler akzeptiert wird. Nach Phase 5 zusätzlich mit Somfy Telis testbar: dieselbe
    Zähler-/Tasten-Prüfung wie bei Secplus v1, am eigenen, autorisiert getesteten
-   Rolling-Code-Empfänger (z. B. Somfy-Antrieb).
+   Rolling-Code-Empfänger (z. B. Somfy-Antrieb). Nach Phase 6 zusätzlich mit Phoenix V2 testbar:
+   dieselbe Zähler-/Tasten-Prüfung wie bei Somfy Telis, am eigenen, autorisiert getesteten
+   Rolling-Code-Empfänger.
 
 ## Quelle
 
@@ -810,3 +970,16 @@ OFEX-Sprung) inhaltlich anzutasten:
   genannten, bis dahin noch nicht geprüften Kandidat-Dateien sowie für
   `lib/subghz/protocols/somfy_telis.c` im Speziellen, Ausgangspunkt für
   `connective-patches/somfy_telis_c.patch`.
+- (Phase 6) Unleashed-Firmware, Standard-Branch, Commit
+  `29c3dccda9c54bd06c23ffd45b33d77efaa18e72` (2026-10-28, per frischem `git clone` zu
+  Sitzungsbeginn geholt): `lib/subghz/protocols/phoenix_v2.c` zum vollständigen Diff gegen meine
+  eigene Basis herangezogen, die zwei Override-Anschlusspunkte (siehe "Phase 6: Phoenix V2")
+  daraus übernommen; der übrige, hier nicht übernommene Teil des Diffs besteht aus zwei
+  getrennten Blöcken — Unleasheds separatem `common.c`-Encoder-/Decoder-Basis-Umbau (wie bei
+  Princeton/Secplus v1/Somfy Telis) sowie Unleasheds eigenständigem "CounterMode"-Feature (siehe
+  "Update (Phase 6)") — beide hängen mit diesem Port nicht zusammen und werden nicht
+  übernommen.
+- (Phase 6) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per frischem `git clone` zu Sitzungsbeginn Phase 6 erneut als unverändert aktueller
+  `HEAD`-Stand bestätigt, identisch zu Phase 1-5): eigene Basis für
+  `lib/subghz/protocols/phoenix_v2.c`, Ausgangspunkt für `connective-patches/phoenix_v2_c.patch`.

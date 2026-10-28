@@ -9272,3 +9272,94 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       YRM100-Kernlogik (`yrm100x_module.c`/`_tag.c`/`_worker.c`/`_buffer.c`) sowie die zwölf
       UI-`views/*.c`-Dateien von `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler
       Test des hier gelieferten `ring_buffer_extract_line()`-Fixes.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 6 — Phoenix V2 als viertes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis durchgesehen: letzte
+      Sitzung war Ideen-Recherche (Simultaneous UHF RFID Reader), davor App-Verbesserung
+      (lilygo-ukfe-rx), davor Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 5, Somfy
+      Telis) — nach dem etablierten Rotationsmuster war Firmware-Feature-Mining für diese
+      Sitzung an der Reihe. Git-Identität vor dem ersten eigenen Commit gesetzt (`G4MEOVER18
+      <g4me.over.18@gmail.com>`); lokaler Checkout war bereits sauber auf `origin/main`.
+- [x] Aus Phase 5s "weiterhin offen"-Liste (8 echte Nachzieh-Kandidaten: FAAC SLH, Secplus v2,
+      Alutech AT-4N, Phoenix V2, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis)
+      **Phoenix V2** gewählt: in Phase 5 bereits als nächstkleinster Diff (324 Zeilen) nach
+      Somfy Telis identifiziert, mit einem dort nur angekündigten, noch nicht einzeln geprüften
+      `cnt_need_override`/`bypass`-Vorbehalt. Frischer `git clone` beider Seiten
+      (`G4MEOVER18/G4MEOVER-FW`, `main`, `b359f6fc32f282ce7217dd2d48a4e3478771852e`, unverändert
+      identisch zu Phase 1–5; Unleashed, Standard-Branch, `29c3dccda9c54bd06c23ffd45b33d77efaa18e72`,
+      2026-10-28) — Diff mit 324 Zeilen gegenüber der Phase-5-Schätzung exakt bestätigt.
+- [x] Diff gelesen: besteht aus zwei getrennten, hier nicht übernommenen Blöcken (Unleasheds
+      separater `common.c`-Encoder-/Decoder-Basis-Umbau, wie bei Princeton/Secplus v1/Somfy
+      Telis) und einem bei Phoenix V2 zusätzlichen, eigenständigen "CounterMode"-Feature (ein
+      per `.sub`-Dateifeld wählbares drittes Zähler-Schema plus `v2_phoenix_counter_mode`/
+      `bypass`-Variablen) — der zuvor angekündigte `bypass`-Mechanismus gehört zu diesem
+      Seitenfeature, nicht zum Override-Mechanismus selbst. Meine eigene `phoenix_v2.c` kennt
+      kein "CounterMode" und läuft unverändert über die bestehende Standard-/OFEX-Verzweigung —
+      dieselbe Begründung wie bei KeeLoqs Modus-7-Pfad in Phase 2, bewusst nicht mitportiert.
+      Nach Abzug beider Blöcke dieselben zwei override-relevanten Anschlussstellen wie bei
+      Somfy Telis, strukturell 1:1 übertragbar (identischer 16-Bit-Zählerbereich, identische
+      Wrap-/Sprung-Formeln). Siehe
+      `firmware-mining/subghz-block-generic-global-override-port.md`, Abschnitt "Phase 6:
+      Phoenix V2".
+- [x] Zwei Anschlussstellen additiv eingefügt: Tasten-Override-Aufruf direkt nach der
+      bestehenden `btn = subghz_protocol_phoenix_v2_get_btn_code();`-Zeile, Zähler-Override als
+      neuer, vorangestellter Zweig vor der bestehenden Standard-/OFEX-`if`/`else if`-Kette in
+      `subghz_protocol_encoder_phoenix_v2_get_upload()`; `cnt_is_available`/`cnt_length_bit`/
+      `current_cnt`/`btn_is_available`/`current_btn`/`btn_length_bit` unbedingt in
+      `subghz_protocol_decoder_phoenix_v2_get_string()` gesetzt — exakt Unleasheds eigene
+      Anbindung, byte-für-byte übernommen.
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      phoenix_v2_c.patch`) gegen zwei frische, unabhängige Zweitkopien meiner eigenen
+      `phoenix_v2.c` mit `patch -p1 --dry-run` verifiziert, real angewendet, Ergebnis per
+      `md5sum` byte-für-byte abgeglichen — identisch (20 Zeilen Hinzufügung, 1 Löschung laut
+      `git diff --stat` — die eine Löschung ist dieselbe Art Zeilenverschiebung wie bei
+      Secplus v1/Somfy Telis, keine inhaltliche Löschung). Zieldatei zum direkten Ersetzen
+      ebenfalls mitgeliefert.
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase6/`):
+      dieselbe Mock-/Stub-Struktur wie Phase 5 wiederverwendet (unveränderte `generic.c` echt
+      mitkompiliert, die zwei neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus
+      der gepatchten `phoenix_v2.c` extrahiert: `sed 256,280p`/`602,610p`). **25 Prüfungen**
+      unter `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED (25 total)**, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` bleibt bei 0. Geprüft: Tasten-/Zähler-Override mit Masken-Beleg
+      für die realen Bitbreiten (4/16), einmaliger Verbrauch, unveränderte Standard-Wrap- und
+      alle drei OFEX-Teilfälle ohne Override, `get_string()`-Push-Block, sowie die aus Phase 1
+      bekannte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit` vor dem ersten
+      `_override_get()`-Aufruf) für diese Bitbreiten.
+- [x] `subghz-block-generic-global-override-port.md` um "Update (Phase 6)", "Phase 6: Phoenix
+      V2", "Verifikation Phase 6" sowie die entsprechenden Betroffene-Dateien-/Quelle-Einträge
+      ergänzt; die Zählung der ursprünglich ~15 Rolling-Code-Protokolle auf 4 von 11
+      angeschlossen (KeeLoq, Secplus v1, Somfy Telis, Phoenix V2) plus Princeton als
+      zusätzlichen Fund aktualisiert — 7 offen (FAAC SLH, Secplus v2, Alutech AT-4N,
+      Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis). Port-Skizze umnummeriert: der
+      bisherige Listenpunkt "Phase 6" für den separaten SubGhz-Remote-App-Port kollidierte mit
+      der hier verwendeten Phasen-Nummerierung (reine Aufzählungsnummer, nie als fortlaufende
+      Protokoll-Phase gemeint) — in "SubGhz Remote App-Port" umbenannt, ohne Inhalt zu
+      verändern, nur um die Doppelbenennung "Phase 6" aufzulösen.
+- [ ] Lokal zu tun: Patch gegen die eigene `phoenix_v2.c` anwenden, mit `ufbt`/`fbt` bauen.
+      Funktionstest: Phoenix-V2-Signal erfassen, über ein künftiges Edit-Menü den Zähler oder
+      die Taste ändern, erneut senden, am eigenen, autorisiert getesteten Rolling-Code-Empfänger
+      beobachten, ob/wie der geänderte Wert akzeptiert wird. Regressionsfall: unverändertes
+      Signal ohne Override muss weiterhin exakt wie vor dem Patch senden.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, Zähler aktualisiert): `texkom`
+      Phase 5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 7 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie der separate SubGhz-Remote-App-Port, ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`, lokaler
+      Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des Unitemp-`sscanf()`-
+      Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` sowie `src/wifi_attack.h` weiterhin
+      ungeprüft, lokaler Test des `wifi_attack_scan()`-Kanal-Fixes, YRM100-Kernlogik
+      (`yrm100x_module.c`/`_tag.c`/`_worker.c`/`_buffer.c`) sowie die zwölf UI-`views/*.c`-
+      Dateien von `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler Test des
+      `ring_buffer_extract_line()`-Fixes aus der vorherigen Sitzung, lokaler Test des hier
+      gelieferten Phoenix-V2-Override-Anschlusses.
