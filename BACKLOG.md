@@ -9500,3 +9500,103 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       noch nicht erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test
       des Phoenix-V2-Override-Anschlusses, lokaler Test des hier gelieferten
       YRM100-TID-/User-Bank-Overflow-Fixes.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 7 — CAME Atomo als fünftes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis durchgesehen: letzte
+      Sitzung war Ideen-Recherche (Simultaneous UHF RFID Reader, YRM100-Fund), davor
+      App-Verbesserung (lilygo-ukfe-rx), davor Firmware-Feature-Mining (SubGhzBlockGenericGlobal
+      Phase 6, Phoenix V2) — nach dem etablierten Rotationsmuster (App → Idee → FM → App → Idee
+      → FM → …) war Firmware-Feature-Mining für diese Sitzung an der Reihe. Git-Identität vor
+      dem ersten eigenen Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`); lokaler
+      Checkout war bereits sauber auf `origin/main`.
+- [x] Aus Phase 6s "weiterhin offen"-Liste (7 echte Nachzieh-Kandidaten: FAAC SLH, Secplus v2,
+      Alutech AT-4N, Nice FloR-S, CAME Atomo, KingGates Stylo4K, Somfy Keytis) **CAME Atomo**
+      gewählt: mit 403 Diff-Zeilen (gegenüber Alutech AT-4N 404, Somfy Keytis 405, KingGates
+      Stylo4K 496, FAAC SLH 712, Secplus v2 1133, Nice FloR-S 1284) der kleinste der sieben.
+      Frischer Doppel-Clone (`G4MEOVER18/G4MEOVER-FW`, `main`, unverändert
+      `b359f6fc32f282ce7217dd2d48a4e3478771852e`; Unleashed, Standard-Branch,
+      `447fae5b133a211e5fb2da9e4e72956f8652e892`, 2026-10-29) — Diff mit genau 403 Zeilen
+      bestätigt.
+- [x] Diff gelesen: drei Blöcke. Zwei hier nicht übernommen (Unleasheds separater
+      `common.c`-Encoder-/Decoder-Basis-Umbau wie bei Princeton/Secplus v1/Somfy Telis/Phoenix
+      V2; ein neuer sechster/siebter Tastencode samt eines vierten Header-Timing-Zweigs für ein
+      weiteres Lesegerätemodell — eigenständige Protokoll-/Hardware-Erweiterung ohne Bezug zum
+      Override). Der dritte Block — Unleasheds `cnt_need_override`/`bypass`-Mechanismus — ist
+      hier anders als bei Phoenix V2 (Phase 6) **kein** Fremdfeature: meine eigene
+      `came_atomo.c` hat bereits ein identisches, vierstufiges `came_atomo_counter_mode`-Feld
+      (Modus 0 Standard/OFEX, Modus 1/2 feste Wertetabellen, Modus 3 Freeze). Da die Modi 1-3
+      den Override sonst stillschweigend ignorieren würden, wird `bypass` hier mitportiert —
+      anders als bei Phoenix V2, wo das zugehörige "CounterMode"-Feature bei mir strukturell
+      gar nicht existiert und deshalb übersprungen wurde.
+- [x] Drei Anschlussstellen additiv eingefügt: `static bool bypass = false;` neben der
+      bestehenden `came_atomo_counter_mode`-Variable; Bypass-Aufbau plus `|| bypass`-Erweiterung
+      der bestehenden Modus-0-/OFEX-Verzweigung in
+      `subghz_protocol_encoder_came_atomo_get_upload()` (Modi 1-3 bleiben textidentisch
+      unverändert); Tasten-Override-Aufruf nach der bestehenden Tastencode-Zuordnungstabelle in
+      derselben Funktion (hier, anders als bei den vorherigen vier Protokollen, *nach* statt vor
+      der Zuordnung — exakt Unleasheds eigene Platzierung); `cnt_is_available`/`cnt_length_bit`/
+      `current_cnt`/`btn_is_available`/`current_btn`/`btn_length_bit` unbedingt in
+      `subghz_protocol_decoder_came_atomo_get_string()` gesetzt.
+- [x] Risiko dokumentiert: der Tasten-Override sitzt nach der Zuordnungstabelle und überschreibt
+      damit den bereits auf den Wire-Nibble-Wert (0x0/0x2/0x4/0x6) abgebildeten Code, während
+      `get_string()` die benutzerfreundliche Tasten-Id (1-4) anzeigt — ein künftiges Edit-Menü
+      muss den Override-Wert in Wire-Nibble-Kodierung entgegennehmen, nicht als 1-4. Exakt
+      Unleasheds eigenes Verhalten, kein durch diesen Port eingeführter Fehler.
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      came_atomo_c.patch`) gegen zwei frische, unabhängige Zweitkopien meiner eigenen
+      `came_atomo.c` mit `patch -p1 --dry-run` verifiziert, real angewendet, Ergebnis per
+      `md5sum` byte-für-byte abgeglichen — identisch (38 Zeilen Hinzufügung, 6 Löschungen laut
+      `git diff --stat` — dieselbe Art Zeilenverschiebung wie bei den vorherigen Phasen, keine
+      inhaltliche Löschung). Zieldatei zum direkten Ersetzen ebenfalls mitgeliefert.
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase7/`):
+      dieselbe Mock-/Stub-Struktur wie Phase 5/6 wiederverwendet (unveränderte `generic.c` echt
+      mitkompiliert, die drei neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus
+      der gepatchten `came_atomo.c` extrahiert: `sed 197,249p`/`258,271p`/`847,855p` — anders
+      als bei Phase 3-6 liegen Tasten- und Zähler-Override hier nicht im selben Codeblock,
+      deshalb zwei getrennte Fragmente statt eines kombinierten). **35 Prüfungen** unter
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED (35 total)**, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+      `g_unexpected_stub_calls` bleibt bei 0. Geprüft: Tasten-/Zähler-Override mit
+      Masken-Beleg für die realen Bitbreiten (4/16), einmaliger Verbrauch, der eigentliche Zweck
+      von `bypass` (Override setzt sich in Modus 1, 2 und 3 einzeln gegen die jeweilige feste
+      Wertetabelle bzw. das Freeze-Verhalten durch), unveränderte Modi 1-3 ohne Override,
+      unveränderter Standard-/OFEX-Pfad ohne Override, `get_string()`-Push-Block, sowie die aus
+      Phase 1 bekannte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit` vor dem
+      ersten `_override_get()`-Aufruf) für diese Bitbreiten.
+- [x] `subghz-block-generic-global-override-port.md` um "Update (Phase 7)", "Phase 7: CAME
+      Atomo", "Verifikation Phase 7" sowie die entsprechenden Betroffene-Dateien-/Quelle-/
+      Risiko-/Port-Skizze-Einträge ergänzt; die Zählung der ursprünglich ~15 Rolling-Code-
+      Protokolle auf 5 von 11 angeschlossen (KeeLoq, Secplus v1, Somfy Telis, Phoenix V2, CAME
+      Atomo) plus Princeton als zusätzlichen Fund aktualisiert — 6 offen (FAAC SLH, Secplus v2,
+      Alutech AT-4N, Nice FloR-S, KingGates Stylo4K, Somfy Keytis).
+- [ ] Lokal zu tun: Patch gegen die eigene `came_atomo.c` anwenden, mit `ufbt`/`fbt` bauen.
+      Funktionstest: CAME-Atomo-Signal erfassen, über ein künftiges Edit-Menü den Zähler oder
+      die Taste ändern (Tasten-Override-Wert dabei in Wire-Nibble-Kodierung 0x0/0x2/0x4/0x6
+      eingeben, nicht als 1-4 — siehe Risiko oben), erneut senden, am eigenen, autorisiert
+      getesteten Rolling-Code-Empfänger beobachten, ob/wie der geänderte Wert akzeptiert wird.
+      Für alle vier `CounterMode`-Einstellungen (0-3) einzeln durchspielen, da `bypass` genau
+      dafür sorgt, dass der Override auch in Modus 1-3 durchschlägt. Regressionsfall:
+      unverändertes Signal ohne Override muss in jedem Modus weiterhin exakt wie vor dem Patch
+      senden.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, Zähler aktualisiert): `texkom`
+      Phase 5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 6 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie der separate SubGhz-Remote-App-Port, ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`,
+      lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des
+      Unitemp-`sscanf()`-Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` weiterhin
+      ungeprüft, lokaler Test des `wifi_attack_scan()`-Kanal-Fixes, lokaler Test des
+      Hopping-Start-Kanal-Fixes, die zwölf UI-`views/*.c`-Dateien von `simultaneous_rfid_reader`
+      noch nicht erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test
+      des Phoenix-V2-Override-Anschlusses, lokaler Test des YRM100-TID-/User-Bank-Overflow-Fixes,
+      lokaler Test des hier gelieferten CAME-Atomo-Override-Anschlusses.

@@ -1,0 +1,79 @@
+diff --git a/lib/subghz/protocols/came_atomo.c b/lib/subghz/protocols/came_atomo.c
+index fb3a5de..919e1a7 100644
+--- a/lib/subghz/protocols/came_atomo.c
++++ b/lib/subghz/protocols/came_atomo.c
+@@ -41,6 +41,11 @@ typedef enum {
+ 
+ static uint8_t came_atomo_counter_mode = 0;
+ 
++// set when a pending counter/button override must force the standard/OFEX branch below to
++// run even while came_atomo_counter_mode selects one of the fixed-table modes (1/2/3), which
++// otherwise never consult the override at all
++static bool bypass = false;
++
+ const SubGhzProtocolDecoder subghz_protocol_came_atomo_decoder = {
+     .alloc = subghz_protocol_decoder_came_atomo_alloc,
+     .free = subghz_protocol_decoder_came_atomo_free,
+@@ -189,15 +194,27 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
+ 
+     uint8_t pack[8] = {};
+ 
+-    if(came_atomo_counter_mode == 0) {
++    // if we change counter/button in the signal settings menu, force the standard/OFEX branch
++    // below to run this pass even in counter_mode 1/2/3, so the override actually takes effect
++    if(subghz_block_generic_global.cnt_need_override || subghz_block_generic_global.btn_need_override)
++        bypass = true;
++
++    if(came_atomo_counter_mode == 0 || bypass) {
+         // Check for OFEX (overflow experimental) mode
+-        if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
+-            if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
+-                instance->generic.cnt = 0;
+-            } else {
+-                instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
++        if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF || bypass) {
++            bypass = false;
++            // standard counter mode: pull from subghz_block_generic_global first
++            if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
++                // no override pending: increase by the standard mult value as before
++                if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) >
++                   0xFFFF) {
++                    instance->generic.cnt = 0;
++                } else {
++                    instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
++                }
+             }
+         } else {
++            // OFEX mode
+             if((instance->generic.cnt + 0x1) > 0xFFFF) {
+                 instance->generic.cnt = 0;
+             } else if(instance->generic.cnt >= 0x1 && instance->generic.cnt != 0xFFFE) {
+@@ -248,6 +265,11 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
+         btn = 0x6;
+     }
+ 
++    // override button if we change it with the signal settings button editor
++    if(subghz_block_generic_global_button_override_get(&btn)) {
++        FURI_LOG_D(TAG, "Button successfully changed to 0x%X", btn);
++    }
++
+     //Send header
+     instance->encoder.upload[index++] =
+         level_duration_make(true, (uint32_t)subghz_protocol_came_atomo_const.te_long * 15);
+@@ -822,6 +844,16 @@ void subghz_protocol_decoder_came_atomo_get_string(void* context, FuriString* ou
+     uint32_t code_found_hi = instance->generic.data >> 32;
+     uint32_t code_found_lo = instance->generic.data & 0x00000000ffffffff;
+ 
++    // push protocol data to global variable
++    subghz_block_generic_global.cnt_is_available = true;
++    subghz_block_generic_global.cnt_length_bit = 16;
++    subghz_block_generic_global.current_cnt = instance->generic.cnt;
++
++    subghz_block_generic_global.btn_is_available = true;
++    subghz_block_generic_global.current_btn = instance->generic.btn;
++    subghz_block_generic_global.btn_length_bit = 4;
++    //
++
+     furi_string_cat_printf(
+         output,
+         "%s %db\r\n"

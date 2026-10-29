@@ -1,5 +1,25 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 7):** fünftes Nachzieh-Protokoll (CAME Atomo, `came_atomo`) angeschlossen — siehe
+"Phase 7: CAME Atomo" sowie "Verifikation Phase 7" unten. Von den verbliebenen sieben
+Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Alutech AT-4N: 404, Nice FloR-S: 1284,
+CAME Atomo: 403, KingGates Stylo4K: 496, Somfy Keytis: 405) hatte CAME Atomo den kleinsten
+Gesamtdiff und war damit an der Reihe — anders als bei Phoenix V2 (Phase 6) ist der
+`cnt_need_override`/`bypass`-Mechanismus hier aber *kein* Fremdfeature, das übersprungen werden
+konnte: meine eigene `came_atomo.c` hat bereits ein eigenständiges, vierstufiges
+`came_atomo_counter_mode`-Feature (Modus 0 Standard/OFEX, Modus 1/2 feste Wertetabellen, Modus 3
+Zähler-Freeze) — identisch zu Unleasheds eigenem. Da die Modi 1-3 den Override nie konsultieren,
+übernimmt Phase 7 auch Unleasheds `bypass`-Flag, das den Standard-/OFEX-Zweig für einen Durchlauf
+erzwingt, sobald ein Override anhängt, unabhängig vom eingestellten Modus — sonst würde ein
+Zähler- oder Tasten-Edit in Modus 1-3 stillschweigend ignoriert. Von den ursprünglich gezählten
+~15 Protokollen bleiben weiterhin vier (Beninca ARC, Jarolift, Prastel, Ditec GOL4) ohne
+eigenständige Protokolldatei (unverändert seit "Update (Phase 4)"), es bleiben 11 echte
+Kandidaten. Davon sind KeeLoq (Phase 2), Secplus v1 (Phase 4), Somfy Telis (Phase 5), Phoenix V2
+(Phase 6) und jetzt CAME Atomo (Phase 7) angeschlossen — macht 5 von 11, 6 offen (FAAC SLH,
+Secplus v2, Alutech AT-4N, Nice FloR-S, KingGates Stylo4K, Somfy Keytis). Princeton (Phase 3)
+bleibt der zusätzliche, nicht in der ursprünglichen Liste gezählte Fund — macht insgesamt 6
+angeschlossene Protokolle.
+
 **Update (Phase 6):** viertes Nachzieh-Protokoll (Phoenix V2, `phoenix_v2`) angeschlossen — siehe
 "Phase 6: Phoenix V2" sowie "Verifikation Phase 6" unten. Von den sechs in Phase 5 verglichenen,
 bis dahin noch nicht einzeln geprüften Kandidaten (Alutech AT-4N: 404 Diff-Zeilen, Phoenix V2:
@@ -218,22 +238,37 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase6/` — Host-Repro
   (siehe "Verifikation Phase 6").
 
+**Jetzt geliefert (Phase 7, fünftes Nachzieh-Protokoll CAME Atomo):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/came_atomo.c`
+  — meine eigene `came_atomo.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, per frischem
+  `git clone` zu Sitzungsbeginn als unverändert aktueller `HEAD`-Stand bestätigt), additiv um
+  die drei Anschlussstellen erweitert (siehe "Phase 7: CAME Atomo" unten). Fertige Zieldatei
+  zum direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/came_atomo.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/came_atomo_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase7/` — Host-Repro
+  (siehe "Verifikation Phase 7").
+
 **Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
 ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
 Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
-"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen Phoenix V2 (Phase 6), 7
-echte Kandidaten: FAAC SLH, Secplus v2, Alutech AT-4N, Nice FloR-S, CAME Atomo, KingGates
-Stylo4K, Somfy Keytis. Pro Datei derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei
-KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2, sofern sich der Gesamtdiff (teilweise durch
-Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen lässt — bei
-Somfy Telis (231 Diff-Zeilen, siehe "Phase 5") und Phoenix V2 (324 Zeilen, siehe "Phase 6") hat
-das wie bei Secplus v1 (231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert, obwohl
-Phoenix V2 zusätzlich Unleasheds eigenständiges "CounterMode"-Feature im Diff hatte (siehe
-"Update (Phase 6)" — bewusst nicht mitportiert). Bei Protokollen mit deutlich größerem
-Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2: 1133, Nice FloR-S: 1284, Alutech AT-4N: 404, CAME
-Atomo: 403, KingGates Stylo4K: 496, Somfy Keytis: 405 u. a.) ist derselbe sorgfältige
-Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht versucht.
-Keine dieser Dateien ist in dieser Sitzung angefasst.
+"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen CAME Atomo (Phase 7), 6
+echte Kandidaten: FAAC SLH, Secplus v2, Alutech AT-4N, Nice FloR-S, KingGates Stylo4K, Somfy
+Keytis. Pro Datei derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei
+KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo, sofern sich der Gesamtdiff
+(teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug von Hand
+auftrennen lässt — bei Somfy Telis (231 Diff-Zeilen, siehe "Phase 5"), Phoenix V2 (324 Zeilen,
+siehe "Phase 6") und CAME Atomo (403 Zeilen, siehe "Phase 7") hat das wie bei Secplus v1
+(231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert, obwohl Phoenix V2 zusätzlich
+Unleasheds eigenständiges "CounterMode"-Feature im Diff hatte (siehe "Update (Phase 6)" —
+bewusst nicht mitportiert) und CAME Atomo zusätzlich Unleasheds separaten `common.c`-Umbau
+sowie einen neuen sechsten/siebten Tastencode samt eines vierten Header-Timing-Zweigs im Diff
+hatte (siehe "Update (Phase 7)" — beide bewusst nicht mitportiert; anders als bei Phoenix V2 war
+der `bypass`-Mechanismus bei CAME Atomo aber kein Fremdfeature und wurde mitportiert). Bei
+Protokollen mit deutlich größerem Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2: 1133,
+Nice FloR-S: 1284, Alutech AT-4N: 404, KingGates Stylo4K: 496, Somfy Keytis: 405 u. a.) ist
+derselbe sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz —
+noch nicht versucht. Keine dieser Dateien ist in dieser Sitzung angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -454,6 +489,68 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
    `check_remote_controller()` aus dem entschlüsselten Datenfeld) ist unabhängig editierbar,
    dieselbe Festlegung, die Unleashed selbst trifft, wie bei KeeLoq/Princeton/Somfy Telis.
 
+### Phase 7: CAME Atomo (fünftes Protokoll der Nachzieh-Liste)
+
+**Was:** `came_atomo` ist bei Unleashed ebenfalls Mitglied der ursprünglich gezählten
+Rolling-Code-Protokolle. Beim Diff meiner eigenen `came_atomo.c` gegen Unleasheds aktuellen
+Standard-Branch (siehe "Quelle") zeigte sich der in Phase 6 angekündigte Gesamtdiff-Umfang von
+403 Zeilen, davon wie bei Phoenix V2 ein erster, hier nicht relevanter Block aus Unleasheds
+separatem `common.c`-Encoder-/Decoder-Basis-Umbau (`#include "common.h"`,
+`SUBGHZ_ASSERT_*_LAYOUT`, `alloc`/`free` über `subghz_protocol_*_common_alloc/_free`,
+`get_hash_data`/`serialize` über die `common`-Infrastruktur statt eigener Funktionen) sowie ein
+zweiter, hier ebenfalls nicht übernommener Block: ein zusätzlicher sechster/siebter Tastencode
+(`0x5`/`0x6`, Wire-Nibble `0x0C`/`0x0E`) samt eines neuen vierten Header-Timing-Zweigs
+(19k-µs-Variante für ein weiteres Lesegerätemodell, `TOPD4REN`) und einer neuen
+`SUBGHZ_CUSTOM_BTN_RIGHT`-Tabelle für die Custom-Taste "Rechts" — beides eigenständige
+Protokoll-/Hardware-Erweiterungen, die meine eigene `came_atomo.c` (vier Tasten, zwei bekannte
+Header-Timings) nicht kennt und für die der Override-Anschluss keine Voraussetzung ist. Anders
+als bei Phoenix V2 ist der dritte Block — Unleasheds `cnt_need_override`/`bypass`-Mechanismus —
+hier **kein** Fremdfeature: meine eigene `came_atomo.c` hat bereits ein eigenständiges,
+vierstufiges `came_atomo_counter_mode`-Feld (Modus 0: Standard/OFEX wie bei den anderen
+Nachzieh-Protokollen; Modus 1: feste Wertetabelle `0000`/`0001`/`FFFE`/`FFFF`; Modus 2: feste
+Wertetabelle `0x807B`/`0x807C`/`0x007B`/`0x007C`; Modus 3: Zähler-Freeze, kein Inkrement) —
+identisch zu Unleasheds eigenem (per Diff bestätigt: alle vier Modus-Zweige sind bei beiden
+Seiten byte-identisch, keine Abweichung außer im Modus-0-Zweig). Da die Modi 1-3 den Override
+nie konsultieren (ihre Wertetabellen hängen nur vom aktuellen Zählerstand ab, nicht von
+`subghz_block_generic_global`), würde ein Zähler- oder Tasten-Edit in diesen drei Modi
+stillschweigend wirkungslos bleiben, wenn nur Modus 0 den Override-Mechanismus bekäme — exakt
+dasselbe Problem, das Unleasheds eigenes `bypass`-Flag löst, und anders als bei Phoenix V2s
+"CounterMode" (Phase 6, dort bewusst nicht mitportiert, weil mein Code dafür keine Entsprechung
+hatte) hat mein Code hier eine 1:1-Entsprechung zu dem, was `bypass` schützt — das Flag wird
+daher mitportiert.
+
+Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `came_atomo.c`:
+1. Eine neue Modul-globale `static bool bypass = false;`-Variable direkt nach der bestehenden
+   `came_atomo_counter_mode`-Variable (exakt Unleasheds eigene Deklaration, byte-für-byte
+   übernommen).
+2. `subghz_protocol_encoder_came_atomo_get_upload()`: direkt vor der bestehenden
+   `if(came_atomo_counter_mode == 0) { ... }`-Verzweigung zwei neue Zeilen, die `bypass` setzen,
+   sobald ein Zähler- oder Tasten-Override anhängt (`if(subghz_block_generic_global.cnt_need_override
+   || subghz_block_generic_global.btn_need_override) bypass = true;`); die Bedingung der
+   Verzweigung selbst wird um `|| bypass` erweitert (`if(came_atomo_counter_mode == 0 ||
+   bypass)`), ebenso die innere OFEX-Bedingung (`if(furi_hal_subghz_get_rolling_counter_mult()
+   != -0x7FFFFFFF || bypass)`), direkt gefolgt von `bypass = false;` und einem
+   `subghz_block_generic_global_counter_override_get(&instance->generic.cnt)`-Aufruf, der bei
+   Erfolg den bisherigen Standard-Inkrement-Block überspringt — die Modi 1/2/3 selbst bleiben
+   textidentisch unverändert (sie laufen nur dann nicht, wenn `bypass` sie für einen Durchlauf
+   überspringt). Dieselbe Reihenfolge und dieselben Bedingungen wie in Unleasheds eigenem Diff,
+   byte-für-byte übernommen.
+3. Dieselbe Funktion, unmittelbar vor dem bestehenden Kommentar `//Send header` (nach der
+   bestehenden Tastencode-Zuordnungstabelle `if(btn == 0x1) { btn = 0x0; } else if(...) ...`): ein
+   `subghz_block_generic_global_button_override_get(&btn)`-Aufruf. Anders als bei
+   KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2 sitzt dieser Aufruf hier **nach**, nicht
+   vor der bestehenden Tastencode-Zuordnung — er überschreibt also den bereits auf den
+   gesendeten Wire-Nibble-Wert (`0x0`/`0x2`/`0x4`/`0x6`) abgebildeten Code, nicht die rohe,
+   benutzerfreundliche Tasten-Id (1-4). Das ist exakt Unleasheds eigene Platzierung, nicht meine
+   Entscheidung — siehe "Risiko" für die daraus folgende Einschränkung am Edit-Menü.
+4. `subghz_protocol_decoder_came_atomo_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   dem bestehenden `subghz_protocol_came_atomo_remote_controller()`-Aufruf gesetzt — exakt
+   Unleasheds eigene Anbindung, byte-für-byte übernommen (siehe "Verifikation Phase 7").
+   `btn_is_available` ist dabei `true`, `current_btn` ist jedoch `instance->generic.btn` — die
+   benutzerfreundliche, dekodierte Tasten-Id (1-4), **nicht** der Wire-Nibble-Wert, den Punkt 3
+   überschreibt (siehe "Risiko").
+
 ## Risiko
 
 - **Wichtigster eigener Fund dieser Sitzung — kein blindes Ersetzen möglich:** Ich habe zuerst
@@ -496,6 +593,19 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
   Fehler beim Anschluss (z. B. `cnt_length_bit` falsch gesetzt) ein falsches Signal erzeugen
   könnte. Jede Phase-2-Anbindung sollte denselben Verifikationsstil bekommen wie dieser
   Infrastruktur-Port (Host-Repro mit den tatsächlichen Protokoll-Bitlängen).
+- **CAME Atomo (Phase 7): Anzeige- und Edit-Wert für die Taste sind nicht derselbe Wertebereich
+  — von Unleashed so übernommen, nicht selbst eingeführt:** `get_string()` zeigt `current_btn`
+  als die dekodierte, benutzerfreundliche Tasten-Id (`instance->generic.btn`, Werte 1-4), aber
+  der Override-Aufruf im Encoder sitzt *nach* der bestehenden Zuordnungstabelle und überschreibt
+  damit direkt den bereits auf den Wire-Nibble-Wert abgebildeten Code (`0x0`/`0x2`/`0x4`/`0x6`
+  statt 1-4). Ein künftiges Edit-Menü, das den angezeigten Wert (1-4) unverändert als neuen
+  Override-Wert zurückschreibt, würde am Sender einen falschen, nicht zur Tabelle passenden
+  Nibble-Wert erzeugen (z. B. Override-Wert `3` statt des korrekten `0x4` für die dritte Taste).
+  Das ist exakt Unleasheds eigenes, unverändert übernommenes Verhalten (siehe "Phase 7:
+  CAME Atomo", Punkt 3) — kein durch diesen Port eingeführter Fehler, aber eine Falle für die
+  lokale Edit-Menü-Anbindung: der Override-Wert muss dort in Wire-Nibble-Kodierung
+  (`0x0`/`0x2`/`0x4`/`0x6`) eingegeben/umgerechnet werden, nicht als 1-4. Im Host-Repro
+  (Szenario A) explizit mit einem Wire-Nibble-Wert geprüft, nicht mit einer Tasten-Id.
 
 ## Verifikation (auf dem Host, ohne Hardware)
 
@@ -815,6 +925,85 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
     -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 7 (CAME Atomo)
+
+- **Patch additiv, byte-identisch:** `connective-patches/came_atomo_c.patch` per `patch -p1
+  --dry-run` sowie real per `patch -p1` gegen zwei frische, unabhängige Zweitkopien meiner
+  eigenen `came_atomo.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem `git clone` zu Sitzungsbeginn geholt,
+  unverändert zu Phase 1-6) angewendet — beide Ergebnisse per `md5sum` byte-identisch zueinander
+  und zur mitgelieferten Zieldatei bestätigt. `git diff --stat` nach dem Anwenden: **38 Zeilen
+  Hinzufügung, 6 Löschungen** (dieselbe Art Zeilenverschiebung wie bei Secplus v1/Somfy
+  Telis/Phoenix V2, hier etwas größer, weil der ganze bestehende Standard-Block eine Ebene
+  tiefer in einen neuen `if(!subghz_block_generic_global_counter_override_get(...))`-Zweig
+  rutscht: die bestehenden sechs Zeilen `if(came_atomo_counter_mode == 0) {` /
+  `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {` /
+  `if((instance->generic.cnt + ...) > 0xFFFF) {` / `instance->generic.cnt = 0;` / `} else {` /
+  `instance->generic.cnt += ...;` werden durch ihre um `|| bypass` bzw. die neue
+  Override-Abfrage erweiterten/eingerückten Gegenstücke ersetzt — keine inhaltliche Löschung,
+  reine Erweiterung derselben sechs Bedingungen/Zuweisungen).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase7/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die drei neuen
+  Anschlussstellen sind per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten, bereits
+  gepatchten `came_atomo.c` in eigene `.inc`-Fragmente extrahiert und in minimalen
+  Wrapper-Funktionen eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar: `sed 197,249p` für den `bypass`-Aufbau plus die vollständige, unveränderte
+  Modus-0-bis-3-Kette, `sed 258,271p` für die Tastencode-Zuordnung plus den Tasten-Override,
+  `sed 847,855p` für den `get_string()`-Push-Block). Anders als bei Phase 3-6 liegen Tasten- und
+  Zähler-Override hier nicht im selben Codeblock — deshalb zwei getrennte Fragmente statt eines
+  kombinierten. Geprüft (35 Prüfungen):
+  1. Tasten-Override verbraucht sich einmalig, maskiert auf das reale `btn_length_bit` (4) —
+     ein außerhalb des 4-Bit-Bereichs liegender Override-Wert (`0x1F`) belegt dabei zugleich die
+     Masken-Formel für diese konkrete Protokoll-Bitbreite (`0x1F & 0xF == 0xF`). Geprüft mit
+     einem bereits auf den Wire-Nibble-Wert abgebildeten Eingabewert (`0x4`), nicht mit einer
+     rohen Tasten-Id — siehe "Risiko" zur Platzierung nach der Zuordnungstabelle.
+  2. Ohne anhängenden Tasten-Override bleibt die bestehende Zuordnungstabelle für alle vier
+     realen Tastencodes unverändert (`0x1→0x0`, `0x2→0x2`, `0x3→0x4`, `0x4→0x6`, Regression).
+  3. Zähler-Override in Modus 0 verwendet den überschriebenen, maskierten Wert verbatim,
+     überspringt den Standard-Inkrement-Block vollständig und setzt `bypass` nach Verbrauch
+     wieder auf `false` — ein außerhalb des 16-Bit-Bereichs liegender Override-Wert (`0x1ABCD`)
+     belegt dabei zugleich die Masken-Formel für den realen 16-Bit-Zähler dieses Protokolls
+     (`0x1ABCD & 0xFFFF == 0xABCD`). Override verbraucht sich einmalig, der nächste Aufruf ohne
+     neuen Override läuft wieder über den Standard-Inkrement.
+  4. Zähler-Override in Modus 0 mit gleichzeitig aktivem OFEX-Sentinel
+     (`furi_hal_subghz_get_rolling_counter_mult() == -0x7FFFFFFF`) überspringt auch den
+     OFEX-Sprung-Pfad vollständig — Beleg, dass der neue Zweig strikt vor der OFEX-/Standard-
+     Verzweigung läuft, nicht nur vor deren Standard-Hälfte.
+  5. **Der eigentliche Zweck von `bypass` für dieses Protokoll:** Zähler-Override mit
+     `came_atomo_counter_mode` auf 1, 2 bzw. 3 gesetzt — ohne `bypass` würden die jeweiligen
+     festen Wertetabellen (Modus 1/2) bzw. das Freeze-Verhalten (Modus 3) laufen und den Override
+     vollständig ignorieren; mit `bypass` erzwingt die erweiterte Bedingung
+     `came_atomo_counter_mode == 0 || bypass` stattdessen den Standard-Zweig, der Override setzt
+     sich in allen drei Fällen durch. Für jeden der drei Modi einzeln geprüft.
+  6. Ohne anhängenden Override laufen die Modus-1-, Modus-2- und Modus-3-Zweige unverändert
+     weiter (Regression) — `bypass` bleibt `false`, wenn kein Override anhängt.
+  7. Ohne anhängenden Override läuft die bestehende Standard-Wrap-Logik (Modus 0) unverändert —
+     sowohl der einfache Inkrement-Fall als auch der Wrap-auf-0-Fall bei Überschreiten von
+     `0xFFFF`.
+  8. Ohne anhängenden Override läuft die bestehende OFEX-Logik unverändert — alle drei real
+     vorhandenen Verzweigungen: Wrap-auf-0 bei `cnt == 0xFFFF`, Sprung-auf-`0xFFFE` für jeden
+     sonstigen Wert `>= 1`, sowie die beiden vom Sprung bewusst ausgenommenen
+     Rand-Inkrement-Fälle `cnt == 0` und `cnt == 0xFFFE`.
+  9. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+     unbedingt `16`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `true`/
+     `current_btn`/`btn_length_bit` unbedingt `4` korrekt, für zwei unterschiedliche
+     Zähler-/Tastenwerte (inkl. des Randfalls beide `0`).
+  10. Die in Phase 1 dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit`
+      vor dem ersten `_override_get()`-Aufruf) für die realen Bitbreiten dieses Protokolls
+      (16/4) explizit durchexerziert: `get_string()`-Fragment zuerst ausgeführt (setzt beide
+      Längen), danach ein Override-Set/Get-Durchlauf über beide `get_upload()`-Fragmente in der
+      realen Aufrufreihenfolge (Zähler-Block vor Tasten-Block) unter Wiederverwendung dieser
+      Längen — kein UB, korrekt maskiertes Ergebnis.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **35 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus `firmware-mining/repro-subghz-block-generic-global-override-port-phase7/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -869,7 +1058,21 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
    ein deutlich größerer Diff als bei KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2 zu
    erwarten ist), dann `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK =
    Dauersenden statt fester Wiederholzahl).
-7. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
+7. **Phase 7 (geliefert, diese Sitzung — CAME Atomo):** fünftes Nachzieh-Protokoll angeschlossen,
+   viertes mit tatsächlicher Zähler-Hälfte. Gesamtdiff mit 403 Zeilen wie in Phase 6 angekündigt
+   der kleinste der sieben verglichenen Kandidaten. Anders als bei Phoenix V2 ist der
+   `cnt_need_override`/`bypass`-Mechanismus hier mitportiert, da mein eigenes
+   `came_atomo_counter_mode`-Feature (Modi 0-3) 1:1 Unleasheds eigenem entspricht und die Modi
+   1-3 den Override sonst stillschweigend ignorieren würden (siehe "Phase 7: CAME Atomo"); die
+   bestehenden vier Modus-Zweige selbst bleiben dabei vollständig unverändert. Zusätzlich, hier
+   bewusst nicht mitportiert: Unleasheds separater `common.c`-Umbau sowie ein neuer sechster/
+   siebter Tastencode samt eines vierten Header-Timing-Zweigs für ein weiteres Lesegerätemodell.
+   Weiterhin offen: die übrigen 6 der tatsächlich existierenden Nachzieh-Kandidaten (FAAC SLH,
+   Secplus v2, Alutech AT-4N, Nice FloR-S, KingGates Stylo4K, Somfy Keytis — gleiches Muster wie
+   KeeLoq/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo, siehe "Betroffene Dateien" — pro
+   Protokoll eigener Diff gegen Unleashed nötig), dann `endless_tx` an die eigene
+   SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
+8. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
    Port-Skizze):** erst ab hier wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll —
    ihr `subrem_tx_start_sub()` braucht exakt den hier gelieferten Mechanismus, um den Tastenwert
    vor dem Senden zu überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener
@@ -879,7 +1082,7 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
    mehrere funktionale Unterschiede sichtbar, u. a. der OTG-Einschaltpfad: die App nutzt einen
    begrenzten `furi_hal_power_enable_otg()`-Retry mit 5 Versuchen, meine eigene Version einen
    einmaligen Aufruf über den `Power`-Service).
-8. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
+9. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
    Compile-Fehler durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
@@ -894,7 +1097,12 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
    Zähler-/Tasten-Prüfung wie bei Secplus v1, am eigenen, autorisiert getesteten
    Rolling-Code-Empfänger (z. B. Somfy-Antrieb). Nach Phase 6 zusätzlich mit Phoenix V2 testbar:
    dieselbe Zähler-/Tasten-Prüfung wie bei Somfy Telis, am eigenen, autorisiert getesteten
-   Rolling-Code-Empfänger.
+   Rolling-Code-Empfänger. Nach Phase 7 zusätzlich mit CAME Atomo testbar: dieselbe
+   Zähler-/Tasten-Prüfung wie bei Phoenix V2, zusätzlich für alle vier `CounterMode`-Einstellungen
+   (0-3) am eigenen, autorisiert getesteten CAME-Atomo-Empfänger durchspielen — der Override muss
+   in jedem der vier Modi durchschlagen, nicht nur in Modus 0 (siehe "Phase 7: CAME Atomo",
+   `bypass`). Der Tasten-Override-Wert ist dabei in Wire-Nibble-Kodierung
+   (`0x0`/`0x2`/`0x4`/`0x6`) einzugeben, nicht als 1-4 (siehe "Risiko").
 
 ## Quelle
 
@@ -921,6 +1129,12 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `phoenix_v2.c
   (`applications/main/subghz/helpers/subghz_gps.c`, `minmea.c`, vier Aufrufer
   `pcsg_generic.c`/`tpms_generic.c`/`ws_generic.c`/`bin_raw.c`) sowie Ausgangspunkt für alle
   vier `connective-patches/*.patch`.
+- Für Phase 7 per frischem Doppel-Clone zu Sitzungsbeginn erneut bestätigt: eigene Basis
+  (`G4MEOVER18/G4MEOVER-FW`, `main`) weiterhin unverändert auf Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`; Unleashed, Standard-Branch, auf Commit
+  `447fae5b133a211e5fb2da9e4e72956f8652e892` (2026-10-29, seit dem in Phase 6 verwendeten Stand
+  `29c3dccda9c54bd06c23ffd45b33d77efaa18e72` nur ein reiner Submodul-Tag-Bump ohne inhaltliche
+  Änderung an `came_atomo.c`/`generic.c`/`.h`, per `diff` gegeneinander bestätigt).
 - (Phase 2) Unleashed-Firmware, Standard-Branch (`dev`), Commit
   `97a0174368527e7307cf6af231aa2f4e41c26f96` (2026-10-23, per `git ls-remote` zu
   Sitzungsbeginn als aktueller `HEAD`-Stand bestätigt): `lib/subghz/protocols/keeloq.c`/`.h` nur
