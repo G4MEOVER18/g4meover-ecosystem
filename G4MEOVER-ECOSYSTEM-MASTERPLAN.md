@@ -2162,6 +2162,34 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   synchronisiert. DogyTag-Broker-Credential-Thema (2026-10-14/15) unverändert: Code-Fix verfügbar,
   Rotation/Anwenden bleibt lokal. Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-10-29 (Cloud-Heartbeat): Repo-Hygiene zuerst — derselbe Branch-Zeiger-Fund wie an fast allen
+  Vortagen: `HEAD` losgelöst, lokaler `main`-Zeiger lag 6 Commits zurück (`e0169fa` statt
+  `origin/main`s `1e886f6`, reine Stale-Ref-Drift desselben Checkouts); per `git fetch` + `git
+  checkout main` + `git merge --ff-only origin/main` nachgezogen, reiner Fast-Forward, kein
+  Datenverlust. Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default
+  `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — vor dem ersten Commit auf
+  `Yanis / G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Die 4 seit dem eigenen
+  2026-10-28-Masterplan-Commit `20afc81` gelandeten Commits (SubGhzBlockGenericGlobal Phase 6
+  Phoenix V2, zwei lilygo-ukfe-rx-Funkkanal-Fixes, zwei Simultaneous-UHF-RFID-Reader-Ideenrecherchen)
+  per `git diff --stat` gezielt gegen diese Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/
+  `WORKFLOW.md` geprüft: leerer Diff, keine Überschneidung, dieselbe separate Firmware-Mining-/
+  App-Verbesserungs-/Ideen-Recherche-Routine. Statt einer weiteren Wiederholungsrunde an P0.2c/d,
+  P0.3a-d, P0.4e/f (seit 2026-10-05 ohne Mehrwert) oder der GUI-Architekturfrage (seit 2026-10-18
+  ohne weiteren Mehrwert) echte Konsistenzprüfungen gemacht, diesmal **ohne neuen Fund** (ehrlich
+  vermerkt statt eine Alibi-Textmenge zu ergänzen): `ecosystem/devices.json`/`ecosystem/
+  topology.json` per `json.load` geprüft: beide weiterhin syntaktisch gültig. Blocker „referenzierte
+  Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/`g4meover_control.py`/`flipper_ctl.py`/
+  `g4meover_resume.py`) erneut per `ls ecosystem/` geprüft: weiterhin nur `devices.json`/
+  `topology.json` im Verzeichnis, Blocker bleibt bestehen. Repo-Sichtbarkeit (`g4meover-ecosystem`)
+  per `list_repos` geprüft: weiterhin `private`. Sonst unveränderte Wiederkehr-Prüfungen:
+  `g4meover-deck` (`pushed_at` 2026-08-20)/`g4meover-companion` (2026-08-08)/`dogytag-firmware`
+  (2026-06-17)/`lora-ukfe` (2026-08-26)/`g4meover-one-x` (2026-09-09) laut `list_repos` unverändert.
+  Pi-SSH-/LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 63 Tage)
+  — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
+  Tageszählung ist kein neuer Sachstand); die beiden Tageszähler im PREP-Abschnitt unten (Punkt 5
+  und Rotations-Runbook-Überschrift) auf 63 synchronisiert. DogyTag-Broker-Credential-Thema
+  (2026-10-14/15) unverändert: Code-Fix verfügbar, Rotation/Anwenden bleibt lokal. Kein
+  Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -2259,7 +2287,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 62 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 63 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2443,7 +2471,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 62 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 63 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
