@@ -1,0 +1,27 @@
+--- orig/wifi_attack.cpp	2026-10-29 00:22:31.331833328 +0000
++++ patched/wifi_attack.cpp	2026-10-29 00:22:54.468594016 +0000
+@@ -108,7 +108,11 @@
+     memcpy(s_bssid, bssid, 6);
+     s_fixedCh = channel;                 // 0 => hoppen
+     s_hopCh   = channel ? channel : 1;
+-    if(channel) set_channel(channel);
++    // Funkkanal immer sofort setzen, nicht nur im Festkanal-Fall: im
++    // Hopping-Fall (channel==0) blieb der Chip sonst bis zum ersten Hop-Tick
++    // (bis zu ATK_HOP_MS=180ms) auf dem Kanal eines evtl. vorherigen Angriffs
++    // stehen, waehrend send_deauth() bereits auf diesem falschen Kanal sendet.
++    set_channel(s_hopCh);
+     s_untilMs = millis() + (dur_ms ? dur_ms : ATK_DEFAULT_MS);
+     s_lastHop = millis();
+     s_txOk = 0;
+@@ -119,6 +123,11 @@
+     (void)mode;                          // mode 0/1 nutzen dieselbe Liste + Zufall
+     s_fixedCh = 0;                       // Beacon-Spam hoppt immer
+     s_hopCh   = 1;
++    // Siehe wifi_attack_deauth(): Funkkanal sofort auf den Start-Hop-Kanal
++    // setzen, statt erst beim ersten Hop-Tick -- sonst sendet der erste
++    // Beacon-Burst auf dem Kanal eines evtl. vorherigen Angriffs, waehrend
++    // sein eigenes DS-Parameter-Tag bereits Kanal 1 behauptet.
++    set_channel(s_hopCh);
+     s_untilMs = millis() + (dur_ms ? dur_ms : ATK_DEFAULT_MS);
+     s_lastHop = millis();
+     s_txOk = 0;

@@ -9363,3 +9363,57 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Dateien von `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler Test des
       `ring_buffer_extract_line()`-Fixes aus der vorherigen Sitzung, lokaler Test des hier
       gelieferten Phoenix-V2-Override-Anschlusses.
+
+## App-Verbesserung (lilygo-ukfe-rx — Hopping-Angriffe setzen Funkkanal beim Start nicht)
+- [x] `src/wifi_attack.cpp` nach dem vorherigen Scan-während-Festkanal-Deauth-Fund erneut
+      geprüft, dieses Mal `wifi_attack_deauth()`/`wifi_attack_beacon()` selbst: im
+      Hopping-Fall (`channel == 0` bzw. Beacon-Spam, das immer hoppt) wird der Funkkanal beim
+      Start **nicht** gesetzt — nur der bedingte `if(channel) set_channel(channel);`-Aufruf im
+      Festkanal-Fall existiert, `wifi_attack_beacon()` hat gar keinen `set_channel()`-Aufruf.
+      Da `main.cpp`s `UkfeRfCmdWifiDeauth`/`UkfeRfCmdBeaconSpam`-Handler kein vorheriges
+      `wifi_attack_stop()` erzwingen, bleibt der Funk-Chip beim direkten Wechsel von einem
+      laufenden Festkanal-Angriff in einen neuen Hopping-Angriff bis zum ersten Hop-Tick (bis
+      zu `ATK_HOP_MS` = 180 ms) auf dem alten Kanal stehen, während bereits Bursts für den
+      neuen Angriff gesendet werden — bei Beacon-Spam behauptet das DS-Parameter-Tag dabei
+      bereits den neuen Kanal, während das Frame tatsächlich auf dem alten Kanal herausgeht.
+- [x] Fix: `if(channel) set_channel(channel);` in `wifi_attack_deauth()` durch
+      `set_channel(s_hopCh);` ersetzt (identisches Verhalten im Festkanal-Fall, zusätzlich
+      korrekt im Hopping-Fall); in `wifi_attack_beacon()` neuen `set_channel(s_hopCh);`-Aufruf
+      ergänzt. Patch gegen eine frische Kopie der unveränderten `lilygo-ukfe-rx`-Basis (main,
+      Commit `aa8a285`) mit `patch -p0 --dry-run` verifiziert, real angewendet, Ergebnis per
+      `md5sum` gegen eine dritte, unabhängige Zweitkopie byte-für-byte abgeglichen — identisch.
+      Dokumentiert in
+      `app-improvements/lilygo-ukfe-rx/wifi-attack-hop-start-channel-not-set-fix.md`.
+- [x] Host-Repro (`app-improvements/lilygo-ukfe-rx/repro-wifi-attack-hop-start-channel-not-set/
+      repro.c`): Zeile-für-Zeile übernommene Entscheidungslogik (ALT/NEU-Variantenpaar über ein
+      Laufzeit-Flag) mit instrumentierten `esp_wifi_set_channel()`/`esp_wifi_80211_tx()`-Mocks.
+      **12 Prüfungen** unter `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED (12 total)**, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde. Geprüft:
+      Beacon-Spam- und hoppender-Deauth-Start nach einem vorherigen Festkanal-Angriff (Bug im
+      ALT-Pfad reproduziert, im NEU-Pfad behoben), unverändertes Hopping-Timing danach,
+      Regressionsfall Festkanal-Deauth (Verhalten identisch zu vorher).
+- [ ] Lokal zu tun: `pio run`-Build, dann nacheinander ohne `WifiStop` dazwischen einen
+      Festkanal-Deauth und direkt danach einen Beacon-Spam- oder hoppenden Deauth-Befehl
+      senden; mit einem zweiten WLAN-Adapter im Monitor-Modus prüfen, dass der erste gefälschte
+      Beacon/Deauth-Burst sofort auf dem neuen Kanal erscheint statt verzögert.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 7 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie der separate SubGhz-Remote-App-Port, ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`,
+      lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des
+      Unitemp-`sscanf()`-Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` weiterhin
+      ungeprüft, lokaler Test des `wifi_attack_scan()`-Kanal-Fixes, lokaler Test des hier
+      gelieferten Hopping-Start-Kanal-Fixes, YRM100-Kernlogik (`yrm100x_module.c`/`_tag.c`/
+      `_worker.c`/`_buffer.c`) sowie die zwölf UI-`views/*.c`-Dateien von
+      `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler Test des
+      `ring_buffer_extract_line()`-Fixes, lokaler Test des Phoenix-V2-Override-Anschlusses.
