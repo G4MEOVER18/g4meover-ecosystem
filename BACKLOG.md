@@ -9600,3 +9600,69 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       noch nicht erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test
       des Phoenix-V2-Override-Anschlusses, lokaler Test des YRM100-TID-/User-Bank-Overflow-Fixes,
       lokaler Test des hier gelieferten CAME-Atomo-Override-Anschlusses.
+
+## App-Verbesserung: g4meover-deck — hackrf_link.transmit() kappt lange Out-of-Band-Replays nach fest 120s
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/` durchgesehen: Rotationsmuster
+      (App → Idee → FM → App → …) zeigt für diese Sitzung App-Verbesserung an. Aus der
+      `2026-10-13`-Rückstellliste (`device_discovery.py`, `handshake_capture.py`,
+      `hackrf_link.py`, `deck/tools/wpa_crack.py` weiterhin ungeprüft) `device_discovery.py`
+      zuerst gelesen (reset-sicheres Öffnen, `open_safe()`-Aufrufer nutzen ausschließlich
+      `reset_safe=True`-Geräte, kein Fund), dann `hackrf_link.py`.
+- [x] Fund: `transmit()` sendet eine komplette IQ-Datei einmalig per `hackrf_transfer -t path`
+      (keine Repeat-Option), die tatsächliche Sendedauer ist allein durch die Dateigröße und
+      `sample_rate` bestimmt — der Code ruft `subprocess.run()` aber mit einem fest
+      verdrahteten `timeout=120` auf, unabhängig von der Dateigröße. Bei Standard-
+      `sample_rate=8 MHz` entspricht das rund 1,92 GB — jede längere Aufnahme (insbesondere die
+      vom selben Modul dokumentierte `gps_l1`-Simulation, deren Aufnahmen praktisch meist
+      mehrere Minuten laufen) wird mitten in der Übertragung gekillt; zusätzlich fängt
+      `transmit()` die dabei ausgelöste `subprocess.TimeoutExpired` nicht auf — die Funktion
+      stürzt ab statt, wie die Signatur (`-> bool`) verspricht, `False` zu liefern.
+      `capture()` ist davon nicht betroffen (leitet seinen Timeout korrekt aus dem eigenen
+      `seconds`-Parameter ab).
+- [x] Fix: Timeout in `transmit()` jetzt aus `os.path.getsize(path) / 2 / sample_rate + 15`
+      berechnet (Mindestboden 30s für sehr kleine Dateien), `subprocess.TimeoutExpired` wird
+      aufgefangen und liefert `False`. Patch
+      (`app-improvements/g4meover-deck/hackrf-link-transmit-fixed-timeout-truncation-fix/
+      hackrf_link_py.patch`) gegen zwei frische, unabhängige Zweitkopien der unveränderten
+      `G4MEOVER18/g4meover-deck`-Basis (`b030e45`) mit `git apply --check` verifiziert, real
+      angewendet, Ergebnis per `md5sum` byte-für-byte abgeglichen — identisch;
+      `python3 -m py_compile` auf der gepatchten Datei bestanden.
+- [x] Host-Repro (`app-improvements/g4meover-deck/
+      repro-hackrf-link-transmit-fixed-timeout-truncation/repro.py`): `transmit()`s Logik als
+      `transmit_alt()`/`transmit_neu()`-Paar transkribiert, `subprocess.run()` durch einen
+      `MockProc` ersetzt, der `TimeoutExpired` wirft, sobald der übergebene Timeout kürzer ist
+      als eine konfigurierte tatsächliche Sendezeit. **9 Prüfungen**: **ALL CHECKS PASSED (9
+      total)**. Geprüft: Regressionsfall kurze Datei (ALT/NEU beide erfolgreich), der
+      eigentliche Fund (300s-Datei — ALT stürzt ab, NEU sendet durch), ein selbst mit
+      angepasstem Timeout noch zu knapper Transfer (NEU liefert `False` statt Absturz), echter
+      Tool-Fehlschlag unverändert `False` in beiden Varianten.
+- [x] `hackrf-link-transmit-fixed-timeout-truncation-fix.md` (Was, Nutzen, Betroffene Dateien,
+      Patch, Testhinweis, Risiko, Quelle) sowie dieser `BACKLOG.md`-Abschnitt ergänzt.
+- [ ] Lokal zu tun: Patch gegen die eigene `hackrf_link.py` anwenden. Funktionstest in
+      abgeschirmter Umgebung: eine mehrminütige IQ-Datei per `transmit()` senden und
+      beobachten, dass die Übertragung jetzt bis zum Dateiende läuft statt nach ~120s
+      abgewürgt zu werden. Regressionsfall: eine kurze IQ-Datei muss weiterhin wie vor dem
+      Patch vollständig und mit Erfolg (`True`) gesendet werden.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, plus neuer Nebenfund): `texkom`
+      Phase 5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 6 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie der separate SubGhz-Remote-App-Port, ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`,
+      lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des
+      Unitemp-`sscanf()`-Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` weiterhin
+      ungeprüft, lokaler Test des `wifi_attack_scan()`-Kanal-Fixes, lokaler Test des
+      Hopping-Start-Kanal-Fixes, die zwölf UI-`views/*.c`-Dateien von `simultaneous_rfid_reader`
+      noch nicht erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test
+      des Phoenix-V2-Override-Anschlusses, lokaler Test des YRM100-TID-/User-Bank-Overflow-Fixes,
+      lokaler Test des CAME-Atomo-Override-Anschlusses, `handshake_capture.py`/`deck/tools/
+      wpa_crack.py` weiterhin ungeprüft, `sweep()`s `one_shot=False`-Dauerlauf-Pfad hat
+      dieselbe Timeout-Fundklasse latent (aktuell folgenlos, kein Aufrufer übergibt
+      `one_shot=False`), lokaler Test des hier gelieferten `transmit()`-Timeout-Fixes.

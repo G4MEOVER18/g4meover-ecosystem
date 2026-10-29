@@ -1,0 +1,33 @@
+diff --git a/deck/hackrf_link.py b/deck/hackrf_link.py
+index b4fada9..6aa08a8 100644
+--- a/deck/hackrf_link.py
++++ b/deck/hackrf_link.py
+@@ -12,6 +12,7 @@ Bänder liegen, an die HackRF (Recon-Sweep, Out-of-Band-Capture/Replay, GPS-Sim
+ Nur für autorisierte Sicherheitstests auf eigenen Geräten / in abgeschirmter Umgebung.
+ """
+ from __future__ import annotations
++import os
+ import shutil
+ import subprocess
+ 
+@@ -80,9 +81,17 @@ def transmit(path: str, freq_mhz: float, sample_rate: int = 8_000_000) -> bool:
+     Deckt Frequenzen ab, die Flipper/ESP nicht können."""
+     if not _have("hackrf_transfer"):
+         raise RuntimeError("hackrf_transfer nicht installiert")
+-    r = subprocess.run(["hackrf_transfer", "-t", path, "-f", str(int(freq_mhz * 1e6)),
+-                        "-s", str(sample_rate), "-x", "20"],
+-                       capture_output=True, text=True, timeout=120)
++    try:
++        air_seconds = os.path.getsize(path) / 2 / sample_rate   # 8-Bit I/Q = 2 Byte/Sample
++    except OSError:
++        air_seconds = 0
++    timeout = max(air_seconds + 15, 30)
++    try:
++        r = subprocess.run(["hackrf_transfer", "-t", path, "-f", str(int(freq_mhz * 1e6)),
++                            "-s", str(sample_rate), "-x", "20"],
++                           capture_output=True, text=True, timeout=timeout)
++    except subprocess.TimeoutExpired:
++        return False
+     return r.returncode == 0
+ 
+ 
