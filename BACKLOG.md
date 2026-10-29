@@ -9417,3 +9417,86 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `_worker.c`/`_buffer.c`) sowie die zwölf UI-`views/*.c`-Dateien von
       `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler Test des
       `ring_buffer_extract_line()`-Fixes, lokaler Test des Phoenix-V2-Override-Anschlusses.
+
+## Ideen-Recherche: Simultaneous UHF RFID Reader (haffnerriley) — YRM100-Kern erstgeprüft, TID-/User-Bank-Overflow gefunden
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `git log` durchgesehen:
+      letzte Sitzung war App-Verbesserung (lilygo-ukfe-rx, Hopping-Start-Kanal-Fix), davor
+      Firmware-Feature-Mining (Phoenix V2), davor Ideen-Recherche (Simultaneous UHF RFID Reader,
+      Ringpuffer-Fund) — nach dem etablierten Rotationsmuster (App → Idee → FM → App → …) war
+      Ideen-Recherche für diese Sitzung an der Reihe. Git-Identität vor dem ersten eigenen Commit
+      gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`); lokaler Checkout war bereits sauber auf
+      `origin/main`.
+- [x] `ideas/pentest-app-katalog.md` auf offene (❓) Katalogzeilen und Rückstellpunkte geprüft:
+      der Pentest-App-Katalog selbst ist bis auf eine bereits erklärte Ausnahme (SignalSweep,
+      Firmware-Mining-Rückstellpunkt ohne Flipper-Bezug) durchgearbeitet. Letzter offener Punkt
+      aus der Ideen-Recherche-Linie: der in der vorherigen Simultaneous-UHF-RFID-Reader-Sitzung
+      bewusst zurückgestellte, aus `uhf_rfid` übernommene YRM100-Kern dieses Forks
+      (`yrm100x_module.c`/`_tag.c`/`_worker.c`/`_buffer.c`) — aufgegriffen.
+- [x] Frischer `git clone` von `haffnerriley/Simultaneous-UHF-RFID-FlipperZero` (`main`, Commit
+      `1dfefed1c67078da8c416b7b93c02eaa25e220fa`, identisch zum bereits dokumentierten Stand) —
+      alle vier Dateien (1076 Zeilen) vollständig gelesen.
+- [x] Erste Auffälligkeit geprüft und als folgenlos verworfen: `Buffer.closed`
+      (`yrm100x_buffer.c::uhf_buffer_alloc()`) wird nie explizit initialisiert, nur per `malloc()`
+      reserviert. Jede YRM100-Kommandofunktion läuft aber über `setup_and_send_rx()`
+      (`yrm100x_module.c`), das als ersten Schritt `uhf_buffer_reset(buffer)` aufruft — setzt
+      `closed` zuverlässig auf `false`, bevor überhaupt auf den Puffer gewartet wird. Kein Fund.
+- [x] Zweite Auffälligkeit geprüft und als nicht erreichbar eingestuft:
+      `_m100_info_helper()` alloziert `*info` exakt `payload_len` Byte (keine Terminierung) und
+      würde bei einem zweiten Aufruf mit größerer Antwort über die ursprüngliche Allokation
+      hinausschreiben. Erreichbar ausschließlich über `verify_module_connected()` im
+      `UHFWorkerStateVerify`-Zustand — per `grep` über alle zwölf `views/*.c` sowie `app.c`
+      bestätigt: `UHFWorkerStateVerify` wird in diesem Fork nirgends an `uhf_worker_start()`
+      übergeben, toter Code. Kein Port-Fund (nicht erreichbar, keine eigene Fixlieferung).
+- [x] Tatsächlicher Fund: `uhf_tag_set_tid()`/`uhf_tag_set_user()` (`yrm100x_tag.c`) kopieren eine
+      vom Aufrufer übergebene Bank-Datenlänge ungeprüft per `memcpy()` in die feste
+      `data[MAX_BANK_SIZE]`-Zielgröße (200 Byte) — anders als `uhf_tag_set_kill_pwd()`/
+      `_set_access_pwd()` im selben File, die ihre feste Zielgröße vorher explizit gegen `size`
+      prüfen. Aufrufer `m100_read_label_data_storage()` (`yrm100x_module.c`) übernimmt die Länge
+      direkt aus dem 16-Bit-Längenfeld der UART-Antwort, ohne sie gegen die eigene, per binärer
+      Suche auf 64 Worte (128 Byte) begrenzte Anfragegröße zu validieren — eine non-konforme oder
+      manipulierte Antwort (Lesegerät-/Tag-Fehlverhalten, UART-Störung mit zufällig passender
+      Prüfsumme) löst damit einen Heap-Buffer-Overflow-Write über das Ende der TID-/
+      User-Memory-Bank-Struktur hinaus aus. `uhf_tag_set_epc()` ist strukturell unter 200 Byte
+      begrenzt (Länge aus einem einzelnen Protokoll-Kontroll-Byte, max. 62 Byte) — kein Fund dort.
+- [x] Fix (additiv, zwei Zeilen): `if(size > MAX_BANK_SIZE) size = MAX_BANK_SIZE;` vor dem
+      jeweiligen `memcpy()` in beiden Settern ergänzt — klemmt an der Stelle, die die tatsächliche
+      Zielgröße kennt, keine Änderung an `m100_read_label_data_storage()` nötig. Patch
+      (`ideas/simultaneous-rfid-reader-yrm100-tid-user-bank-overflow-fix/yrm100x_tag_c.patch`)
+      gegen eine frische Zweitkopie mit `patch --dry-run` verifiziert, real angewendet, Ergebnis
+      per `md5sum` gegen eine dritte, unabhängige Zweitkopie byte-für-byte abgeglichen —
+      identisch.
+- [x] Host-Repro (`ideas/repro-simultaneous-rfid-reader-yrm100-tid-user-bank-overflow/repro.c`):
+      `UHFTag`-Structs sowie die Setter byte-für-byte übernommen (ALT/NEU per Compile-Flag), dazu
+      die Antwort-Auswerte-Logik aus `m100_read_label_data_storage()` 1:1 in eine eigene
+      Testfunktion übertragen. **3 Prüfungen** unter `gcc -std=c17 -Wall -Wextra -O0`/`-O1
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined`: ALT bricht bei Fall 2
+      (oversized TID-Antwort) mit `AddressSanitizer: heap-buffer-overflow ... WRITE of size 300
+      ... 0 bytes after 208-byte region` ab (Fall 1, Regression, lief zuvor sichtbar korrekt
+      durch); NEU **ALL CHECKS PASSED (3 total, 0 failed)** bei beiden Optimierungsstufen,
+      identischer Output, keine Compiler-Warnungen.
+- [x] `ideas/simultaneous-rfid-reader-app-status.md` um den Abschnitt "Update: YRM100-Kern
+      erstgeprüft — zweiter Fund" ergänzt, `ideas/pentest-app-katalog.md`-Zeile und
+      "Nächste Recherche-Aufträge" entsprechend aktualisiert.
+- [ ] Lokal zu tun: Patch gegen die eigene `Simultaneous-UHF-RFID-FlipperZero`-Kopie anwenden, mit
+      `ufbt`/`fbt` bauen. Regressionsfall (normales Lesen der TID-/User-Bank eines eigenen,
+      protokollkonformen UHF-Tags) muss vor und nach dem Fix identisch funktionieren.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, Zähler aktualisiert): `texkom`
+      Phase 5, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), SubGhzBlockGenericGlobal übrige 7 Rolling-Code-Protokolle, dann
+      `endless_tx`-Anschluss, sowie der separate SubGhz-Remote-App-Port, ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`,
+      lokaler Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des
+      Unitemp-`sscanf()`-Overflow-Fixes, `lilygo-ukfe-rx::ble_spam.cpp`/`.h` weiterhin
+      ungeprüft, lokaler Test des `wifi_attack_scan()`-Kanal-Fixes, lokaler Test des
+      Hopping-Start-Kanal-Fixes, die zwölf UI-`views/*.c`-Dateien von `simultaneous_rfid_reader`
+      noch nicht erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test
+      des Phoenix-V2-Override-Anschlusses, lokaler Test des hier gelieferten
+      YRM100-TID-/User-Bank-Overflow-Fixes.

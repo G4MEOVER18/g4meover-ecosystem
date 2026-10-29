@@ -1,0 +1,18 @@
+--- copy2/simultaneous_rfid_reader/helpers/yrm100x_tag.c	2026-10-29 06:26:00.232943065 +0000
++++ copy1/simultaneous_rfid_reader/helpers/yrm100x_tag.c	2026-10-29 06:26:08.846324237 +0000
+@@ -91,6 +91,7 @@
+ }
+ 
+ void uhf_tag_set_tid(UHFTag* uhf_tag, uint8_t* data_in, size_t size) {
++    if(size > MAX_BANK_SIZE) size = MAX_BANK_SIZE;
+     memcpy(uhf_tag->tid->data, data_in, size);
+     uhf_tag->tid->size = size;
+ }
+@@ -100,6 +101,7 @@
+ }
+ 
+ void uhf_tag_set_user(UHFTag* uhf_tag, uint8_t* data_in, size_t size) {
++    if(size > MAX_BANK_SIZE) size = MAX_BANK_SIZE;
+     memcpy(uhf_tag->user->data, data_in, size);
+     uhf_tag->user->size = size;
+ }

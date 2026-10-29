@@ -191,10 +191,155 @@ Gering: additive Einzelzeichen-Änderung an einer bestehenden Vergleichsbedingun
 Signatur-/Strukturänderung. Der unveränderte Zwei-Chunk-Kopierpfad selbst wird nicht berührt
 (Host-Repro Fall 4 bestätigt das für echte Umlauf-Fälle explizit).
 
-## Nächster Schritt
+## Nächster Schritt (ursprünglich, inzwischen teilweise aufgegriffen)
 Lokal bauen/flashen und wie oben beschrieben mit der Pi-Zero-Brücke verifizieren; danach ggf.
 Upstream-PR gegen `haffnerriley/Simultaneous-UHF-RFID-FlipperZero` erwägen (eigenständiger Fund im
 von Derek Jamisons Tutorial übernommenen Teil, nicht an eigene Firmware gebunden). Weiterhin
 offen: vollständige Erstprüfung des aus `uhf_rfid` übernommenen YRM100-Kerns dieses Forks
 (`yrm100x_module.c`/`_tag.c`/`_worker.c`/`_buffer.c`) sowie der zwölf UI-`views/*.c`-Dateien, in
 einer künftigen Sitzung.
+
+## Update: YRM100-Kern erstgeprüft — zweiter Fund (TID-/User-Bank-Overflow)
+
+Den oben als offen vermerkten YRM100-Kern dieses Forks (`yrm100x_module.c` 612 Zeilen,
+`yrm100x_tag.c` 151 Zeilen, `yrm100x_worker.c` 238 Zeilen, `yrm100x_buffer.c` 75 Zeilen, alle vier
+erstmals vollständig gelesen, gegen eigenen frischen Klon Commit `1dfefed1c67078da8c416b7b93c02eaa25e220fa`,
+identisch zum oben dokumentierten Stand) aufgegriffen.
+
+Eine erste Auffälligkeit (`Buffer.closed` in `uhf_buffer_alloc()` nie initialisiert, nur per
+`malloc()` reserviert) erwies sich beim Gegenlesen als folgenlos: jede einzige YRM100-Kommando-
+funktion läuft über `setup_and_send_rx()`, und die ruft als allerersten Schritt
+`uhf_buffer_reset(buffer)` auf — das setzt `closed` vor jeder tatsächlichen Nutzung zuverlässig
+auf `false`. Kein eigener Fund.
+
+Eine zweite Auffälligkeit (`_m100_info_helper()` alloziert `*info` exakt `payload_len` Byte ohne
+Platz für eine Terminierung und würde bei einem zweiten Aufruf mit größerer Antwort über die
+ursprüngliche Allokation hinausschreiben) betrifft ausschließlich
+`m100_get_hardware_version()`/`_software_version()`/`_manufacturers()` — erreichbar nur über
+`verify_module_connected()` im `UHFWorkerStateVerify`-Worker-Zustand. Dieser Zustand wird in der
+gesamten App nirgends an `uhf_worker_start()` übergeben (`grep` über alle zwölf `views/*.c` sowie
+`app.c`: kein einziger Treffer für `UHFWorkerStateVerify`) — toter Code in diesem Fork, kein
+eigener Port-Fund, da nicht erreichbar.
+
+### Fund: `uhf_tag_set_tid()`/`uhf_tag_set_user()` ohne Längenprüfung gegen die feste 200-Byte-Bank
+
+`yrm100x_tag.h` legt `TIDMemoryBank`/`UserMemoryBank` mit je einem festen `uint8_t data[MAX_BANK_SIZE]`
+an (`MAX_BANK_SIZE` = 200). Die Setter in `yrm100x_tag.c`:
+
+```c
+void uhf_tag_set_tid(UHFTag* uhf_tag, uint8_t* data_in, size_t size) {
+    memcpy(uhf_tag->tid->data, data_in, size);
+    uhf_tag->tid->size = size;
+}
+
+void uhf_tag_set_user(UHFTag* uhf_tag, uint8_t* data_in, size_t size) {
+    memcpy(uhf_tag->user->data, data_in, size);
+    uhf_tag->user->size = size;
+}
+```
+
+kopieren `size` Byte ungeprüft in diesen 200-Byte-Puffer — anders als `uhf_tag_set_kill_pwd()`/
+`_set_access_pwd()` im selben File, die ihre feste 4-Byte-Zielgröße vorher explizit gegen `size`
+prüfen. Aufrufer ist `m100_read_label_data_storage()` in `yrm100x_module.c`:
+
+```c
+size_t ptr_offset = 5 /*<-ptr offset*/ + uhf_tag_get_epc_size(uhf_tag) + 3 /*<-pc + ul*/;
+size_t bank_data_length = payload_len - (ptr_offset - 5 /*dont include the offset*/);
+
+if(bank == TIDBank) {
+    uhf_tag_set_tid(uhf_tag, data + ptr_offset, bank_data_length);
+} else if(bank == UserBank) {
+    uhf_tag_set_user(uhf_tag, data + ptr_offset, bank_data_length);
+}
+```
+
+`payload_len` ist das 16-Bit-Längenfeld (`data[3]`/`data[4]`) der vom Reader-Modul über UART
+zurückgesendeten Antwort — die einzige vorherige Prüfung in `setup_and_send_rx()` ist
+Rahmen-Start/-Ende und eine Prüfsumme über den gesamten Frame, keine inhaltliche Prüfung, ob
+`payload_len` zu dem tatsächlich angeforderten `word_count` passt. Der eigene Aufrufer
+`read_bank_till_max_length()` (`yrm100x_worker.c`) fragt zwar nie mehr als 64 Worte (128 Byte) in
+einer einzelnen binären Suche an, erzwingt aber nicht, dass die Antwort diese Grenze auch
+einhält — eine non-konforme oder manipulierte Antwort (fehlerhaftes/kompromittiertes Lesegerät,
+UART-Störung mit zufällig passender Prüfsumme, oder ein Tag, der dem Lesegerät eine größere
+Wortzahl als angefragt meldet und vom Lesegerät unverändert durchgereicht wird) kann
+`bank_data_length` über 200 hinaus treiben. Weder `m100_read_label_data_storage()` noch die
+beiden Setter selbst klemmen diesen Wert — ein Heap-Buffer-Overflow-Write über das Ende von
+`tid->data[200]` bzw. `user->data[200]` hinaus, direkt im Pfad, der laut README-Zweck der App
+(Tag-Speicherbänke lesen) bei jedem TID-/User-Bank-Lesevorgang durchlaufen wird. `uhf_tag_set_epc()`
+ist von derselben fehlenden Prüfung zwar ebenfalls nicht befreit, aber durch die Herkunft ihrer
+Länge (`epc_len` aus einem einzelnen Protokoll-Kontroll-Byte, maximal 31 × 2 = 62 Byte) strukturell
+unter 200 begrenzt — kein eigener Fund dort, nicht geändert.
+
+### Fix (additiv, zwei Zeilen)
+```c
+void uhf_tag_set_tid(UHFTag* uhf_tag, uint8_t* data_in, size_t size) {
+    if(size > MAX_BANK_SIZE) size = MAX_BANK_SIZE;
+    memcpy(uhf_tag->tid->data, data_in, size);
+    uhf_tag->tid->size = size;
+}
+
+void uhf_tag_set_user(UHFTag* uhf_tag, uint8_t* data_in, size_t size) {
+    if(size > MAX_BANK_SIZE) size = MAX_BANK_SIZE;
+    memcpy(uhf_tag->user->data, data_in, size);
+    uhf_tag->user->size = size;
+}
+```
+Klemmt an der Stelle, die die feste Zielgröße tatsächlich kennt (`MAX_BANK_SIZE`, bereits im selben
+Header definiert) — kein Eingriff in `m100_read_label_data_storage()` oder die
+Antwortlängen-Arithmetik nötig. Patch
+(`ideas/simultaneous-rfid-reader-yrm100-tid-user-bank-overflow-fix/yrm100x_tag_c.patch`) gegen eine
+frische, unabhängige Zweitkopie mit `patch --dry-run` verifiziert, real angewendet, Ergebnis per
+`md5sum` gegen eine dritte, unabhängige Zweitkopie byte-für-byte abgeglichen — identisch.
+
+### Host-Repro
+`ideas/repro-simultaneous-rfid-reader-yrm100-tid-user-bank-overflow/repro.c`: `UHFTag`/
+`TIDMemoryBank`/`UserMemoryBank`/`EPCMemoryBank`-Structs sowie `uhf_tag_alloc()`/`_free()`/
+`_set_epc()`/`_set_tid()`/`_set_user()` byte-für-byte aus `yrm100x_tag.h`/`.c` übernommen (ALT ohne
+Klemme, NEU mit der Fix-Zeile über ein Compile-Flag), dazu die Antwort-Auswerte-Logik aus
+`m100_read_label_data_storage()` (Zeilen 256–277) 1:1 in eine eigene `apply_bank_response()`-
+Testfunktion übertragen. Drei Fälle, `gcc -std=c17 -Wall -Wextra -O0`/`-O1
+-fsanitize=address,undefined -fno-sanitize-recover=undefined`:
+- Fall 1 (Regression): ehrliche 128-Byte-TID-Antwort (eigener 64-Wort-Anfrage-Deckel eingehalten) —
+  ALT und NEU identisch korrekt gespeichert.
+- Fall 2 (der Fund, TID-Bank): Antwort meldet 300 Byte Nutzdaten (> `MAX_BANK_SIZE`). **ALT: vom
+  AddressSanitizer abgefangener `heap-buffer-overflow`-Schreibzugriff der Größe 300, exakt am Ende
+  der 208-Byte-`UHFTag`-Teilallokation** (`WRITE of size 300 ... 0 bytes after 208-byte region`),
+  Prozess bricht vor Erreichen der Prüfung ab; **NEU: sauber auf 200 Byte geklemmt**, `tid->size ==
+  200`.
+- Fall 3 (derselbe Fund über die User-Bank, 512 gemeldete Byte): identisches Bild — ALT bricht
+  unter ASan ab, NEU klemmt korrekt auf 200.
+
+Tatsächliches Ergebnis (lokal ausgeführt, beide Optimierungsstufen identisch): ALT stürzt bereits
+bei Fall 2 unter ASan ab (Fall 1 lief zuvor sichtbar durch, `PASS`); NEU **ALL CHECKS PASSED
+(3 total, 0 failed)**, keine Compiler-Warnungen.
+
+### Betroffene Dateien
+- `simultaneous_rfid_reader/helpers/yrm100x_tag.c` — `uhf_tag_set_tid()`/`uhf_tag_set_user()`,
+  einzige Fix-Stellen.
+- `simultaneous_rfid_reader/helpers/yrm100x_module.c` — `m100_read_label_data_storage()`, Quelle
+  der ungeklemmten `bank_data_length`, keine Änderung nötig (Fix sitzt bewusst in den Settern, die
+  die tatsächliche Zielgröße kennen).
+
+### Testhinweis (lokal, YRM100-Hardware nötig für den Funktionstest)
+Patch gegen die eigene `Simultaneous-UHF-RFID-FlipperZero`-Kopie anwenden, mit `ufbt`/`fbt` bauen.
+Regressionsfall: normales Lesen der TID-/User-Bank eines eigenen, protokollkonformen UHF-Tags muss
+vor und nach dem Fix identisch funktionieren (siehe Host-Repro Fall 1). Der eigentliche Fund lässt
+sich ohne ein absichtlich non-konformes Testgerät nicht risikofrei am echten Lesegerät auslösen —
+der Host-Repro deckt die Speichersicherheit datenstrukturell ab (Fall 2/3).
+
+### Sicherheitsrahmen
+Defensiver Fund an einem eigenen Werkzeug für eigene/autorisierte UHF-RFID-Hardware: die Klemme
+schützt das eigene Gerät davor, dass eine fehlerhafte oder absichtlich non-konforme
+Tag-/Lesegerät-Antwort beim autorisierten Testen eigener Zutrittsmedien zu einem Speicherfehler auf
+dem Flipper führt — keine Umgehung einer fremden Schutzfunktion.
+
+### Risiko
+Gering: additive Zwei-Zeilen-Klemme an der bestehenden Zielgröße, keine Signatur-/Strukturänderung,
+Host-Repro Fall 1 bestätigt den unveränderten Normalfall explizit.
+
+## Nächster Schritt (aktualisiert)
+YRM100-Kern dieses Forks ist jetzt vollständig gelesen. Weiterhin offen: die zwölf
+UI-`views/*.c`-Dateien (app.c, view_about/config/delete/delete_success/epc/epc_info/kill/lock/
+read/saved/tag_actions/write.c) noch nicht erstgeprüft, für eine künftige Sitzung vorgemerkt.
+Lokaler Build-/Funktionstest des hier gelieferten Fixes sowie des bereits zuvor dokumentierten
+`ring_buffer_extract_line()`-Fixes weiterhin offen.
