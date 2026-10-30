@@ -9774,8 +9774,53 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Hopping-Start-Kanal-Fixes, die zwölf UI-`views/*.c`-Dateien von `simultaneous_rfid_reader`
       noch nicht erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test
       des Phoenix-V2-Override-Anschlusses, lokaler Test des YRM100-TID-/User-Bank-Overflow-Fixes,
-      lokaler Test des CAME-Atomo-Override-Anschlusses, `handshake_capture.py`/`deck/tools/
-      wpa_crack.py` weiterhin ungeprüft, `sweep()`s `one_shot=False`-Dauerlauf-Pfad hat
-      dieselbe Timeout-Fundklasse latent (aktuell folgenlos, kein Aufrufer übergibt
-      `one_shot=False`), lokaler Test des hackrf_link-`transmit()`-Timeout-Fixes, lokaler Test
-      des hier gelieferten Alutech-AT-4N-Override-Anschlusses.
+      lokaler Test des CAME-Atomo-Override-Anschlusses, `sweep()`s `one_shot=False`-
+      Dauerlauf-Pfad hat dieselbe Timeout-Fundklasse latent (aktuell folgenlos, kein Aufrufer
+      übergibt `one_shot=False`), lokaler Test des hackrf_link-`transmit()`-Timeout-Fixes,
+      lokaler Test des hier gelieferten Alutech-AT-4N-Override-Anschlusses, lokaler Test des
+      wpa_crack-`pcap_to_hc22000()`-Altstand-Fixes.
+
+## App-Verbesserung: g4meover-deck — wpa_crack.pcap_to_hc22000() Altstand-Wiederverwendung
+
+- [x] `deck/tools/wpa_crack.py` (CLI-Frontend) und `deck/handshake_capture.py` vollständig
+      gelesen — beide seit der letzten Sitzung als Rückstellpunkt benannt. Kein eigener Fund in
+      beiden: `handshake_capture.py`s `parse_hsraw()`/`write_pcap()`/`capture_from_serial()`
+      (korrekte .pcap-Header, reset-sicheres DTR/RTS) und `deck/tools/wpa_crack.py`s
+      `capture`→`info`/`dict`-Weiterleitung sauber implementiert.
+- [x] Dabei `deck/wpa_crack.py::pcap_to_hc22000()` genauer gelesen (bereits einmal für
+      `show_cracked()`s `:`-Trunkierung geprüft, aber nicht vollständig gelesen) — zwei
+      zusammenhängende Lücken gefunden: `hcxpcapngtool` hängt laut eigener Maintainer-Aussage im
+      hashcat-Forum an eine bestehende `-o`-Zieldatei an statt sie zu überschreiben, die Funktion
+      löscht `out_path` vor dem Aufruf nirgends; zusätzlich wird `subprocess.run()`s
+      `returncode` nirgends geprüft. Zwei aufeinanderfolgende `wpa_crack.py capture`-Sitzungen
+      mit demselben Standard-Dateinamen (`handshake.pcap`/`.hc22000`) liefern dadurch beim
+      zweiten Mal eine Mischung aus altem und neuem Netz/Passwort statt nur des aktuellen Funds;
+      ein Tool-Fehlschlag **vor** dem Öffnen von `out_path` wird bei vorhandenem Altstand am
+      selben Pfad fälschlich als Erfolg mit dem alten Fund gemeldet.
+- [x] Patch (`app-improvements/g4meover-deck/wpa-crack-pcap-to-hc22000-stale-output-reuse-fix/
+      wpa_crack_py.patch`) additiv eingefügt: `out_path` wird vor dem `hcxpcapngtool`-Aufruf
+      gelöscht (mit eigenem Fehler, falls das Löschen selbst scheitert); `proc.returncode` wird
+      danach geprüft und liefert bei einem echten Tool-Fehlschlag eine eigene Fehlermeldung
+      inkl. `stderr`/`stdout`. Gegen zwei frische, unabhängige Zweitkopien der unveränderten
+      Basis (`b030e45`) mit `git apply --check` verifiziert, real angewendet, Ergebnis per
+      `md5sum` byte-für-byte abgeglichen — identisch; `python3 -m py_compile` bestanden.
+- [x] Host-Repro (`app-improvements/g4meover-deck/
+      repro-wpa-crack-pcap-to-hc22000-stale-output-reuse/repro.py`): Fake-`hcxpcapngtool`-Skript
+      auf `PATH`, das das dokumentierte Anhänge-Verhalten sowie einen Abbruch vor dem Öffnen von
+      `out_path` simuliert — kein echtes `hcxtools`/`hashcat` nötig; `pcap_to_hc22000_alt()`/
+      `_neu()` transkribieren ALT/NEU 1:1, rufen aber das echte, unveränderte
+      `wpa_crack.parse_hc22000()`. **7 Prüfungen**: **ALL CHECKS PASSED (7 total)**. Geprüft:
+      Regressionsfall (ein frischer Lauf liefert bei ALT/NEU identisch dasselbe Ergebnis), der
+      eigentliche Fund (zwei Erfolgsläufe auf denselben `out_path`: ALT vermischt beide Netze,
+      NEU meldet nur das zweite), Tool-Fehlschlag mit Altstand am selben Pfad (ALT meldet
+      fälschlich Erfolg mit altem Fund, NEU meldet echten Fehler und entfernt den Altstand).
+- [x] `wpa-crack-pcap-to-hc22000-stale-output-reuse-fix.md` (Was, Nutzen, Betroffene Dateien,
+      Patch, Testhinweis, Risiko, Quelle) ergänzt. Der ehemalige Rückstellpunkt
+      (`device_discovery.py`, `handshake_capture.py`, `hackrf_link.py`, `deck/tools/
+      wpa_crack.py`, `wpa_crack.py`) ist damit vollständig abgearbeitet.
+- [ ] Lokal zu tun: Patch gegen die eigene `deck/wpa_crack.py` anwenden. Funktionstest: zwei
+      echte `wpa_crack.py capture <port>`-Sitzungen mit demselben Standard-`out_pcap`-Namen
+      gegen zwei unterschiedliche eigene Testnetze hintereinander, `info` dazwischen aufrufen —
+      vor dem Fix zeigt der zweite Aufruf beide Netze, nach dem Fix nur das zuletzt
+      aufgenommene. Regressionsfall: ein einzelner, frischer Capture-Lauf ohne Vorgeschichte muss
+      weiterhin exakt wie vor dem Patch funktionieren.

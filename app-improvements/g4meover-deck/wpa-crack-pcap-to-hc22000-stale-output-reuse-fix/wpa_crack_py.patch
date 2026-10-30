@@ -1,0 +1,26 @@
+diff --git a/deck/wpa_crack.py b/deck/wpa_crack.py
+index f7708fb..1f6947f 100644
+--- a/deck/wpa_crack.py
++++ b/deck/wpa_crack.py
+@@ -79,10 +79,19 @@ def pcap_to_hc22000(pcap: str, out_path: str | None = None) -> dict:
+         return {"error": f"Datei nicht gefunden: {pcap}", "networks": [], "count": 0}
+     out_path = out_path or (os.path.splitext(pcap)[0] + ".hc22000")
+     try:
+-        subprocess.run(["hcxpcapngtool", "-o", out_path, pcap],
+-                       capture_output=True, text=True, timeout=120)
++        if os.path.isfile(out_path):  # hcxpcapngtool haengt an eine bestehende Datei an,
++            os.remove(out_path)       # statt sie zu ueberschreiben -> Altstand muss weg
++    except OSError as e:
++        return {"error": f"alte {out_path} laesst sich nicht entfernen: {e}", "networks": [], "count": 0}
++    try:
++        proc = subprocess.run(["hcxpcapngtool", "-o", out_path, pcap],
++                              capture_output=True, text=True, timeout=120)
+     except Exception as e:  # noqa: BLE001
+         return {"error": f"hcxpcapngtool-Fehler: {e}", "networks": [], "count": 0}
++    if proc.returncode != 0:
++        return {"error": f"hcxpcapngtool-Fehler (rc={proc.returncode}): "
++                          f"{(proc.stderr or proc.stdout or '').strip()}",
++                "networks": [], "count": 0}
+     if not os.path.isfile(out_path) or os.path.getsize(out_path) == 0:
+         return {"error": "keine Handshakes/PMKID im .pcap gefunden", "networks": [],
+                 "count": 0, "hc22000": out_path}
