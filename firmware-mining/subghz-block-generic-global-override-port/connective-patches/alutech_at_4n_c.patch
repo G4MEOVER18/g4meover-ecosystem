@@ -1,0 +1,80 @@
+diff --git a/lib/subghz/protocols/alutech_at_4n.c b/lib/subghz/protocols/alutech_at_4n.c
+index 0348c60..da91dcc 100644
+--- a/lib/subghz/protocols/alutech_at_4n.c
++++ b/lib/subghz/protocols/alutech_at_4n.c
+@@ -49,6 +49,11 @@ typedef enum {
+ 
+ static uint8_t alutech_at4n_counter_mode = 0;
+ 
++// set when a pending counter/button override must force the standard/OFEX branch below to
++// run even while alutech_at4n_counter_mode selects one of the fixed-table modes (1/2), which
++// otherwise never consult the override at all
++static bool bypass = false;
++
+ const SubGhzProtocolDecoder subghz_protocol_alutech_at_4n_decoder = {
+     .alloc = subghz_protocol_decoder_alutech_at_4n_alloc,
+     .free = subghz_protocol_decoder_alutech_at_4n_free,
+@@ -277,15 +282,27 @@ static bool subghz_protocol_alutech_at_4n_gen_data(
+         instance->generic.serial = (uint32_t)(data >> 24) & 0xFFFFFFFF;
+     }
+ 
+-    if(alutech_at4n_counter_mode == 0) {
++    // if we change counter/button in SignalSettings menu then we must bypass counter_modes,
++    // just gen and save signal file.
++    if(subghz_block_generic_global.cnt_need_override) bypass = true;
++
++    if((alutech_at4n_counter_mode == 0) || bypass) {
+         // Check for OFEX (overflow experimental) mode
+-        if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
+-            if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
+-                instance->generic.cnt = 0;
+-            } else {
+-                instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
++        if((furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) || bypass) {
++            bypass = false;
++            // standard counter mode. PULL data from subghz_block_generic_global variables
++            if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
++                // if counter_override_get return FALSE then counter was not changed and we
++                // increase counter by standard mult value
++                if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) >
++                   0xFFFF) {
++                    instance->generic.cnt = 0;
++                } else {
++                    instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
++                }
+             }
+         } else {
++            //OFEX mode
+             if((instance->generic.cnt + 0x1) > 0xFFFF) {
+                 instance->generic.cnt = 0;
+             } else if(instance->generic.cnt >= 0x1 && instance->generic.cnt != 0xFFFE) {
+@@ -379,6 +396,12 @@ static bool subghz_protocol_encoder_alutech_at_4n_get_upload(
+ 
+     btn = subghz_protocol_alutech_at_4n_get_btn_code();
+ 
++    // override button if we change it with signal settings button editor
++    if(subghz_block_generic_global_button_override_get(&btn)) {
++        bypass = true;
++        FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
++    }
++
+     // Gen new key
+     if(!subghz_protocol_alutech_at_4n_gen_data(instance, btn)) {
+         return false;
+@@ -872,6 +895,16 @@ void subghz_protocol_decoder_alutech_at_4n_get_string(void* context, FuriString*
+     uint32_t code_found_hi = instance->generic.data >> 32;
+     uint32_t code_found_lo = instance->generic.data & 0x00000000ffffffff;
+ 
++    // push protocol data to global variable
++    subghz_block_generic_global.cnt_is_available = true;
++    subghz_block_generic_global.cnt_length_bit = 16;
++    subghz_block_generic_global.current_cnt = instance->generic.cnt;
++
++    subghz_block_generic_global.btn_is_available = true;
++    subghz_block_generic_global.current_btn = instance->generic.btn;
++    subghz_block_generic_global.btn_length_bit = 8;
++    //
++
+     furi_string_cat_printf(
+         output,
+         "%s\r\n"
