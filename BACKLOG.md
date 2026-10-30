@@ -9824,3 +9824,91 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       vor dem Fix zeigt der zweite Aufruf beide Netze, nach dem Fix nur das zuletzt
       aufgenommene. Regressionsfall: ein einzelner, frischer Capture-Lauf ohne Vorgeschichte muss
       weiterhin exakt wie vor dem Patch funktionieren.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 9 — Somfy Keytis als siebtes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis durchgesehen: letzte
+      Sitzung war App-Verbesserung (g4meover-deck, `wpa_crack.pcap_to_hc22000()`-Altstand-Fix),
+      davor Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 8, Alutech AT-4N), davor
+      App-Verbesserung (g4meover-deck, `hackrf_link.transmit()`-Timeout-Fix) — die letzten
+      Sitzungen liefen App/FM/App statt des sonst üblichen Dreierrhythmus; Firmware-Feature-
+      Mining war zuletzt vor zwei Sitzungen an der Reihe und damit für diese Sitzung gewählt.
+      Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`); lokaler Checkout stand im detached-HEAD-Zustand
+      exakt auf dem zuletzt erzeugten Commit (`7dd3085`, einem zwischenzeitlichen
+      "Masterplan: Cloud-Heartbeat"-Commit), `origin/main` frisch gefetcht (identisch zum
+      lokalen Stand — reine lokale Zeigerstaffelung, kein tatsächlicher Push-Rückstand) und
+      `main` darauf per Fast-Forward zurückgesetzt, bevor etwas Neues hinzukam.
+- [x] Aus Phase 8s "weiterhin offen"-Liste (5 echte Nachzieh-Kandidaten: FAAC SLH, Secplus v2,
+      Nice FloR-S, KingGates Stylo4K, Somfy Keytis) **Somfy Keytis** gewählt: mit 405
+      Diff-Zeilen (gegenüber KingGates Stylo4K 496, FAAC SLH 712, Secplus v2 1133, Nice FloR-S
+      1284) der kleinste der fünf. Frischer sparse-Doppel-Clone (`G4MEOVER18/G4MEOVER-FW`,
+      `main`, unverändert `b359f6fc32f282ce7217dd2d48a4e3478771852e`; Unleashed,
+      Standard-Branch, `2cbad71c92e7482e7752f5ecb570c18b2d1a2c75` — unverändert zum in Phase 8
+      verwendeten Stand).
+- [x] Diff gelesen: drei Blöcke. Zwei hier nicht übernommen (Unleasheds separater
+      `common.c`-Encoder-/Decoder-Basis-Umbau wie bei den letzten fünf Nachzieh-Protokollen;
+      die Umbenennung/Konsolidierung von `press_duration_counter` in das generische
+      `seed`-Feld — reine Feld-Umbenennung ohne Bezug zum Override, meine eigene, weiterhin
+      dedizierte `press_duration_counter`-Struktur bleibt unverändert). Der dritte Block — der
+      eigentliche Override-Mechanismus — ist hier, anders als bei CAME Atomo/Alutech AT-4N
+      (Phase 7/8), **ohne** `bypass`-Komplikation: weder meine eigene `somfy_keytis.c` noch
+      Unleasheds eigene kennt ein Mehrfach-Zählermodus-Feature für dieses Protokoll, der
+      Zähler-Zweig ist bei beiden Seiten die reine Standard-/OFEX-Kette, byte-identisch zu
+      Somfy Telis' eigener (Phase 5). Eigene Besonderheit: meine
+      `subghz_protocol_somfy_keytis_gen_data()` verwendet ihren `btn`-Funktionsparameter gar
+      nicht (`UNUSED(btn);`) — `instance->generic.btn` wird stattdessen bei jedem Aufruf frisch
+      aus `instance->generic.data` entpackt. Der Tasten-Override hängt deshalb direkt am
+      bereits entpackten `instance->generic.btn`-Feld, nicht an einem lokalen `btn`-Parameter
+      wie bei Somfy Telis/Phoenix V2/CAME Atomo/Alutech AT-4N; Unleasheds eigene, hier bewusst
+      nicht mitportierte Custom-Button-Infrastruktur (`get_btn_code()`) wird dafür nicht
+      benötigt.
+- [x] Zwei Anschlussstellen additiv eingefügt: in
+      `subghz_protocol_somfy_keytis_gen_data()` direkt nach dem bestehenden Entpack-Dreisatz
+      (`instance->generic.btn`/`.cnt`/`.serial = ...`) ein eigenständiger
+      `subghz_block_generic_global_button_override_get(&instance->generic.btn)`-Aufruf mit
+      `FURI_LOG_D()`-Erfolgsmeldung, direkt gefolgt von der bestehenden
+      `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) { ... } else { /* OFEX */
+      }`-Verzweigung, der ein neuer, vorangestellter
+      `if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) { ... }
+      else if(...)`-Zweig vorgeschaltet wird — beide bestehenden Zweige (Standard-Wrap,
+      OFEX-Sprung) bleiben inhaltlich unverändert; in
+      `subghz_protocol_decoder_somfy_keytis_get_string()` `cnt_is_available`/`cnt_length_bit`
+      (16)/`current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` (4) unbedingt
+      direkt nach dem bestehenden `check_remote_controller()`-Aufruf gesetzt — exakt Unleasheds
+      eigene Anbindung, byte-für-byte übernommen.
+- [x] Patch (`firmware-mining/subghz-block-generic-global-override-port/connective-patches/
+      somfy_keytis_c.patch`) per `patch -p1 --dry-run` sowie real per `patch -p1` gegen zwei
+      frische, unabhängige sparse-Zweitkopien der eigenen `somfy_keytis.c` verifiziert — beide
+      Ergebnisse per `md5sum` byte-identisch zueinander und zur mitgelieferten Zieldatei
+      bestätigt (`git diff --stat`: 19 Zeilen Hinzufügung, 1 Löschung, reine
+      Bedingungsverschiebung, keine inhaltliche Löschung).
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase9/`):
+      `repro.c` verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die zwei
+      neuen Anschlussstellen per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten,
+      bereits gepatchten `somfy_keytis.c` extrahiert. **27 Prüfungen**: **ALL CHECKS PASSED
+      (27 total)**. Geprüft: Tasten-Override (einmalig verbraucht, auf `btn_length_bit` 4
+      maskiert), Zähler-Override (verbraucht sich einmalig, überspringt Standard- und
+      OFEX-Pfad vollständig, auch bei gleichzeitig aktivem OFEX-Sentinel), beide Override-Arten
+      gleichzeitig im selben Durchlauf, Regression aller bestehenden Zweige ohne anhängenden
+      Override (Standard-Wrap, alle vier OFEX-Teilfälle), `get_string()`-Push-Block
+      (`cnt_is_available`/`btn_is_available` unbedingt `true`), sowie die Phase-1-Reihenfolge-
+      Abhängigkeit (`cnt_length_bit`/`btn_length_bit` vor dem ersten `_override_get()`-Aufruf)
+      für die realen 16-/4-Bit-Breiten dieses Protokolls. Gebaut mit
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` um "Update (Phase 9)",
+      "Phase 9: Somfy Keytis", "Verifikation Phase 9" ergänzt, die Port-Skizze um die bisher
+      fehlenden Einträge für Phase 8 und Phase 9 nachgetragen (Nummerierung entsprechend
+      verschoben), "Risiko" um die protokollspezifische Besonderheit des toten
+      `btn`-Funktionsparameters ergänzt, "Quelle" um die Phase-9-Belege ergänzt. Von den
+      ursprünglich gezählten ~15 Rolling-Code-Protokollen bleiben, nach dem jetzt
+      angeschlossenen Somfy Keytis, noch 4 echte Kandidaten offen: FAAC SLH, Secplus v2, Nice
+      FloR-S, KingGates Stylo4K.
+- [ ] Lokal zu tun: Patch gegen die eigene `somfy_keytis.c` anwenden, `ufbt`/`fbt firmware_all`
+      bauen. Funktionstest: ein Somfy-Keytis-Rolling-Code-Signal erfassen, über ein künftiges
+      Edit-Menü den Zähler bzw. die Taste ändern, erneut senden, am eigenen, autorisiert
+      getesteten Somfy-Antrieb beobachten, ob/wie der geänderte Wert akzeptiert wird — kein
+      `CounterMode`-Durchspielen nötig, da kein eigenständiges Mehrfach-Zählermodus-Feature
+      existiert.

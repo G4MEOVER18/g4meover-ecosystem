@@ -1,5 +1,27 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 9):** siebtes Nachzieh-Protokoll (Somfy Keytis, `somfy_keytis`) angeschlossen —
+siehe "Phase 9: Somfy Keytis" sowie "Verifikation Phase 9" unten. Von den nach Phase 8
+verbliebenen fünf Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Nice FloR-S: 1284,
+KingGates Stylo4K: 496, Somfy Keytis: 405) hatte Somfy Keytis den kleinsten Gesamtdiff und war
+damit an der Reihe. Anders als die letzten beiden angeschlossenen Protokolle (CAME Atomo/Phase 7,
+Alutech AT-4N/Phase 8) hat meine eigene `somfy_keytis.c` kein eigenständiges Mehrfach-Zähler-
+modus-Feature zu berücksichtigen — der Zähler-Zweig ist die reine Standard-/OFEX-Kette, byte-
+identisch zu Somfy Telis' eigener (Phase 5), kein `bypass`-Flag nötig. Eine eigene Besonderheit
+gibt es trotzdem: meine `subghz_protocol_somfy_keytis_gen_data()` nimmt ihren `btn`-Parameter gar
+nicht an (`UNUSED(btn)`) — der Tastenwert wird stattdessen bei jedem Aufruf frisch aus
+`instance->generic.data` entpackt, direkt neben Zähler und Seriennummer. Der Tasten-Override
+hängt deshalb nicht an einem lokalen `btn`-Parameter wie bei Somfy Telis/Phoenix V2/CAME Atomo/
+Alutech AT-4N, sondern direkt am `instance->generic.btn`-Feld, unmittelbar nach dessen Entpacken
+und vor dem Frame-Aufbau (siehe "Phase 9: Somfy Keytis"). Von den ursprünglich gezählten
+~15 Protokollen bleiben weiterhin vier (Beninca ARC, Jarolift, Prastel, Ditec GOL4) ohne
+eigenständige Protokolldatei (unverändert seit "Update (Phase 4)"), es bleiben 11 echte
+Kandidaten. Davon sind KeeLoq (Phase 2), Secplus v1 (Phase 4), Somfy Telis (Phase 5), Phoenix V2
+(Phase 6), CAME Atomo (Phase 7), Alutech AT-4N (Phase 8) und jetzt Somfy Keytis (Phase 9)
+angeschlossen — macht 7 von 11, 4 offen (FAAC SLH, Secplus v2, Nice FloR-S, KingGates Stylo4K).
+Princeton (Phase 3) bleibt der zusätzliche, nicht in der ursprünglichen Liste gezählte Fund —
+macht insgesamt 8 angeschlossene Protokolle.
+
 **Update (Phase 8):** sechstes Nachzieh-Protokoll (Alutech AT-4N, `alutech_at_4n`) angeschlossen —
 siehe "Phase 8: Alutech AT-4N" sowie "Verifikation Phase 8" unten. Von den verbliebenen sechs
 Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Alutech AT-4N: 404, Nice FloR-S: 1284,
@@ -283,29 +305,44 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase8/` — Host-Repro
   (siehe "Verifikation Phase 8").
 
+**Jetzt geliefert (Phase 9, siebtes Nachzieh-Protokoll Somfy Keytis):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/somfy_keytis.c`
+  — meine eigene `somfy_keytis.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, per frischem
+  `git clone` zu Sitzungsbeginn als unverändert aktueller `HEAD`-Stand bestätigt), additiv um
+  die zwei Anschlussstellen erweitert (siehe "Phase 9: Somfy Keytis" unten). Fertige Zieldatei
+  zum direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/somfy_keytis.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/somfy_keytis_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase9/` — Host-Repro
+  (siehe "Verifikation Phase 9").
+
 **Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
 ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
 Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
-"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen Alutech AT-4N (Phase 8), 5
-echte Kandidaten: FAAC SLH, Secplus v2, Nice FloR-S, KingGates Stylo4K, Somfy Keytis. Pro Datei
-derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy
-Telis/Phoenix V2/CAME Atomo/Alutech AT-4N, sofern sich der Gesamtdiff (teilweise durch Unleasheds
-separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen lässt — bei Somfy Telis
-(231 Diff-Zeilen, siehe "Phase 5"), Phoenix V2 (324 Zeilen, siehe "Phase 6"), CAME Atomo
-(403 Zeilen, siehe "Phase 7") und Alutech AT-4N (404 Zeilen, siehe "Phase 8") hat das wie bei
-Secplus v1 (231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert, obwohl Phoenix V2
-zusätzlich Unleasheds eigenständiges "CounterMode"-Feature im Diff hatte (siehe
-"Update (Phase 6)" — bewusst nicht mitportiert), CAME Atomo zusätzlich Unleasheds separaten
-`common.c`-Umbau sowie einen neuen sechsten/siebten Tastencode samt eines vierten
-Header-Timing-Zweigs im Diff hatte (siehe "Update (Phase 7)" — beide bewusst nicht mitportiert)
-und Alutech AT-4N zusätzlich Unleasheds separaten `common.c`-Umbau sowie eine auf ein
-6-Byte-Puffer-Array umgestellte Rainbow-Table-Ladefunktion im Diff hatte (siehe
-"Update (Phase 8)" bzw. "Phase 8: Alutech AT-4N" — beide bewusst nicht mitportiert; wie bei CAME
-Atomo war der `bypass`-Mechanismus bei Alutech AT-4N aber kein Fremdfeature und wurde
-mitportiert). Bei Protokollen mit deutlich größerem Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2:
-1133, Nice FloR-S: 1284, KingGates Stylo4K: 496, Somfy Keytis: 405 u. a.) ist derselbe
-sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht
-versucht. Keine dieser Dateien ist in dieser Sitzung angefasst.
+"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen Somfy Keytis (Phase 9), 4
+echte Kandidaten: FAAC SLH, Secplus v2, Nice FloR-S, KingGates Stylo4K. Pro Datei derselbe
+kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy Telis/
+Phoenix V2/CAME Atomo/Alutech AT-4N/Somfy Keytis, sofern sich der Gesamtdiff (teilweise durch
+Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen lässt — bei
+Somfy Telis (231 Diff-Zeilen, siehe "Phase 5"), Phoenix V2 (324 Zeilen, siehe "Phase 6"), CAME
+Atomo (403 Zeilen, siehe "Phase 7"), Alutech AT-4N (404 Zeilen, siehe "Phase 8") und Somfy Keytis
+(405 Zeilen, siehe "Phase 9") hat das wie bei Secplus v1 (231 Zeilen) und Princeton (214 Zeilen)
+zuverlässig funktioniert, obwohl Phoenix V2 zusätzlich Unleasheds eigenständiges
+"CounterMode"-Feature im Diff hatte (siehe "Update (Phase 6)" — bewusst nicht mitportiert), CAME
+Atomo zusätzlich Unleasheds separaten `common.c`-Umbau sowie einen neuen sechsten/siebten
+Tastencode samt eines vierten Header-Timing-Zweigs im Diff hatte (siehe "Update (Phase 7)" —
+beide bewusst nicht mitportiert), Alutech AT-4N zusätzlich Unleasheds separaten `common.c`-Umbau
+sowie eine auf ein 6-Byte-Puffer-Array umgestellte Rainbow-Table-Ladefunktion im Diff hatte
+(siehe "Update (Phase 8)" bzw. "Phase 8: Alutech AT-4N" — beide bewusst nicht mitportiert; wie
+bei CAME Atomo war der `bypass`-Mechanismus bei Alutech AT-4N aber kein Fremdfeature und wurde
+mitportiert) und Somfy Keytis zusätzlich Unleasheds separaten `common.c`-Umbau sowie die
+Umbenennung/Konsolidierung von `press_duration_counter` in das generische `seed`-Feld im Diff
+hatte (siehe "Update (Phase 9)" bzw. "Phase 9: Somfy Keytis" — beide bewusst nicht mitportiert;
+anders als bei CAME Atomo/Alutech AT-4N war hier kein `bypass`-Mechanismus nötig, da kein
+eigenständiges Mehrfach-Zählermodus-Feature existiert). Bei Protokollen mit deutlich größerem
+Gesamtdiff (FAAC SLH: 712 Zeilen, Secplus v2: 1133, Nice FloR-S: 1284, KingGates Stylo4K: 496
+u. a.) ist derselbe sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder
+Dateiersatz — noch nicht versucht. Keine dieser Dateien ist in dieser Sitzung angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -662,6 +699,78 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
    zuletzt dekodierte Tastencode der Empfängerseite, nicht der von Punkt 3 überschriebene
    Encoder-Parameter (gleiche Unterscheidung wie bei CAME Atomo, siehe "Risiko").
 
+### Phase 9: Somfy Keytis (siebtes Protokoll der Nachzieh-Liste)
+
+**Was:** `somfy_keytis` ist bei Unleashed ebenfalls Mitglied der ursprünglich gezählten
+Rolling-Code-Protokolle. Beim Diff meiner eigenen `somfy_keytis.c` gegen Unleasheds aktuellen
+Standard-Branch (siehe "Quelle") zeigte sich der in "Update (Phase 8)" angekündigte
+Gesamtdiff-Umfang von 405 Zeilen, davon wie bei den letzten fünf Nachzieh-Protokollen ein
+erster, hier nicht relevanter Block aus Unleasheds separatem `common.c`-Encoder-/Decoder-
+Basis-Umbau (`#include "common.h"`, `SUBGHZ_ASSERT_*_LAYOUT`, `alloc`/`free` über
+`subghz_protocol_*_common_alloc/_free`, `get_hash_data`/`stop`/`yield` über die
+`common`-Infrastruktur statt eigener Funktionen) sowie ein zweiter, hier ebenfalls nicht
+übernommener Block: Unleashed hat `press_duration_counter` in das generische `instance->
+generic.seed`-Feld umgezogen (dasselbe Feld, das `SubGhzBlockGeneric` bei mir bereits für andere
+Protokolle führt) und `instance->generic.data_2` in `instance->generic.seed` umbenannt — eine
+reine Feld-Umbenennung/Konsolidierung ohne Bezug zum Override-Mechanismus, die meine eigene,
+weiterhin über ein dediziertes `press_duration_counter`-Feld laufende Struktur unverändert lässt
+(beide Felder sind beim Diff byte-identisch verwendet, nur der Name und die Unterbringung
+unterscheiden sich). Ein dritter, bei den letzten beiden Protokollen (CAME Atomo/Phase 7,
+Alutech AT-4N/Phase 8) jeweils vorhandener Block — ein eigenständiges Mehrfach-Zählermodus-
+Feature samt `bypass`-Flag — entfällt hier vollständig: weder meine eigene `somfy_keytis.c` noch
+Unleasheds eigene kennt ein solches Feature für dieses Protokoll, der Zähler-Zweig ist bei
+beiden Seiten die reine Standard-/OFEX-Kette (16-Bit-Zähler, Wrap auf `0` bei Überschreiten von
+`0xFFFF` im Standard-Modus, Sprung auf `0xFFFE` statt einfachem Inkrement im OFEX-Modus außer
+bei den beiden Randwerten `0`/`0xFFFE`) — per direktem Diff gegen Somfy Telis' (Phase 5) eigene
+Kette bestätigt byte-identisch, abgesehen vom hier zusätzlichen Override-Zweig.
+
+Eine eigene Besonderheit gegenüber allen sechs bisher angeschlossenen Protokollen: meine
+`subghz_protocol_somfy_keytis_gen_data()` nimmt ihren `btn`-Funktionsparameter entgegen,
+verwendet ihn aber nirgends (`UNUSED(btn);` als erste Zeile der Funktion) — `instance->
+generic.btn` wird stattdessen bei jedem Aufruf frisch aus `instance->generic.data` entpackt
+(`uint64_t data = instance->generic.data ^ (instance->generic.data >> 8);
+instance->generic.btn = (data >> 48) & 0xF;`), zusammen mit `cnt`/`serial` aus demselben Entpack-
+Schritt. Diese Eigenheit ist unverändert gegenüber Unleasheds eigener Vor-Override-Fassung (per
+Diff bestätigt: beide Seiten entpacken `btn`/`cnt`/`serial` byte-identisch aus `data`, beide
+lassen den `btn`-Parameter ungenutzt) — Unleashed selbst hängt seinen Tasten-Override deshalb
+ebenfalls nicht an den Funktionsparameter, sondern an eine eigene
+`subghz_protocol_somfy_keytis_get_btn_code()`-Hilfsfunktion samt zugehöriger Custom-Button-
+Infrastruktur (`../blocks/custom_btn_i.h`), die bei mir für dieses Protokoll nicht existiert
+(anders als bei Somfy Telis, das diese Infrastruktur bereits hat, siehe "Phase 5: Somfy Telis").
+Diese Custom-Button-Infrastruktur selbst wird hier nicht mitportiert — sie ist ein eigenständiges
+Fremdfeature ohne Bezug zum SubGhzBlockGenericGlobal-Override und würde eine eigene, hier nicht
+gewollte Erweiterung meiner `somfy_keytis.c` bedeuten (dieselbe Abgrenzung wie beim
+"CounterMode"-Fremdfeature in Phase 6). Stattdessen hängt der Tasten-Override hier direkt am
+bereits entpackten `instance->generic.btn`-Feld, nicht an einem lokalen `btn`-Wert.
+
+Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `somfy_keytis.c`:
+1. `subghz_protocol_somfy_keytis_gen_data()`: direkt nach dem bestehenden Entpack-Dreisatz
+   (`instance->generic.btn`/`.cnt`/`.serial = ...`) ein eigenständiger
+   `subghz_block_generic_global_button_override_get(&instance->generic.btn)`-Aufruf mit
+   `FURI_LOG_D()`-Erfolgsmeldung — wirkt direkt auf das bereits entpackte Feld, bevor der
+   nachfolgende Zähler-Zweig und der Frame-Aufbau (`frame[0] = (0xA << 4) |
+   instance->generic.btn;`) den Wert lesen. Direkt danach bekommt die bestehende
+   `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) { ... } else { /* OFEX */ }`-
+   Verzweigung denselben neuen, vorangestellten Zweig wie bei Somfy Telis/Phoenix V2:
+   `if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) { /* Override
+   direkt verwendet */ } else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF)
+   { ... } else { /* OFEX, unverändert */ }`. Bei anhängendem Override wird weder der
+   Standard-Wrap-Pfad noch der OFEX-Sprung-Pfad erreicht — beide bleiben für den unveränderten
+   Fall exakt wie vorher. Kein `bypass`-Flag nötig, da kein Mehrfach-Zählermodus existiert, der
+   sonst umgangen werden müsste.
+2. `subghz_protocol_decoder_somfy_keytis_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   dem bestehenden `check_remote_controller()`-Aufruf gesetzt — exakt Unleasheds eigene
+   Anbindung, byte-für-byte übernommen (siehe "Verifikation Phase 9"). `btn_length_bit` ist hier
+   `4` (dieselbe 4-Bit-Nibble-Breite wie Somfy Telis, beide Protokolle teilen sich dasselbe
+   `frame[0] = (0xA << 4) | btn;`-Framing-Schema). `btn_is_available` ist `true`: wie bei Somfy
+   Telis ist der Tastenwert (`instance->generic.btn`, gesetzt in `check_remote_controller()` auf
+   der Decoder-Seite) unabhängig editierbar. Der bestehende `furi_string_cat_printf()`-Aufruf
+   selbst (Anzeigeformat `"Btn:%s\r\n"`) bleibt unverändert — Unleashed hat diese Zeile bei sich
+   zusätzlich auf `"Btn:%X - %s\r\n"` umgestellt, das ist aber reine Anzeige-Kosmetik ohne Bezug
+   zum Override-Mechanismus und kein Teil der zwei tatsächlich override-relevanten
+   Anschlussstellen, deshalb hier nicht übernommen.
+
 ## Risiko
 
 - **Wichtigster eigener Fund dieser Sitzung — kein blindes Ersetzen möglich:** Ich habe zuerst
@@ -728,6 +837,20 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
   AT-4N", Punkt 3/4) — kein eigener Fund, sondern eine bewusst dokumentierte Abgrenzung zur
   Phase-7-Falle, damit eine künftige Edit-Menü-Anbindung nicht fälschlich dieselbe Umrechnung
   für beide Protokolle annimmt.
+- **Somfy Keytis (Phase 9): der `btn`-Funktionsparameter von `gen_data()`/`create_data()` ist
+  toter Code — eine eigene, von Unleashed unverändert übernommene Eigenheit, keine durch diesen
+  Port eingeführte Falle, aber eine für eine künftige Edit-Menü-Anbindung relevante:** anders
+  als bei allen sechs bisher angeschlossenen Protokollen (die ihren `btn`-Parameter tatsächlich
+  verwenden) überschreibt `subghz_protocol_somfy_keytis_gen_data()` `instance->generic.btn` mit
+  einem aus `instance->generic.data` entpackten Wert, unabhängig davon, was als `btn`-Argument
+  übergeben wurde (`UNUSED(btn);` als erste Zeile). Eine künftige lokale Edit-Menü-Anbindung, die
+  versucht, einen neuen Tastenwert direkt über den `btn`-Parameter von
+  `subghz_protocol_somfy_keytis_create_data()` zu setzen (so, wie es bei den anderen sechs
+  Protokollen funktionieren würde), hätte dadurch keinerlei Effekt — der einzige wirksame Weg ist
+  der hier gelieferte `subghz_block_generic_global_button_override_set()`-Mechanismus. Anzeige-
+  und Override-Zielwert sind dabei (wie bei Alutech AT-4N, anders als bei CAME Atomo) derselbe
+  Wertebereich — `get_string()` zeigt `current_btn` als denselben `instance->generic.btn`, den
+  auch der Override-Aufruf überschreibt, keine zusätzliche Wire-Nibble-Abbildung.
 
 ## Verifikation (auf dem Host, ohne Hardware)
 
@@ -1213,6 +1336,73 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
     -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 9 (Somfy Keytis)
+
+- **Patch additiv, byte-identisch:** `connective-patches/somfy_keytis_c.patch` per `patch -p1
+  --dry-run` sowie real per `patch -p1` gegen zwei frische, unabhängige Zweitkopien meiner
+  eigenen `somfy_keytis.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem `git clone` zu Sitzungsbeginn geholt,
+  unverändert zu Phase 1-8 — einmal per sparse `git clone` in einen temporären Arbeitsordner,
+  einmal per zweitem, unabhängigem sparse `git clone`) angewendet — beide Ergebnisse per
+  `md5sum` byte-identisch zueinander und zur mitgelieferten Zieldatei bestätigt. `git diff
+  --stat` nach dem Anwenden: **19 Zeilen Hinzufügung, 1 Löschung** (dieselbe Art
+  Zeilenverschiebung wie bei Somfy Telis/Phoenix V2: die bestehende
+  `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {`-Zeile wird durch die um den
+  neuen Override-Zweig erweiterte Zeile `} else if(furi_hal_subghz_get_rolling_counter_mult() !=
+  -0x7FFFFFFF) {` ersetzt — keine inhaltliche Löschung, reine Verschiebung in dieselbe
+  Bedingung).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase9/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die zwei neuen
+  Anschlussstellen sind per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten, bereits
+  gepatchten `somfy_keytis.c` in eigene `.inc`-Fragmente extrahiert und in minimalen
+  Wrapper-Funktionen eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar: `sed 135,158p` für den Tasten-Override- und den Zähler-Override-Zweig plus
+  die zwei unveränderten Geschwister-Zweige, `sed 805,813p` für den `get_string()`-Push-Block).
+  Anders als bei Somfy Telis (Phase 5) wirkt der Tasten-Override hier direkt auf
+  `instance->generic.btn`, nicht auf einen lokalen `btn`-Parameter — der Wrapper übergibt daher
+  nur die Instanz, keinen zusätzlichen Tastenwert. Geprüft (27 Prüfungen):
+  1. Tasten-Override verbraucht sich einmalig, maskiert auf das reale `btn_length_bit` (4) —
+     ein außerhalb des 4-Bit-Bereichs liegender Override-Wert (`0x1F`) belegt dabei zugleich die
+     Masken-Formel für diese konkrete Protokoll-Bitbreite (`0x1F & 0xF == 0xF`).
+  2. Ohne anhängenden Tasten-Override bleibt der bestehende, aus `instance->generic.data`
+     entpackte Tastenwert unverändert (Regression).
+  3. Zähler-Override verwendet den überschriebenen, maskierten Wert verbatim und überspringt
+     dabei sowohl den Standard-Wrap-Pfad als auch den OFEX-Sprung-Pfad vollständig — auch dann,
+     wenn `furi_hal_subghz_get_rolling_counter_mult()` gleichzeitig auf den OFEX-Sentinel-Wert
+     gesetzt ist (Beleg, dass der neue Zweig strikt vor der gesamten bestehenden `if`/`else
+     if`-Kette läuft, nicht nur vor deren Standard-Hälfte) — ein außerhalb des 16-Bit-Bereichs
+     liegender Override-Wert (`0x1ABCD`) belegt dabei zugleich die Masken-Formel für den realen
+     16-Bit-Zähler dieses Protokolls (`0x1ABCD & 0xFFFF == 0xABCD`). Override verbraucht sich
+     einmalig.
+  4. Ohne anhängenden Override läuft die bestehende Standard-Wrap-Logik unverändert — sowohl
+     der einfache Inkrement-Fall als auch der Wrap-auf-0-Fall bei Überschreiten von `0xFFFF`.
+  5. Ohne anhängenden Override läuft die bestehende OFEX-Logik unverändert — alle drei real
+     vorhandenen Verzweigungen: Wrap-auf-0 bei `cnt == 0xFFFF`, Sprung-auf-`0xFFFE` für jeden
+     sonstigen Wert `>= 1`, sowie die beiden vom Sprung bewusst ausgenommenen
+     Rand-Inkrement-Fälle `cnt == 0` und `cnt == 0xFFFE` (Regression gegen alle vier
+     dokumentierten OFEX-Teilfälle, nicht nur den Sprung-Fall).
+  6. Tasten- und Zähler-Override gleichzeitig anhängend: beide greifen unabhängig voneinander
+     im selben Durchlauf — die reale Funktion ruft den Tasten-Block unbedingt vor der
+     Zähler-Kette auf, unabhängig davon, ob ein Zähler-Override anhängt oder nicht.
+  7. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+     unbedingt `16`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `true`/
+     `current_btn`/`btn_length_bit` unbedingt `4` korrekt, für zwei unterschiedliche
+     Zähler-/Tastenwerte (inkl. des Randfalls beide `0`).
+  8. Die in Phase 1 dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit`
+     vor dem ersten `_override_get()`-Aufruf) für die realen Bitbreiten dieses Protokolls (16/4)
+     explizit durchexerziert: `get_string()`-Fragment zuerst ausgeführt (setzt beide Längen),
+     danach ein Override-Set/Get-Durchlauf im `gen_data()`-Fragment unter Wiederverwendung
+     dieser Längen — kein UB, korrekt maskiertes Ergebnis.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **27 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus `firmware-mining/repro-subghz-block-generic-global-override-port-phase9/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -1281,7 +1471,34 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
    KeeLoq/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo, siehe "Betroffene Dateien" — pro
    Protokoll eigener Diff gegen Unleashed nötig), dann `endless_tx` an die eigene
    SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
-8. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
+8. **Phase 8 (geliefert, vorherige Sitzung — Alutech AT-4N):** sechstes Nachzieh-Protokoll
+   angeschlossen, fünftes mit tatsächlicher Zähler-Hälfte. Gesamtdiff mit 404 Zeilen wie in
+   Phase 7 angekündigt der kleinste der sechs verbliebenen Kandidaten. Wie bei CAME Atomo ist der
+   `cnt_need_override`/`bypass`-Mechanismus hier mitportiert, da mein eigenes
+   `alutech_at4n_counter_mode`-Feature (Modi 0-2) die Modi 1/2 den Override sonst stillschweigend
+   ignorieren würde (siehe "Phase 8: Alutech AT-4N"); die bestehenden drei Modus-Zweige selbst
+   bleiben dabei vollständig unverändert. Besonderheit gegenüber CAME Atomo: der Tasten-Override
+   setzt `bypass` hier selbst, nicht der Zähler-Bypass-Aufbau — ein reiner Tasten-Edit in
+   Modus 1/2 schlägt dadurch trotzdem auf den folgenden Zähler-Durchlauf durch. Zusätzlich, hier
+   bewusst nicht mitportiert: Unleasheds separater `common.c`-Umbau sowie die auf einen
+   32-Byte-RAM-Puffer umgestellte Rainbow-Table-Ladefunktion. Weiterhin offen nach Phase 8: die
+   übrigen 5 der tatsächlich existierenden Nachzieh-Kandidaten (FAAC SLH, Secplus v2, Nice
+   FloR-S, KingGates Stylo4K, Somfy Keytis).
+9. **Phase 9 (geliefert, diese Sitzung — Somfy Keytis):** siebtes Nachzieh-Protokoll
+   angeschlossen, sechstes mit tatsächlicher Zähler-Hälfte. Gesamtdiff mit 405 Zeilen wie in
+   Phase 8 angekündigt der kleinste der fünf verbliebenen Kandidaten. Kein `bypass`-Mechanismus
+   nötig, da kein eigenständiges Mehrfach-Zählermodus-Feature existiert — der Zähler-Zweig ist
+   die reine Standard-/OFEX-Kette, byte-identisch zu Somfy Telis' eigener. Besonderheit: der
+   Tasten-Override hängt hier direkt am bereits aus `instance->generic.data` entpackten
+   `instance->generic.btn`-Feld, nicht an einem lokalen `btn`-Parameter, da meine eigene
+   `gen_data()` ihren `btn`-Parameter gar nicht verwendet (siehe "Phase 9: Somfy Keytis").
+   Zusätzlich, hier bewusst nicht mitportiert: Unleasheds separater `common.c`-Umbau sowie die
+   Umbenennung/Konsolidierung von `press_duration_counter` in das generische `seed`-Feld.
+   Weiterhin offen nach Phase 9: die übrigen 4 der tatsächlich existierenden
+   Nachzieh-Kandidaten (FAAC SLH, Secplus v2, Nice FloR-S, KingGates Stylo4K), dann
+   `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt
+   fester Wiederholzahl).
+10. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
    Port-Skizze):** erst ab hier wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll —
    ihr `subrem_tx_start_sub()` braucht exakt den hier gelieferten Mechanismus, um den Tastenwert
    vor dem Senden zu überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener
@@ -1291,7 +1508,7 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
    mehrere funktionale Unterschiede sichtbar, u. a. der OTG-Einschaltpfad: die App nutzt einen
    begrenzten `furi_hal_power_enable_otg()`-Retry mit 5 Versuchen, meine eigene Version einen
    einmaligen Aufruf über den `Power`-Service).
-9. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
+11. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
    Compile-Fehler durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
@@ -1319,6 +1536,10 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
    ein Tasten- ohne Zähler-Override gesetzt ist (Modus 1/2 müssen auch dann auf den Standard-Zweig
    umspringen). Der Tasten-Override-Wert ist hier als voller, bereits aufgelöster Bytewert
    einzugeben (`0x11`/`0x22`/`0xFF`/`0x44`/`0x33`), nicht als Wire-Nibble oder Tasten-Id 1-4.
+   Nach Phase 9 zusätzlich mit Somfy Keytis testbar: dieselbe Zähler-/Tasten-Prüfung wie bei
+   Somfy Telis, am eigenen, autorisiert getesteten Rolling-Code-Empfänger — kein
+   `CounterMode`-Durchspielen nötig, da kein eigenständiges Mehrfach-Zählermodus-Feature
+   existiert.
 
 ## Quelle
 
@@ -1367,6 +1588,23 @@ Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `alutech_at_4
   `HEAD`-Stand bestätigt, identisch zu Phase 1-7): eigene Basis für
   `lib/subghz/protocols/alutech_at_4n.c`, Ausgangspunkt für
   `connective-patches/alutech_at_4n_c.patch`.
+- (Phase 9) Unleashed-Firmware, Standard-Branch, Commit
+  `2cbad71c92e7482e7752f5ecb570c18b2d1a2c75` (2026-10-29, per frischem sparse `git clone` zu
+  Sitzungsbeginn geholt — unverändert zum in Phase 8 verwendeten Stand, per `git log -1` auf
+  demselben Commit bestätigt): `lib/subghz/protocols/somfy_keytis.c` zum vollständigen Diff
+  gegen meine eigene Basis herangezogen, die zwei Override-Anschlusspunkte (siehe "Phase 9:
+  Somfy Keytis") daraus übernommen; der übrige, hier nicht übernommene Teil des Diffs besteht
+  aus zwei getrennten Blöcken — Unleasheds separatem `common.c`-Encoder-/Decoder-Basis-Umbau
+  (wie bei Princeton/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo/Alutech AT-4N) sowie der
+  Umbenennung/Konsolidierung von `press_duration_counter` in das generische `seed`-Feld (siehe
+  "Phase 9: Somfy Keytis") — beide hängen mit diesem Port nicht zusammen und werden nicht
+  übernommen.
+- (Phase 9) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per frischem sparse `git clone` zu Sitzungsbeginn Phase 9 erneut als unverändert aktueller
+  `HEAD`-Stand bestätigt, identisch zu Phase 1-8; für die Patch-Verifikation zusätzlich zwei
+  weitere, unabhängige frische Clones derselben Basis gezogen, siehe "Verifikation Phase 9"):
+  eigene Basis für `lib/subghz/protocols/somfy_keytis.c`, Ausgangspunkt für
+  `connective-patches/somfy_keytis_c.patch`.
 - (Phase 2) Unleashed-Firmware, Standard-Branch (`dev`), Commit
   `97a0174368527e7307cf6af231aa2f4e41c26f96` (2026-10-23, per `git ls-remote` zu
   Sitzungsbeginn als aktueller `HEAD`-Stand bestätigt): `lib/subghz/protocols/keeloq.c`/`.h` nur
