@@ -9989,3 +9989,82 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lokaler Test des Alutech-AT-4N-Override-Anschlusses, lokaler Test des wpa_crack-
       `pcap_to_hc22000()`-Altstand-Fixes, lokaler Test des Somfy-Keytis-Override-Anschlusses,
       lokaler Test des hier gelieferten Apple-BLE-Spam-Längen-Fixes.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 10 — KingGates Stylo4K als achtes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `git log` durchgesehen:
+      letzte Sitzung war App-Verbesserung (lilygo-ukfe-rx, Apple-BLE-Spam-Längen-Fix), davor
+      Firmware-Feature-Mining (Phase 9, Somfy Keytis), davor App-Verbesserung (g4meover-deck,
+      `wpa_crack.pcap_to_hc22000()`) — Firmware-Feature-Mining war damit für diese Sitzung an
+      der Reihe (Zweierrhythmus FM/App fortgesetzt). Git-Identität vor dem ersten eigenen
+      Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`). Lokaler Checkout war bereits
+      sauber auf `origin/main` (ein vorangehender `git fetch` zeigte eine veraltete lokale
+      `main`-Branch-Referenz, 14 Commits hinter `origin/main` — reiner Checkout-Zeiger-Stand
+      dieses Containers, kein tatsächlicher Branch-Drift: `origin/main` und der zuvor
+      ausgecheckte `HEAD`-Commit waren identisch; per Fast-Forward korrigiert).
+- [x] Von den nach Phase 9 verbliebenen vier echten Nachzieh-Kandidaten (FAAC SLH: 712
+      Diff-Zeilen, Secplus v2: 1133, Nice FloR-S: 1284, KingGates Stylo4K: 496) KingGates
+      Stylo4K als kleinsten Gesamtdiff gewählt. Frischer sparse `git clone` von
+      `G4MEOVER18/G4MEOVER-FW` (`main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e` —
+      identisch zum in Phase 1-9 verwendeten Stand) sowie von `DarkFlippers/unleashed-firmware`
+      (Standard-Branch, Commit `b28253c8c1e2ff1c8d1b664f82049a8b19f6a941`, 2026-10-30). Beide
+      `lib/subghz/protocols/kinggates_stylo_4k.c` vollständig gelesen und gegeneinander
+      gedifft: 496 Zeilen Gesamtdiff, davon ein Block aus Unleasheds separatem
+      `common.c`-Encoder-/Decoder-Basis-Umbau (wie bei den letzten sechs Nachzieh-Protokollen)
+      sowie ein zweiter, hier ebenfalls nicht übernommener Block — Unleasheds eigene
+      Custom-Button-Zyklus-Infrastruktur (`../blocks/custom_btn_i.h`) für das OK/UP/DOWN/
+      LEFT-Tastenmenü, ein eigenständiges Fremdfeature ohne Bezug zum
+      SubGhzBlockGenericGlobal-Override (per Gegen-Diff gegen Unleasheds eigene
+      `somfy_keytis.c` bestätigt, dass dieselbe Infrastruktur auch dort existiert und in Phase
+      9 bereits bewusst nicht mitportiert wurde — konsistente Abgrenzung).
+- [x] Protokollspezifischer Fund: meine eigene `gen_data()` baut ihr Sendesignal nicht aus
+      `instance->generic.serial`/`.btn`/`.cnt` auf, sondern entschlüsselt das zuletzt geladene
+      Hop-Feld, gewinnt daraus den alten Zähler, erhöht ihn, und liest Taste/Seriennummer aus
+      dem unverändert bleibenden Fix-Feld — ein reiner Feld-Override auf `instance->
+      generic.btn` (das bei vier der sieben bisher angeschlossenen Protokolle ausreichende
+      Muster) hätte deshalb **keine Wirkung auf das tatsächlich gesendete Signal** gehabt,
+      nur den angezeigten Wert geändert. Der Tasten-Override musste deshalb zusätzlich das
+      Fix-Feld und das Hop-Verschlüsselungs-Klartext-Byte aus der neuen Taste plus der bereits
+      bekannten Seriennummer/dem Zähler neu aufbauen — beide Formeln unverändert von der
+      eigenen Decoder-Seite derselben Datei übernommen, nicht neu erfunden.
+- [x] Additiv, zwei Anschlussstellen in `lib/subghz/protocols/kinggates_stylo_4k.c`: ein
+      vorangestellter `subghz_block_generic_global_counter_override_get()`-Zweig vor der
+      bestehenden Standard-/OFEX-Kette (kein `bypass`-Mechanismus nötig, kein eigenständiges
+      Mehrfach-Zählermodus-Feature); ein `subghz_block_generic_global_button_override_get()`-
+      Aufruf direkt nach dem bestehenden Taste/Seriennummer-Entpack-Zweisatz, der bei
+      tatsächlichem Override zusätzlich Fix-Feld und Hop-Klartext neu aufbaut; sowie der
+      `get_string()`-Push-Block (`cnt_length_bit` 16, `btn_length_bit` 4). Fertige Zieldatei in
+      `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/
+      kinggates_stylo_4k.c`, Patch in `connective-patches/kinggates_stylo_4k_c.patch`
+      (31 Zeilen Hinzufügung, 1 Löschung) — per `patch -p1 --dry-run`/`patch -p1` gegen zwei
+      frische, unabhängige Zweitkopien angewendet, alle drei Ergebnisse per `md5sum`
+      byte-identisch bestätigt.
+- [x] Host-Repro
+      (`firmware-mining/repro-subghz-block-generic-global-override-port-phase10/repro.c`):
+      verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c` sowie gegen die
+      tatsächliche, unveränderte `lib/subghz/blocks/math.c` (vendored als unveränderte Kopie,
+      da die Fix-/Hop-Rekonstruktion bit-genau von `subghz_protocol_blocks_reverse_key()`
+      abhängt). Die neue Anschlussstelle per `sed`-Zeilenbereich byte-identisch aus der
+      gepatchten Zieldatei extrahiert, in sechs Szenarien geprüft: Regression ohne Override,
+      nur Zähler-Override, nur Tasten-Override (inkl. Rundlauf-Dekodierung des rekonstruierten
+      Fix-Felds gegen die reale `reverse_key()`-Funktion und Abgleich des rekonstruierten
+      Hop-Klartexts gegen das Decoder-eigene Akzeptanzformat), beide Overrides gleichzeitig,
+      Tasten-Masken-Randfall, `get_string()`-Push-Block. **40 Prüfungen bestanden**, gebaut mit
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde, `g_unexpected_stub_calls` bleibt bei 0.
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` um "Update (Phase 10)",
+      "Phase 10: KingGates Stylo4K", "Verifikation Phase 10" ergänzt, die Port-Skizze um den
+      bisher fehlenden Eintrag für Phase 10 nachgetragen (Nummerierung entsprechend
+      verschoben), "Risiko" um die protokollspezifische Fix-/Hop-Rekonstruktionsgrenze
+      ergänzt, "Quelle" um die Phase-10-Belege ergänzt. Von den ursprünglich gezählten ~15
+      Rolling-Code-Protokollen bleiben, nach dem jetzt angeschlossenen KingGates Stylo4K, noch
+      3 echte Kandidaten offen: FAAC SLH, Secplus v2, Nice FloR-S.
+- [ ] Lokal zu tun: Patch gegen die eigene `kinggates_stylo_4k.c` anwenden, `ufbt`/
+      `fbt firmware_all` bauen. Funktionstest: ein KingGates-Stylo4K-Rolling-Code-Signal
+      erfassen, über ein künftiges Edit-Menü den Zähler ändern, erneut senden, am eigenen,
+      autorisiert getesteten KingGates-Stylo4K-Empfänger beobachten, ob/wie der geänderte
+      Zähler akzeptiert wird — danach gezielt denselben Test nur mit einem geänderten
+      Tastenwert (ohne Zähler-Edit) wiederholen, um die in dieser Phase neu hinzugekommene
+      Fix-/Hop-Rekonstruktion tatsächlich am Funkweg zu bestätigen, nicht nur am angezeigten
+      Wert.

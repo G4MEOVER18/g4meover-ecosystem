@@ -1,0 +1,55 @@
+--- a/lib/subghz/protocols/kinggates_stylo_4k.c
++++ b/lib/subghz/protocols/kinggates_stylo_4k.c
+@@ -158,7 +158,10 @@
+     instance->generic.cnt = decrypt & 0xFFFF;
+ 
+     // Check for OFEX (overflow experimental) mode
+-    if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
++    if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
++        // override pending: use the value verbatim, skip the standard increment/OFEX
++        // logic below entirely for this pass (one-shot, consumed by the call above)
++    } else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
+         if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
+             instance->generic.cnt = 0;
+         } else {
+@@ -179,6 +182,23 @@
+ 
+     uint32_t data = (decrypt & 0xFFFF0000) | instance->generic.cnt;
+ 
++    // override button if we change it with the signal settings button editor; both the
++    // fixed part (fix, carries btn at bits [20:17]) and the hop's cleartext upper 16
++    // bits (decrypt's top byte, carries btn at bits [31:28]) have to be rebuilt from the
++    // new button for the override to actually reach the transmitted signal -- gen_data()
++    // otherwise never rebuilds either field from instance->generic.btn once a key/fix was
++    // loaded, it only ever re-derives btn FROM fix, never the other way around
++    if(subghz_block_generic_global_button_override_get(&instance->generic.btn)) {
++        FURI_LOG_D(TAG, "Button successfully changed to 0x%X", instance->generic.btn);
++        fix = ((uint64_t)((instance->generic.serial >> 16) & 0xFFFF) << 21) |
++              ((uint64_t)instance->generic.btn << 17) | ((uint64_t)1 << 16) |
++              (instance->generic.serial & 0xFFFF);
++        instance->generic.data = subghz_protocol_blocks_reverse_key(fix, 53);
++
++        data = ((uint32_t)instance->generic.btn << 28) | (((uint32_t)0x0C) << 24) |
++               ((instance->generic.serial & 0xFF) << 16) | instance->generic.cnt;
++    }
++
+     uint64_t encrypt = 0;
+     for
+         M_EACH(manufacture_code, *subghz_keystore_get_data(instance->keystore), SubGhzKeyArray_t) {
+@@ -582,6 +602,16 @@
+     SubGhzProtocolDecoderKingGates_stylo_4k* instance = context;
+     subghz_protocol_kinggates_stylo_4k_remote_controller(&instance->generic, instance->keystore);
+ 
++    // push protocol data to global variable
++    subghz_block_generic_global.cnt_is_available = true;
++    subghz_block_generic_global.cnt_length_bit = 16;
++    subghz_block_generic_global.current_cnt = instance->generic.cnt;
++
++    subghz_block_generic_global.btn_is_available = true;
++    subghz_block_generic_global.current_btn = instance->generic.btn;
++    subghz_block_generic_global.btn_length_bit = 4;
++    //
++
+     furi_string_cat_printf(
+         output,
+         "%s\r\n"
