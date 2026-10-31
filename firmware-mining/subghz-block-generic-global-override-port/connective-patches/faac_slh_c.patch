@@ -1,0 +1,44 @@
+--- a/lib/subghz/protocols/faac_slh.c	2026-10-31 12:24:15.334268948 +0000
++++ b/lib/subghz/protocols/faac_slh.c	2026-10-31 12:24:15.336346585 +0000
+@@ -225,6 +225,12 @@
+             instance->generic.cnt = temp_counter_backup;
+         }
+     }
++
++    // override button if we change it with the signal settings button editor
++    if(subghz_block_generic_global_button_override_get(&instance->generic.btn)) {
++        FURI_LOG_D(TAG, "Button successfully changed to 0x%X", instance->generic.btn);
++    }
++
+     uint32_t fix = instance->generic.serial << 4 | instance->generic.btn;
+     uint32_t hop = 0;
+     uint32_t decrypt = 0;
+@@ -237,7 +243,10 @@
+     }
+ 
+     // faac slh protocol have 20-bit counter so we take only 20 bits from mult (by AND 0xFFFFF)
+-    if(allow_zero_seed || (instance->generic.seed != 0x0)) {
++    if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
++        // override pending: use the value verbatim, skip the standard increment/OFEX
++        // logic below entirely for this pass (one-shot, consumed by the call above)
++    } else if(allow_zero_seed || (instance->generic.seed != 0x0)) {
+         // check OFEX mode
+         if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
+             if((instance->generic.cnt + (furi_hal_subghz_get_rolling_counter_mult() & 0xFFFFF)) >
+@@ -714,6 +723,16 @@
+     uint32_t code_fix = instance->generic.data >> 32;
+     uint32_t code_hop = instance->generic.data & 0xFFFFFFFF;
+ 
++    // push protocol data to global variable
++    subghz_block_generic_global.cnt_is_available = true;
++    subghz_block_generic_global.cnt_length_bit = 20;
++    subghz_block_generic_global.current_cnt = instance->generic.cnt;
++
++    subghz_block_generic_global.btn_is_available = true;
++    subghz_block_generic_global.current_btn = instance->generic.btn;
++    subghz_block_generic_global.btn_length_bit = 4;
++    //
++
+     if(faac_prog_mode == true) {
+         furi_string_cat_printf(
+             output,

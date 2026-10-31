@@ -1,5 +1,31 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 11):** neuntes Nachzieh-Protokoll (FAAC SLH, `faac_slh`) angeschlossen — siehe
+"Phase 11: FAAC SLH" sowie "Verifikation Phase 11" unten. Von den nach Phase 10 verbliebenen drei
+Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Nice FloR-S: 1284) hatte FAAC SLH den
+kleinsten Gesamtdiff und war damit an der Reihe. Anders als bei allen acht bisher angeschlossenen
+Protokollen sendet meine eigene `subghz_protocol_faac_slh_gen_data()` das Fix-Feld
+(`serial<<4 | btn`) direkt im Klartext als obere 32 Bit von `instance->generic.data` — eine
+Rekonstruktion wie bei KingGates Stylo4K (Phase 10) ist hier nicht nötig, der Tasten-Override muss
+nur vor dem einen Zeitpunkt sitzen, an dem `fix` aus `serial`/`btn` aufgebaut wird. Die eigentliche
+Besonderheit liegt stattdessen an einer vorgelagerten, unabhängigen Verzweigung am Anfang von
+`gen_data()`: hält man die Taste UP, erzeugt die Funktion einen komplett andersartigen
+"Programmiermodus"-Schlüssel direkt aus `instance->generic.seed` und kehrt zurück, ohne
+`serial`/`btn`/`cnt`/`fix`/`hop` überhaupt zu berühren — ebenso wie zwei direkt darauf folgende
+Sonderfall-Rückkehrpunkte (Seed unbekannt ohne `AllowZeroSeed`; regulärer Send-Knopf noch im
+Programmiermodus ohne Seriennummer/Taste zum erneuten Senden). Da in allen drei Fällen gar kein
+Rolling-Code-Rahmen erzeugt wird, gibt es für den Override auch nichts zu überschreiben — anders
+als bei CAME Atomo/Alutech AT-4N (Phase 7/8) ist dafür kein `bypass`-Mechanismus nötig, es handelt
+sich nicht um eine *Zählermodus*-Auswahl, die umgangen werden müsste, sondern um vorgelagerte
+Rückkehrpunkte, die beide Override-Aufrufstellen schlicht nie erreichen. Von den ursprünglich
+gezählten ~15 Protokollen bleiben weiterhin vier (Beninca ARC, Jarolift, Prastel, Ditec GOL4) ohne
+eigenständige Protokolldatei (unverändert seit "Update (Phase 4)"), es bleiben 11 echte
+Kandidaten. Davon sind KeeLoq (Phase 2), Secplus v1 (Phase 4), Somfy Telis (Phase 5), Phoenix V2
+(Phase 6), CAME Atomo (Phase 7), Alutech AT-4N (Phase 8), Somfy Keytis (Phase 9), KingGates
+Stylo4K (Phase 10) und jetzt FAAC SLH (Phase 11) angeschlossen — macht 9 von 11, 2 offen
+(Secplus v2, Nice FloR-S). Princeton (Phase 3) bleibt der zusätzliche, nicht in der ursprünglichen
+Liste gezählte Fund — macht insgesamt 10 angeschlossene Protokolle.
+
 **Update (Phase 10):** achtes Nachzieh-Protokoll (KingGates Stylo4K, `kinggates_stylo_4k`)
 angeschlossen — siehe "Phase 10: KingGates Stylo4K" sowie "Verifikation Phase 10" unten. Von den
 nach Phase 9 verbliebenen vier Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Nice
@@ -359,42 +385,56 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase10/` — Host-Repro
   (siehe "Verifikation Phase 10").
 
+**Jetzt geliefert (Phase 11, neuntes Nachzieh-Protokoll FAAC SLH):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/faac_slh.c`
+  — meine eigene `faac_slh.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, per frischem sparse
+  `git clone` zu Sitzungsbeginn als unverändert aktueller `HEAD`-Stand bestätigt), additiv um
+  die drei Anschlussstellen erweitert (siehe "Phase 11: FAAC SLH" unten). Fertige Zieldatei zum
+  direkten Ersetzen meiner vorhandenen `lib/subghz/protocols/faac_slh.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/faac_slh_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase11/` — Host-Repro
+  (siehe "Verifikation Phase 11").
+
 **Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
 ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
 Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
-"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen KingGates Stylo4K
-(Phase 10), 3 echte Kandidaten: FAAC SLH, Secplus v2, Nice FloR-S. Pro Datei derselbe kleine,
-lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2/
-CAME Atomo/Alutech AT-4N/Somfy Keytis/KingGates Stylo4K, sofern sich der Gesamtdiff (teilweise
-durch Unleasheds separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen
-lässt — bei Somfy Telis (231 Diff-Zeilen, siehe "Phase 5"), Phoenix V2 (324 Zeilen, siehe
-"Phase 6"), CAME Atomo (403 Zeilen, siehe "Phase 7"), Alutech AT-4N (404 Zeilen, siehe "Phase 8"),
-Somfy Keytis (405 Zeilen, siehe "Phase 9") und KingGates Stylo4K (496 Zeilen, siehe "Phase 10")
-hat das wie bei Secplus v1 (231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert,
-obwohl Phoenix V2 zusätzlich Unleasheds eigenständiges "CounterMode"-Feature im Diff hatte (siehe
-"Update (Phase 6)" — bewusst nicht mitportiert), CAME Atomo zusätzlich Unleasheds separaten
-`common.c`-Umbau sowie einen neuen sechsten/siebten Tastencode samt eines vierten
-Header-Timing-Zweigs im Diff hatte (siehe "Update (Phase 7)" — beide bewusst nicht mitportiert),
-Alutech AT-4N zusätzlich Unleasheds separaten `common.c`-Umbau sowie eine auf ein
-6-Byte-Puffer-Array umgestellte Rainbow-Table-Ladefunktion im Diff hatte (siehe "Update (Phase 8)"
-bzw. "Phase 8: Alutech AT-4N" — beide bewusst nicht mitportiert; wie bei CAME Atomo war der
-`bypass`-Mechanismus bei Alutech AT-4N aber kein Fremdfeature und wurde mitportiert), Somfy
-Keytis zusätzlich Unleasheds separaten `common.c`-Umbau sowie die Umbenennung/Konsolidierung von
-`press_duration_counter` in das generische `seed`-Feld im Diff hatte (siehe "Update (Phase 9)"
-bzw. "Phase 9: Somfy Keytis" — beide bewusst nicht mitportiert; anders als bei CAME Atomo/Alutech
-AT-4N war hier kein `bypass`-Mechanismus nötig, da kein eigenständiges Mehrfach-Zählermodus-
-Feature existiert) und KingGates Stylo4K zusätzlich Unleasheds separaten `common.c`-Umbau sowie
-dessen eigenständige, hier bewusst nicht mitportierte Custom-Button-Zyklus-Infrastruktur
-(`../blocks/custom_btn_i.h`) im Diff hatte (siehe "Update (Phase 10)" bzw. "Phase 10: KingGates
-Stylo4K" — beide ohne Bezug zum Override-Mechanismus). KingGates Stylo4K ist dabei der erste
-Nachzieh-Kandidat, bei dem der Tasten-Override nicht mit einem reinen Feld-/Parameter-Override
-auskommt, sondern eine tatsächliche Rekonstruktion zweier Frame-Felder aus der neuen Taste
-braucht (siehe "Phase 10: KingGates Stylo4K") — trotzdem von Hand machbar, da beide Rekonstruk-
-tionsformeln bereits unverändert auf der Decoder-Seite derselben Datei vorliegen und nur
-rückwärts angewendet werden mussten. Bei Protokollen mit deutlich größerem Gesamtdiff (FAAC SLH:
-712 Zeilen, Secplus v2: 1133, Nice FloR-S: 1284 u. a.) ist derselbe sorgfältige Einzelabgleich wie
-bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht versucht. Keine dieser Dateien
-ist in dieser Sitzung angefasst.
+"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen FAAC SLH (Phase 11),
+2 echte Kandidaten: Secplus v2, Nice FloR-S. Pro Datei derselbe kleine, lokal begrenzte Satz
+Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo/Alutech AT-4N/
+Somfy Keytis/KingGates Stylo4K/FAAC SLH, sofern sich der Gesamtdiff (teilweise durch Unleasheds
+separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen lässt — bei Somfy Telis
+(231 Diff-Zeilen, siehe "Phase 5"), Phoenix V2 (324 Zeilen, siehe "Phase 6"), CAME Atomo
+(403 Zeilen, siehe "Phase 7"), Alutech AT-4N (404 Zeilen, siehe "Phase 8"), Somfy Keytis
+(405 Zeilen, siehe "Phase 9"), KingGates Stylo4K (496 Zeilen, siehe "Phase 10") und jetzt sogar
+FAAC SLH (712 Zeilen, siehe "Phase 11") hat das wie bei Secplus v1 (231 Zeilen) und Princeton
+(214 Zeilen) zuverlässig funktioniert, obwohl Phoenix V2 zusätzlich Unleasheds eigenständiges
+"CounterMode"-Feature im Diff hatte (siehe "Update (Phase 6)" — bewusst nicht mitportiert), CAME
+Atomo zusätzlich Unleasheds separaten `common.c`-Umbau sowie einen neuen sechsten/siebten
+Tastencode samt eines vierten Header-Timing-Zweigs im Diff hatte (siehe "Update (Phase 7)" —
+beide bewusst nicht mitportiert), Alutech AT-4N zusätzlich Unleasheds separaten `common.c`-Umbau
+sowie eine auf ein 6-Byte-Puffer-Array umgestellte Rainbow-Table-Ladefunktion im Diff hatte
+(siehe "Update (Phase 8)" bzw. "Phase 8: Alutech AT-4N" — beide bewusst nicht mitportiert; wie
+bei CAME Atomo war der `bypass`-Mechanismus bei Alutech AT-4N aber kein Fremdfeature und wurde
+mitportiert), Somfy Keytis zusätzlich Unleasheds separaten `common.c`-Umbau sowie die
+Umbenennung/Konsolidierung von `press_duration_counter` in das generische `seed`-Feld im Diff
+hatte (siehe "Update (Phase 9)" bzw. "Phase 9: Somfy Keytis" — beide bewusst nicht mitportiert;
+anders als bei CAME Atomo/Alutech AT-4N war hier kein `bypass`-Mechanismus nötig, da kein
+eigenständiges Mehrfach-Zählermodus-Feature existiert), KingGates Stylo4K zusätzlich Unleasheds
+separaten `common.c`-Umbau sowie dessen eigenständige, hier bewusst nicht mitportierte
+Custom-Button-Zyklus-Infrastruktur (`../blocks/custom_btn_i.h`) im Diff hatte (siehe
+"Update (Phase 10)" bzw. "Phase 10: KingGates Stylo4K" — beide ohne Bezug zum
+Override-Mechanismus) und FAAC SLH zusätzlich keinen `common.c`-Umbau, aber dafür eine
+vorgelagerte, komplett eigenständige Programmiermodus-Verzweigung im Diff hatte (siehe
+"Update (Phase 11)" bzw. "Phase 11: FAAC SLH" — ohne Bezug zum Override-Mechanismus, da sie
+`serial`/`btn`/`cnt`/`fix`/`hop` gar nicht berührt). KingGates Stylo4K ist dabei weiterhin der
+einzige Nachzieh-Kandidat, bei dem der Tasten-Override nicht mit einem reinen
+Feld-/Parameter-Override auskommt, sondern eine tatsächliche Rekonstruktion zweier Frame-Felder
+aus der neuen Taste braucht (siehe "Phase 10: KingGates Stylo4K") — bei FAAC SLH reicht dagegen,
+wie bei den sechs Protokollen vor KingGates Stylo4K, ein reiner Feld-Override, da `fix` im
+Klartext gesendet wird. Bei Protokollen mit deutlich größerem Gesamtdiff (Secplus v2: 1133,
+Nice FloR-S: 1284) ist derselbe sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein
+blinder Dateiersatz — noch nicht versucht. Keine dieser Dateien ist in dieser Sitzung angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -899,6 +939,78 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
    Feld-Bits [20:17]). Der bestehende `furi_string_cat_printf()`-Aufruf selbst bleibt
    unverändert.
 
+### Phase 11: FAAC SLH (neuntes Protokoll der Nachzieh-Liste)
+
+**Was:** `faac_slh` ist bei Unleashed ebenfalls Mitglied der ursprünglich gezählten
+Rolling-Code-Protokolle. Beim Diff meiner eigenen `faac_slh.c` gegen Unleasheds aktuellen
+Standard-Branch (siehe "Quelle") zeigte sich der in "Update (Phase 10)" angekündigte
+Gesamtdiff-Umfang von 712 Zeilen, davon — anders als bei allen acht bisher angeschlossenen
+Protokollen — **kein** separater `common.c`-Encoder-/Decoder-Basis-Umbau: `faac_slh.c` ist bei
+Unleashed weiterhin eigenständig implementiert. Der gesamte, hier nicht übernommene Rest des
+Diffs besteht stattdessen aus zwei unabhängigen eigenen Funden meiner eigenen vorherigen
+Sitzungen, bereits dokumentiert in `firmware-mining/faac-slh-decode-manufacturer-last-match-fix.md`
+und `firmware-mining/faac-slh-genius-manufacture-field-port.md` (Genius-Fernbedienungs-Unterstützung
+samt eines eigenen Auswahl-Bugfixes) — beide bislang nur als eigenständige Vorschläge in diesem
+Repo dokumentiert, noch nicht in meine eigene `faac_slh.c` übernommen (der hier als Basis
+verwendete frische Klon trägt entsprechend noch den Vor-Genius-Stand); mit dem hier portierten
+Override-Mechanismus haben beide nichts zu tun, sie betreffen ausschließlich die
+Schlüsselauswahl im Keystore, nicht den Fix-/Hop-Aufbau.
+
+Eine eigene Besonderheit gegenüber allen acht bisher angeschlossenen Protokollen: meine eigene
+`subghz_protocol_faac_slh_gen_data()` beginnt mit einer vorgelagerten, vom restlichen
+Rolling-Code-Pfad komplett unabhängigen Verzweigung — hält man beim Senden die UP-Taste (die
+„Custom Button"-Infrastruktur dieses Protokolls, byte-identisch zu Unleasheds eigener
+Vor-Override-Fassung, hier nicht angetastet), erzeugt die Funktion stattdessen einen
+„Master-Remote-Programmiermodus"-Schlüssel direkt aus `instance->generic.seed` (einem beim
+Decodieren eines zuvor empfangenen Programmiermodus-Rahmens gewonnenen Wert) und kehrt zurück,
+ohne `serial`/`btn`/`cnt`/`fix`/`hop` überhaupt zu berühren. Direkt danach folgen zwei weitere
+Rückkehrpunkte vor dem eigentlichen Fix-/Hop-Aufbau: Seed unbekannt und `AllowZeroSeed` nicht
+gesetzt (sendet unverändert den zuletzt geladenen Rahmen erneut), sowie regulärer Send-Knopf
+während eines noch aktiven Programmiermodus ohne bekannte Seriennummer/Taste (dasselbe
+Wiederholen-statt-Neuaufbau-Verhalten). In allen drei Fällen wird kein Rolling-Code-Rahmen aus
+`serial`/`btn`/`cnt` erzeugt — ein Override hätte dort nichts, worauf er wirken könnte. Das ist
+keine *Zählermodus*-Auswahl wie bei CAME Atomo/Alutech AT-4N (Phase 7/8), die ein `bypass`-Flag
+bräuchte, um trotzdem durchzuschlagen, sondern schlicht eine Menge vorgelagerter Rückkehrpunkte,
+die die beiden unten gelieferten Override-Aufrufstellen auf dem jeweiligen Pfad nie erreichen —
+genau wie bei einem ausbleibenden Frame bei allen anderen Protokollen (kein Override angehängt,
+kein Effekt), nur mit mehr als einem Grund dafür. Ist keiner dieser drei Fälle einschlägig, baut
+die Funktion `fix = serial<<4 | btn` auf und sendet es **im Klartext** als obere 32 Bit von
+`instance->generic.data` — anders als bei KingGates Stylo4K (Phase 10) braucht der
+Tasten-Override hier also keine Rekonstruktion eines verschlüsselten Feldes, nur die richtige
+Position vor diesem einen Aufbauschritt.
+
+Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
+1. `subghz_protocol_faac_slh_gen_data()`: direkt nach dem bestehenden
+   „Restore main remote data"-Wiederherstellungsblock (der `serial`/`btn`/`cnt` aus den
+   statischen Backup-Variablen beim Verlassen des Programmiermodus zurückschreibt) und vor dem
+   bestehenden `uint32_t fix = instance->generic.serial << 4 | instance->generic.btn;`-Aufbau ein
+   eigenständiger `subghz_block_generic_global_button_override_get(&instance->generic.btn)`-
+   Aufruf mit `FURI_LOG_D()`-Erfolgsmeldung — wirkt dadurch sowohl auf den Fall, dass `btn` schon
+   vorher gesetzt war, als auch auf den Fall, dass es gerade erst aus dem Backup wiederhergestellt
+   wurde, in jedem Fall aber vor dem einzigen Zeitpunkt, an dem `fix` daraus aufgebaut wird.
+   Direkt danach bekommt die bestehende, durch `allow_zero_seed || (instance->generic.seed !=
+   0x0)` gegate Standard-/OFEX-Kette denselben neuen, vorangestellten Zweig wie bei Somfy
+   Telis/Phoenix V2/Somfy Keytis/KingGates Stylo4K:
+   `if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) { /* Override
+   direkt verwendet */ } else if(allow_zero_seed || (instance->generic.seed != 0x0)) { ... }`.
+   Bei anhängendem Override wird weder der Standard-Wrap-Pfad noch der OFEX-Pfad erreicht, und
+   die zuvor beschriebene `allow_zero_seed`-Gate-Bedingung selbst entfällt für diesen Durchlauf
+   komplett — beide Zweige bleiben für den unveränderten Fall exakt wie vorher. Kein
+   `bypass`-Flag nötig, da kein eigenständiges Mehrfach-Zählermodus-Feature existiert, das sonst
+   umgangen werden müsste; die oben beschriebenen drei Rückkehrpunkte liegen bereits vor dieser
+   Anschlussstelle im Code und schützen sich dadurch selbst.
+2. `subghz_protocol_decoder_faac_slh_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   dem bestehenden `check_remote_controller()`-Aufruf gesetzt, vor der anschließenden
+   Drei-Wege-Verzweigung (Programmiermodus-Anzeige/Seed-unbekannt-Anzeige/volle Anzeige) — läuft
+   dadurch unabhängig davon, welcher der drei Anzeigezweige anschließend gewählt wird.
+   `cnt_length_bit` ist `20` (der reale, im Protokoll-Kommentar selbst dokumentierte 20-Bit-
+   Zählerbereich — nach Secplus v1s 32-Bit-Zähler (Phase 4) erst der zweite der neun bisher
+   angeschlossenen Protokolle mit einem anderen Wert als den sonst durchgängigen 16 Bit),
+   `btn_length_bit` ist `4` (dieselbe 4-Bit-Nibble-Breite wie bei den meisten anderen
+   Protokollen, Fix-Feld-Bits [3:0]). Der bestehende `furi_string_cat_printf()`-Aufruf selbst
+   bleibt in allen drei Zweigen unverändert.
+
 ## Risiko
 
 - **Wichtigster eigener Fund dieser Sitzung — kein blindes Ersetzen möglich:** Ich habe zuerst
@@ -999,6 +1111,21 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
   von Hand verfasstes, inkonsistentes `.sub`-Key-File (Fix- und Hop-Feld, die nicht zueinander
   passen) könnte diese Annahme verletzen — ein Rand-/Missbrauchsfall außerhalb des normalen
   Lade-/Sende-Zyklus, nicht Teil der Hardware-Testabdeckung dieser Sitzung.
+- **FAAC SLH (Phase 11): ein anhängender Override wirkt nur auf ein tatsächlich erzeugtes
+  Signal — hält man beim Senden die UP-Taste, oder ist Seed/Programmiermodus-Zustand in einer
+  der beiden anderen vorgelagerten Konstellationen, wird gar kein Rolling-Code-Rahmen aus
+  `serial`/`btn`/`cnt` gebaut und der Override dadurch stillschweigend ignoriert — kein
+  durch diesen Port eingeführtes Verhalten, sondern dieselbe bestehende, unveränderte
+  Vorbedingung, die auch ohne jeden Override bereits galt (ohne Override wird in diesen Fällen
+  ebenfalls kein neuer Rahmen gebaut, sondern der zuletzt geladene wiederverwendet). Für eine
+  künftige Edit-Menü-Anbindung bedeutet das: ein Zähler-/Tasten-Edit greift nur beim nächsten
+  regulären Sendevorgang mit bekanntem Seed außerhalb des Programmiermodus, nicht während die
+  UP-Taste für einen Programmiermodus-Schlüssel gehalten wird. Zusätzlich, unverändert aus
+  Unleasheds eigenem Code übernommen und nicht durch diesen Port verursacht: in der bestehenden
+  OFEX-Verzweigung bleibt der Zähler bei `cnt >= 0xFFFFF` und gleichzeitig
+  `furi_hal_subghz_get_rolling_counter_mult() == 0` unverändert (keiner der Teilzweige greift) —
+  ein Rand-/Altstandsfall ohne Bezug zum Override-Mechanismus, im Host-Repro (Szenario G)
+  mitgeprüft, aber bewusst nicht mitbehoben.
 
 ## Verifikation (auf dem Host, ohne Hardware)
 
@@ -1625,6 +1752,87 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c
     upstream/lib/subghz/blocks/math.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 11 (FAAC SLH)
+
+- **Patch additiv, byte-identisch:** `connective-patches/faac_slh_c.patch` per `patch -p1
+  --dry-run` sowie real per `patch -p1` gegen zwei frische, unabhängige Zweitkopien meiner
+  eigenen `faac_slh.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem sparse `git clone` zu Sitzungsbeginn
+  geholt, unverändert zu Phase 1-10) angewendet — beide Ergebnisse per `md5sum` byte-identisch
+  zueinander und zur mitgelieferten Zieldatei bestätigt (`d89ec05b69d8e1833ff3977315f039c2`).
+  `diff --stat`-Äquivalent nach dem Anwenden: **22 Zeilen Hinzufügung, 1 Löschung** (dieselbe Art
+  Zeilenverschiebung wie bei Somfy Telis/Phoenix V2/Somfy Keytis/KingGates Stylo4K: die
+  bestehende `if(allow_zero_seed || (instance->generic.seed != 0x0)) {`-Zeile wird durch die um
+  den neuen Override-Zweig erweiterte Zeile `} else if(allow_zero_seed || (instance->generic.seed
+  != 0x0)) {` ersetzt — keine inhaltliche Löschung, reine Verschiebung in dieselbe Bedingung).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase11/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die neue Anschlussstelle ist
+  per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten, bereits gepatchten `faac_slh.c`
+  in ein eigenes `.inc`-Fragment extrahiert und in eine minimale Wrapper-Funktion eingebunden
+  (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch reproduzierbar: `sed 229,232p` für
+  den Tasten-Override-Aufruf, `sed 245,273p` für den Zähler-Override-Zweig plus die zwei
+  unveränderten Geschwister-Zweige — die dazwischenliegenden 12 Zeilen 233-244, die bestehenden
+  `fix`/`fixx[]`/`decrypt`-Deklarationen, sind bewusst ausgespart, da dieses Repro nur die beiden
+  Override-Aufrufstellen selbst prüft, nicht die KeeLoq-Verschlüsselung, die `decrypt` danach
+  konsumiert; `sed 726,734p` für den `get_string()`-Push-Block). Anders als bei KingGates
+  Stylo4K (Phase 10) ist hier keine Rekonstruktion nötig — die Wirkung des Tasten-Overrides auf
+  das tatsächlich übertragene Fix-Feld wird direkt durch Nachrechnen von
+  `fix = serial<<4 | btn` mit dem überschriebenen Wert gezeigt (Szenario A), nicht durch eine
+  Rundlauf-Dekodierung. Geprüft (29 Prüfungen):
+  1. **Szenario A (nur Tasten-Override):** die überschriebene, auf `btn_length_bit` (4) maskierte
+     Taste landet in `instance->generic.btn`; das daraus nachgerechnete `fix` (`serial<<4 |
+     btn`) trägt tatsächlich die neue Taste — der Beleg, dass der Override den einzigen
+     Zeitpunkt trifft, an dem `fix` aus `serial`/`btn` aufgebaut wird; Override-Flag einmalig
+     verbraucht.
+  2. **Szenario B (Regression, kein Tasten-Override):** `btn` bleibt unverändert.
+  3. **Szenario C (nur Zähler-Override, Seed/AllowZeroSeed beide "aus"):** der Override
+     übernimmt den überschriebenen, auf `cnt_length_bit` (20) maskierten Wert verbatim und
+     überspringt die gesamte `allow_zero_seed`-gegatete Kette vollständig — ausdrücklich auch in
+     einem Zustand (`seed==0`, `allow_zero_seed==false`), der im echten, nicht abgeschnittenen
+     `gen_data()` durch einen vorgelagerten, hier nicht mitreproduzierten Early-Return gar nicht
+     erst erreichbar wäre; die Prüfung zeigt nur, dass der extrahierte Zweig selbst nicht von
+     dieser Gate-Bedingung abhängt, nicht dass dieser Zustand real auftritt. Override-Flag
+     einmalig verbraucht.
+  4. **Szenario D (Zähler-Override, OFEX-Sentinel aktiv, Seed bekannt):** der Override greift
+     weiterhin vor der gesamten Kette, auch wenn `furi_hal_subghz_get_rolling_counter_mult()`
+     gleichzeitig auf den OFEX-Sentinel-Wert gesetzt ist.
+  5. **Szenario E (Regression, kein Override, Seed unbekannt):** die gesamte Kette bleibt
+     übersprungen, `cnt` exakt unverändert — die reale Vorbedingung, die im unveränderten
+     `gen_data()` sonst durch den Early-Return erzwungen wird, hier aber direkt an der
+     `allow_zero_seed`-Bedingung selbst nachgebildet.
+  6. **Szenario F (Regression, kein Override, Standard-Mult-Modus):** drei Teilfälle — einfacher
+     Inkrement, Überlauf-Wrap auf `0` bei Überschreiten von `0xFFFFF`, sowie dass der
+     Mult-Wert selbst vor der Addition auf 20 Bit maskiert wird (`0x100003 & 0xFFFFF == 0x3`,
+     passend zum protokolleigenen "take only 20 bits from mult"-Kommentar).
+  7. **Szenario G (Regression, kein Override, OFEX-Modus):** alle vier realen Teilzweige
+     einzeln geprüft — `cnt==0` springt auf `0xFFFFF`, jeder andere Wert `<0xFFFFF` wird auf `0`
+     zurückgesetzt, `cnt>=0xFFFFF` mit `mult!=0` wird auf `0` zurückgesetzt, und — ein
+     bestehender, unveränderter Altstand-Fall ohne Bezug zu diesem Port (siehe "Risiko") —
+     `cnt>=0xFFFFF` mit `mult==0` bleibt vollständig unverändert, da keiner der drei Teilzweige
+     greift.
+  8. **Szenario H (beide Overrides gleichzeitig):** Tasten- und Zähler-Override greifen
+     unabhängig im selben Durchlauf — der reale Code ruft den Tasten-Block unbedingt vor dem
+     Zähler-Block auf, unabhängig davon, ob ein Zähler-Override anhängt.
+  9. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+     unbedingt `20`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `true`/
+     `current_btn`/`btn_length_bit` unbedingt `4` korrekt, für zwei unterschiedliche
+     Zähler-/Tastenwerte (inkl. des Randfalls beide `0`).
+  10. Die in Phase 1 dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit`
+      vor dem ersten `_override_get()`-Aufruf) für die realen Bitbreiten dieses Protokolls
+      (20/4) explizit durchexerziert: `get_string()`-Fragment zuerst ausgeführt (setzt beide
+      Längen), danach ein Override-Set/Get-Durchlauf im `gen_data()`-Fragment unter
+      Wiederverwendung dieser Längen — kein UB, korrekt maskiertes Ergebnis.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **29 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus
+    `firmware-mining/repro-subghz-block-generic-global-override-port-phase11/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -1736,7 +1944,25 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
    Infrastruktur. Weiterhin offen nach Phase 10: die übrigen 3 der tatsächlich existierenden
    Nachzieh-Kandidaten (FAAC SLH, Secplus v2, Nice FloR-S), dann `endless_tx` an die eigene
    SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
-11. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
+11. **Phase 11 (geliefert, diese Sitzung — FAAC SLH):** neuntes Nachzieh-Protokoll
+   angeschlossen, achtes mit tatsächlicher Zähler-Hälfte. Gesamtdiff mit 712 Zeilen wie in
+   Phase 10 angekündigt der kleinste der drei verbliebenen Kandidaten — und, anders als bei den
+   acht zuvor angeschlossenen Protokollen, ohne Unleasheds separaten `common.c`-Umbau im Diff
+   (`faac_slh.c` ist bei Unleashed weiterhin eigenständig implementiert); der übrige, hier nicht
+   übernommene Teil des Diffs besteht stattdessen aus zwei eigenen, bereits vorher dokumentierten
+   Funden (Genius-Fernbedienungs-Port samt Auswahl-Bugfix, siehe "Phase 11: FAAC SLH"). Kein
+   `bypass`-Mechanismus nötig — anders als bei CAME Atomo/Alutech AT-4N (Phase 7/8) nicht, weil
+   kein eigenständiges Mehrfach-Zählermodus-Feature existiert, sondern weil drei vorgelagerte
+   Rückkehrpunkte (Programmiermodus-Schlüssel-Erzeugung, Seed unbekannt, Send-Knopf im
+   Programmiermodus ohne bekannte Seriennummer/Taste) beide Override-Aufrufstellen auf ihrem
+   jeweiligen Pfad schlicht nie erreichen, bevor überhaupt ein Rolling-Code-Rahmen gebaut wird.
+   Besonderheit gegenüber KingGates Stylo4K (Phase 10): hier reicht wieder ein reiner
+   Feld-Override auf `instance->generic.btn`, da `fix` im Klartext gesendet wird und keine
+   Rekonstruktion eines verschlüsselten Feldes nötig ist. Weiterhin offen nach Phase 11: die
+   übrigen 2 der tatsächlich existierenden Nachzieh-Kandidaten (Secplus v2, Nice FloR-S), dann
+   `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt
+   fester Wiederholzahl).
+12. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
    Port-Skizze):** erst ab hier wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll —
    ihr `subrem_tx_start_sub()` braucht exakt den hier gelieferten Mechanismus, um den Tastenwert
    vor dem Senden zu überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener
@@ -1746,7 +1972,7 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
    mehrere funktionale Unterschiede sichtbar, u. a. der OTG-Einschaltpfad: die App nutzt einen
    begrenzten `furi_hal_power_enable_otg()`-Retry mit 5 Versuchen, meine eigene Version einen
    einmaligen Aufruf über den `Power`-Service).
-12. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
+13. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
    Compile-Fehler durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
@@ -1782,7 +2008,11 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
    KingGates-Stylo4K-Empfänger — zusätzlich gezielt den Fall prüfen, dass ein reiner
    Tasten-Edit (ohne Zähler-Edit) tatsächlich am Empfänger ankommt (die in dieser Phase neu
    hinzugekommene Fix-/Hop-Rekonstruktion), nicht nur, dass der angezeigte Tastenwert sich
-   ändert.
+   ändert. Nach Phase 11 zusätzlich mit FAAC SLH testbar: dieselbe Zähler-/Tasten-Prüfung wie bei
+   Somfy Keytis, am eigenen, autorisiert getesteten FAAC-SLH-Empfänger (bzw. einer kompatiblen
+   Genius-Fernbedienung/-Empfänger) — kein `CounterMode`-Durchspielen nötig; zusätzlich gezielt
+   prüfen, dass ein anhängender Override beim Halten der UP-Taste (Programmiermodus) folgenlos
+   bleibt und erst beim nächsten regulären Sendevorgang mit bekanntem Seed greift.
 
 ## Quelle
 
@@ -1866,6 +2096,22 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `kinggates_st
   eigene Basis für `lib/subghz/protocols/kinggates_stylo_4k.c`, Ausgangspunkt für
   `connective-patches/kinggates_stylo_4k_c.patch`; außerdem Fundort der unveränderten
   `lib/subghz/blocks/math.c`, vendored für den Host-Repro (siehe "Verifikation Phase 10").
+- (Phase 11) Unleashed-Firmware, Standard-Branch, Commit
+  `b28253c8c1e2ff1c8d1b664f82049a8b19f6a941` (2026-10-30, per frischem sparse `git clone` zu
+  Sitzungsbeginn geholt — unverändert zum in Phase 10 verwendeten Stand, per `git log -1` auf
+  demselben Commit bestätigt): `lib/subghz/protocols/faac_slh.c` zum vollständigen Diff gegen
+  meine eigene Basis herangezogen, die zwei Override-Anschlusspunkte (siehe "Phase 11:
+  FAAC SLH") daraus übernommen; der übrige, hier nicht übernommene Teil des Diffs besteht aus
+  zwei getrennten, bereits vorher in diesem Repo dokumentierten Funden — dem Genius-
+  Fernbedienungs-Port samt Auswahl-Bugfix (`firmware-mining/faac-slh-decode-manufacturer-last-match-fix.md`,
+  `firmware-mining/faac-slh-genius-manufacture-field-port.md`) — beide ohne Bezug zum
+  Override-Mechanismus.
+- (Phase 11) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per frischem sparse `git clone` zu Sitzungsbeginn Phase 11 erneut als unverändert aktueller
+  `HEAD`-Stand bestätigt, identisch zu Phase 1-10; für die Patch-Verifikation zusätzlich zwei
+  weitere, unabhängige Zweitkopien derselben Basis angelegt, siehe "Verifikation Phase 11"):
+  eigene Basis für `lib/subghz/protocols/faac_slh.c`, Ausgangspunkt für
+  `connective-patches/faac_slh_c.patch`.
 - (Phase 2) Unleashed-Firmware, Standard-Branch (`dev`), Commit
   `97a0174368527e7307cf6af231aa2f4e41c26f96` (2026-10-23, per `git ls-remote` zu
   Sitzungsbeginn als aktueller `HEAD`-Stand bestätigt): `lib/subghz/protocols/keeloq.c`/`.h` nur

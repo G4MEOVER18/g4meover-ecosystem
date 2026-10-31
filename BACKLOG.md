@@ -10153,3 +10153,109 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lokaler Test des Apple-BLE-Spam-Längen-Fixes (lilygo-ukfe-rx), lokaler Test des
       KingGates-Stylo4K-Override-Anschlusses, lokaler Test des hier gelieferten
       heltec-v4-hub-Apple-BLE-Spam-Längen-Fixes.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 11 — FAAC SLH als neuntes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `git log` durchgesehen:
+      letzte Sitzung war App-Verbesserung (heltec-v4-hub, Apple-BLE-Spam-Längen-Fix-Nachzug),
+      davor Firmware-Feature-Mining (Phase 10, KingGates Stylo4K), davor App-Verbesserung
+      (lilygo-ukfe-rx, Apple-BLE-Spam-Längen-Fix) — Firmware-Feature-Mining war damit für diese
+      Sitzung an der Reihe (Zweierrhythmus FM/App fortgesetzt). Git-Identität vor dem ersten
+      eigenen Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] Von den nach Phase 10 verbliebenen drei echten SubGhzBlockGenericGlobal-Nachzieh-
+      Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Nice FloR-S: 1284) FAAC SLH als
+      kleinsten Gesamtdiff gewählt. Frischer sparse `git clone` von `G4MEOVER18/G4MEOVER-FW`
+      (`main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e` — identisch zum in Phase 1-10
+      verwendeten Stand) sowie von `DarkFlippers/unleashed-firmware` (Standard-Branch, Commit
+      `b28253c8c1e2ff1c8d1b664f82049a8b19f6a941` — identisch zum in Phase 10 verwendeten Stand).
+      Beide `lib/subghz/protocols/faac_slh.c` vollständig gelesen und gegeneinander gedifft:
+      712 Zeilen Gesamtdiff — anders als bei den acht zuvor angeschlossenen Protokollen **ohne**
+      Unleasheds separaten `common.c`-Umbau (`faac_slh.c` ist bei Unleashed weiterhin
+      eigenständig implementiert); der übrige, hier nicht übernommene Rest besteht aus zwei
+      eigenen, bereits vorher in diesem Repo dokumentierten Funden (Genius-Fernbedienungs-Port
+      samt Auswahl-Bugfix, `firmware-mining/faac-slh-decode-manufacturer-last-match-fix.md` und
+      `firmware-mining/faac-slh-genius-manufacture-field-port.md`), beide ohne Bezug zum
+      Override-Mechanismus.
+- [x] Protokollspezifischer Fund beim genauen Lesen: meine eigene `gen_data()` sendet das
+      Fix-Feld (`serial<<4 | btn`) im Klartext als obere 32 Bit von `instance->generic.data` —
+      anders als bei KingGates Stylo4K (Phase 10) ist für den Tasten-Override keine
+      Rekonstruktion eines verschlüsselten Feldes nötig, nur die richtige Position vor dem
+      einen Zeitpunkt, an dem `fix` aus `serial`/`btn` aufgebaut wird. Die eigentliche
+      Besonderheit: eine vorgelagerte, komplett eigenständige Verzweigung am Anfang von
+      `gen_data()` (Halten der UP-Taste erzeugt einen "Programmiermodus"-Schlüssel direkt aus
+      `instance->generic.seed`, ohne `serial`/`btn`/`cnt`/`fix`/`hop` zu berühren) plus zwei
+      weitere vorgelagerte Rückkehrpunkte (Seed unbekannt ohne `AllowZeroSeed`; Send-Knopf im
+      Programmiermodus ohne bekannte Seriennummer/Taste) — in allen drei Fällen entsteht kein
+      Rolling-Code-Rahmen, ein Override hätte dort nichts, worauf er wirken könnte. Kein
+      `bypass`-Mechanismus nötig: anders als bei CAME Atomo/Alutech AT-4N (Phase 7/8) nicht wegen
+      einer *Zählermodus*-Auswahl, sondern weil die drei Rückkehrpunkte beide
+      Override-Aufrufstellen auf ihrem jeweiligen Pfad schlicht nie erreichen.
+- [x] Additiv, zwei Anschlussstellen in meiner eigenen `faac_slh.c`: ein
+      `subghz_block_generic_global_button_override_get()`-Aufruf direkt nach dem bestehenden
+      "Restore main remote data"-Wiederherstellungsblock und vor dem bestehenden `fix`-Aufbau;
+      ein vorangestellter `subghz_block_generic_global_counter_override_get()`-Zweig vor der
+      bestehenden, durch `allow_zero_seed || seed != 0x0` gegateten Standard-/OFEX-Kette; sowie
+      der `get_string()`-Push-Block (`cnt_length_bit` 20 — der reale, protokolleigene 20-Bit-
+      Zählerbereich, erst der zweite der neun bisher angeschlossenen Protokolle mit einem
+      anderen Wert als 16 Bit nach Secplus v1s 32 Bit —, `btn_length_bit` 4). Fertige Zieldatei
+      (`firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/
+      faac_slh.c`) zum direkten Ersetzen meiner vorhandenen Datei, plus Patch
+      (`connective-patches/faac_slh_c.patch`, 22 Zeilen Hinzufügung/1 Löschung) gegen die
+      unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis — per `patch -p1 --dry-run` sowie real per
+      `patch -p1` gegen zwei frische, unabhängige Zweitkopien angewendet, alle drei Ergebnisse
+      per `md5sum` byte-identisch bestätigt (`d89ec05b69d8e1833ff3977315f039c2`).
+- [x] Host-Repro (`firmware-mining/repro-subghz-block-generic-global-override-port-phase11/`):
+      verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die neue
+      Anschlussstelle per `sed`-Zeilenbereich byte-identisch aus der gepatchten Zieldatei
+      extrahiert (die dazwischenliegenden, hier nicht benötigten `fix`/`fixx[]`/`decrypt`-
+      Deklarationen bewusst ausgespart), in neun Szenarien geprüft: nur Tasten-Override (inkl.
+      Nachrechnen von `fix = serial<<4|btn` mit dem überschriebenen Wert — der Beleg, dass der
+      Override ohne Rekonstruktion direkt wirkt), Regression ohne Tasten-Override, nur
+      Zähler-Override (auch mit Seed/AllowZeroSeed beide "aus" — zeigt, dass der extrahierte
+      Zweig selbst nicht von dieser Gate-Bedingung abhängt), Zähler-Override mit aktivem
+      OFEX-Sentinel bei bekanntem Seed, Regression ohne Override bei unbekanntem Seed (gesamte
+      Kette übersprungen), Regression Standard-Mult-Modus (inkl. Mult-Maskierung auf 20 Bit),
+      Regression OFEX-Modus (alle vier realen Teilzweige einzeln, inkl. des unveränderten
+      `cnt>=0xFFFFF && mult==0`-Altstandsfalls), beide Overrides gleichzeitig,
+      `get_string()`-Push-Block. **29 Prüfungen bestanden**, gebaut und ausgeführt mit
+      `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde, `g_unexpected_stub_calls` bleibt bei 0.
+- [x] `firmware-mining/subghz-block-generic-global-override-port.md` um "Update (Phase 11)",
+      "Phase 11: FAAC SLH" sowie "Verifikation Phase 11" ergänzt, die Port-Skizze um den bisher
+      fehlenden Eintrag für Phase 11 nachgetragen (Nummerierung entsprechend verschoben, alte
+      Punkte 11/12 → 12/13), "Risiko" um die protokollspezifischen vorgelagerten Rückkehrpunkte
+      sowie den unveränderten OFEX-Altstandsfall ergänzt, "Quelle" um die Phase-11-Belege
+      ergänzt. Von den ursprünglich gezählten ~15 Rolling-Code-Protokollen bleiben, nach dem
+      jetzt angeschlossenen FAAC SLH, noch 2 echte Kandidaten offen: Secplus v2, Nice FloR-S.
+- [ ] Lokal zu tun: Patch gegen die eigene `faac_slh.c` anwenden, `ufbt`/`fbt firmware_all`
+      bauen. Funktionstest: ein FAAC-SLH-Rolling-Code-Signal erfassen, über ein künftiges
+      Edit-Menü den Zähler ändern, erneut senden, am eigenen, autorisiert getesteten
+      FAAC-SLH-Empfänger (bzw. einer kompatiblen Genius-Fernbedienung/-Empfänger) beobachten,
+      ob/wie der geänderte Zähler akzeptiert wird — danach denselben Test nur mit einem
+      geänderten Tastenwert wiederholen, sowie gezielt prüfen, dass ein anhängender Override
+      beim Halten der UP-Taste (Programmiermodus) folgenlos bleibt und erst beim nächsten
+      regulären Sendevorgang mit bekanntem Seed greift.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): die übrigen 2
+      SubGhzBlockGenericGlobal-Nachzieh-Kandidaten (Secplus v2, Nice FloR-S), dann `endless_tx`-
+      Anschluss sowie der separate SubGhz-Remote-App-Port, `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-
+      Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an
+      fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7
+      (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt), ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`, lokaler
+      Test des `webdeck.py`-`_apps_cache`-TTL-Fixes, lokaler Test des Unitemp-`sscanf()`-Overflow-
+      Fixes, die zwölf UI-`views/*.c`-Dateien von `simultaneous_rfid_reader` noch nicht
+      erstgeprüft, lokaler Test des `ring_buffer_extract_line()`-Fixes, lokaler Test des
+      Phoenix-V2-Override-Anschlusses, lokaler Test des YRM100-TID-/User-Bank-Overflow-Fixes,
+      lokaler Test des CAME-Atomo-Override-Anschlusses, lokaler Test des hackrf_link-
+      `transmit()`-Timeout-Fixes, lokaler Test des Alutech-AT-4N-Override-Anschlusses, lokaler
+      Test des wpa_crack-`pcap_to_hc22000()`-Altstand-Fixes, lokaler Test des
+      Somfy-Keytis-Override-Anschlusses, lokaler Test des Apple-BLE-Spam-Längen-Fixes
+      (lilygo-ukfe-rx), lokaler Test des KingGates-Stylo4K-Override-Anschlusses, lokaler Test
+      des heltec-v4-hub-Apple-BLE-Spam-Längen-Fixes, lokaler Test des hier gelieferten
+      FAAC-SLH-Override-Anschlusses.
