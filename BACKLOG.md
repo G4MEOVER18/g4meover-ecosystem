@@ -10068,3 +10068,88 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Tastenwert (ohne Zähler-Edit) wiederholen, um die in dieser Phase neu hinzugekommene
       Fix-/Hop-Rekonstruktion tatsächlich am Funkweg zu bestätigen, nicht nur am angezeigten
       Wert.
+
+## App-Verbesserung: heltec-v4-hub — Apple-BLE-Spam trägt denselben falschen Längen-Fehler wie zuvor bei lilygo-ukfe-rx, Fix nie zurückportiert
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `git log` durchgesehen:
+      letzte Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 10, KingGates
+      Stylo4K), davor App-Verbesserung (lilygo-ukfe-rx, Apple-BLE-Spam-Längen-Fix) — Zweierrhythmus
+      FM/App fortgesetzt, App-Verbesserung war für diese Sitzung an der Reihe. Git-Identität vor
+      dem ersten eigenen Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`).
+- [x] `heltec-v4-hub` als bislang vollständig unaudited Gerät ausgewählt (noch keine eigene
+      App-Verbesserungs-Sitzung, anders als `lilygo-ukfe-rx`/`heltec-ukfe-rx`/`g4meover-wifi-relay`,
+      deren `main.cpp`/`ukfe_rf.c` bereits in früheren Sitzungen geprüft wurden). Frischer
+      `git clone --depth 1` von `G4MEOVER18/heltec-v4-hub` (`main`, Commit
+      `258d4adb8a6d977255c72f72780039ac13a35a05`). Alle sechs `src/*.cpp`-Dateien überflogen,
+      `src/ble_spam.cpp` als bislang komplett ungeprüfte Datei vertieft gelesen.
+- [x] Fund: `src/ble_spam.cpp::adv_apple()` ist byte-identisch zur Fassung, die in einer
+      früheren Sitzung bereits in `lilygo-ukfe-rx` gefunden und gefixt wurde
+      (`app-improvements/lilygo-ukfe-rx/ble-spam-apple-length-mismatch-fix.md`): das
+      Apple-Continuity-"Proximity Pairing"-Advertisement (Typ `0x07`) deklariert im Längen-Byte
+      (Index 3) `0x0F` (15), obwohl dem Byte im 17-Byte-Array tatsächlich nur 13 weitere Bytes
+      folgen. Beide Repos (`heltec-v4-hub`, `lilygo-ukfe-rx`) sind getrennte Git-Historien, aber
+      offensichtlich vom selben `ble_spam.cpp`-Ausgangsstand abgezweigt — der damalige Fix wurde
+      nie in dieses Schwester-Gerät zurückportiert. Zur Gegenprüfung `G4MEOVER18/lilygo-ukfe-rx`
+      (aktueller `main`) sowie `G4MEOVER18/heltec-ukfe-rx` (aktueller `main`, Commit
+      `23e1f402feb1b7480749f0ad7667d2096aebf13`) frisch geklont: `lilygo-ukfe-rx` trägt dort
+      unverändert noch `0x0F` (der frühere Fix ist nur als Vorschlag in `app-improvements/`
+      dokumentiert, noch nicht in das eigenständige Geräte-Repo zurückgespielt — erwartungsgemäß
+      gemäß CONSTRAINTS Punkt 6, Patch statt Blind-Merge), `heltec-ukfe-rx` trägt denselben
+      Fehler ebenfalls unverändert (`0x0F`) — als weiterer, noch offener Nachzug vorgemerkt
+      (siehe unten), nicht in dieser Sitzung mitgefixt, um den Beitrag klein und abgeschlossen
+      zu halten.
+- [x] Fix (additiv, ein Byte-Literal, identisch zum `lilygo-ukfe-rx`-Fix): `0x07, 0x0F,` →
+      `0x07, 0x0D,` in `adv_apple()`s `d[17]`-Array. Patch
+      (`app-improvements/heltec-v4-hub/ble-spam-apple-length-mismatch-port-fix/ble_spam_cpp.patch`)
+      per `patch -p1 --dry-run`/`patch -p1` sowie unabhängig per `git apply --check`/`git apply`
+      gegen zwei frische, unabhängige Zweitkopien angewendet, beide Ergebnisse per `md5sum`
+      abgeglichen — identisch (`b62783105bde334c30ac03b2e384b7e1`, derselbe Hash wie beim
+      ursprünglichen `lilygo-ukfe-rx`-Fix, da beide Dateien bis auf dieses eine Byte
+      byte-identisch sind).
+- [x] Host-Repro
+      (`app-improvements/heltec-v4-hub/repro-ble-spam-apple-length-mismatch-port/repro.c`):
+      `adv_apple()`s `d[17]`-Aufbau in ALT- und NEU-Fassung Byte für Byte nachgebaut, reine
+      Struktur-Arithmetik ohne Arduino/ESP32/NimBLE-Abhängigkeit (identisch zum ursprünglichen
+      `lilygo-ukfe-rx`-Repro, nur mit dem aktuellen `heltec-v4-hub`-Commit referenziert).
+      **23 Prüfungen** unter `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined`: **ALL CHECKS PASSED (23 total)**, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] Vollständiger Eintrag (Was, Nutzen, Betroffene Dateien, Risiko, Port-Skizze/Fix,
+      Testhinweis, Quelle, Offen) in
+      `app-improvements/heltec-v4-hub/ble-spam-apple-length-mismatch-port-fix.md`.
+- [ ] Lokal zu tun: Patch gegen die eigene `heltec-v4-hub/src/ble_spam.cpp` anwenden,
+      PlatformIO-Build auf den Heltec-V4-Hub flashen. Funktionstest: Apple-BLE-Spam-Modus auf
+      ein eigenes, autorisiert getestetes iPhone/iPad mit aktivem Bluetooth richten und
+      beobachten, ob das "Möchtest du dich verbinden?"-Popup vor dem Fix ausbleibt bzw.
+      unzuverlässig ist und nach dem Fix zuverlässig erscheint; parallel mit einem
+      BLE-Sniffer/Wireshark (eigene autorisierte Testumgebung) das Längen-Byte gegen die
+      tatsächliche Payload-Länge gegenprüfen.
+- [ ] Neu entdeckt, für eine künftige Sitzung vorgemerkt: `heltec-ukfe-rx/src/ble_spam.cpp`
+      trägt denselben `adv_apple()`-Längen-Fehler (`0x0F` statt `0x0D`) unverändert — dritter
+      Nachzug desselben Ein-Byte-Fixes, noch nicht bearbeitet. Lohnt sich außerdem, bei
+      künftigen Funden in einer der drei ESP-NOW-Mesh-Satelliten-Dateien jeweils gegen die
+      anderen Geräte-Repos gegenzuprüfen, bevor ein Fund als "nur dieses eine Gerät betreffend"
+      abgelegt wird.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): die übrigen 3
+      SubGhzBlockGenericGlobal-Nachzieh-Kandidaten (FAAC SLH, Secplus v2, Nice FloR-S), dann
+      `endless_tx`-Anschluss sowie der separate SubGhz-Remote-App-Port, `texkom` Phase 5,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende FeliCa-Multisystem-
+      Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test),
+      `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor
+      lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-
+      Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-
+      Konstanten (bewusst zurückgestellt), ProtoViews restliche vier Protokoll-Decoder sowie
+      die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, lokaler Test des `webdeck.py`-
+      `_apps_cache`-TTL-Fixes, lokaler Test des Unitemp-`sscanf()`-Overflow-Fixes, die zwölf
+      UI-`views/*.c`-Dateien von `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler
+      Test des `ring_buffer_extract_line()`-Fixes, lokaler Test des Phoenix-V2-Override-
+      Anschlusses, lokaler Test des YRM100-TID-/User-Bank-Overflow-Fixes, lokaler Test des
+      CAME-Atomo-Override-Anschlusses, lokaler Test des hackrf_link-`transmit()`-Timeout-Fixes,
+      lokaler Test des Alutech-AT-4N-Override-Anschlusses, lokaler Test des wpa_crack-
+      `pcap_to_hc22000()`-Altstand-Fixes, lokaler Test des Somfy-Keytis-Override-Anschlusses,
+      lokaler Test des Apple-BLE-Spam-Längen-Fixes (lilygo-ukfe-rx), lokaler Test des
+      KingGates-Stylo4K-Override-Anschlusses, lokaler Test des hier gelieferten
+      heltec-v4-hub-Apple-BLE-Spam-Längen-Fixes.
