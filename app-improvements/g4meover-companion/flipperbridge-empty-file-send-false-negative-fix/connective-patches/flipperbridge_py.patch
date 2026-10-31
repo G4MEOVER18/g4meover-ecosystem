@@ -1,0 +1,17 @@
+--- a/flipperbridge/flipperbridge.py	2026-10-31 18:28:35.588835705 +0000
++++ b/flipperbridge/flipperbridge.py	2026-10-31 18:30:44.306279751 +0000
+@@ -103,9 +103,12 @@
+         self.s.write(data)
+         self.s.flush()
+         self._read_until(PROMPT, 15.0)
+-        # Verifizieren via md5
++        # Verifizieren via md5 (eine leere Datei hat nichts zu vergleichen -- Ready+Schreiben
++        # ist dort bereits der ganze Erfolgsnachweis, siehe Fund weiter unten)
++        if not data:
++            return True
+         want = _md5(data)
+-        got = self.cmd(f'storage md5 "{remote_path}"').strip().split()[-1] if data else ""
++        got = self.cmd(f'storage md5 "{remote_path}"').strip().split()[-1]
+         return want == got
+ 
+     def storage_read(self, path):

@@ -10259,3 +10259,50 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (lilygo-ukfe-rx), lokaler Test des KingGates-Stylo4K-Override-Anschlusses, lokaler Test
       des heltec-v4-hub-Apple-BLE-Spam-Längen-Fixes, lokaler Test des hier gelieferten
       FAAC-SLH-Override-Anschlusses.
+
+## App-Verbesserung: g4meover-companion / flipperbridge — `storage_send()` meldet jede leere Datei fälschlich als Fehler
+
+- [x] `ProtoPirate` (eigenes Repo, `main`, Commit `e3d9da5`) für diese Sitzung zunächst
+      weiterverfolgt: vollständiges Auditieren der bisher nicht auf das "fehlender
+      Deserialize-Feld-Restore"-Muster (bereits bestätigt bei `fiat_v0`/`kia_v2`/`kia_v3_v4`/
+      `kia_v5`) geprüften Protokolldateien (`kia_v0`, `kia_v1`, `ford_v0`, `ford_v1`, `ford_v2`,
+      `honda_static`, `honda_v1`, `subaru`, `star_line`, `scher_khan`, `chrysler_v0`, `aut64`,
+      `vag`, `protocols_common`, `protopirate_history`, `protopirate_storage`,
+      `protopirate_settings`, `views/protopirate_receiver.c`) — durchweg kein neuer Fund dieser
+      oder einer anderen Fehlerklasse: alle geprüften `get_string()`/`deserialize()`-Paare
+      verwenden konsistent das bereits bei `kia_v6`/`kia_v7`/`mazda_v0` bestätigte
+      "Selbstheilungs"-Muster (Felder werden bei jedem Aufruf frisch aus `generic.data`
+      zurückgerechnet statt gecachte, beim Laden nie wiederhergestellte Werte anzuzeigen), die
+      History-Verlagerungs-/Index-Buchhaltung in `protopirate_history.c`/
+      `views/protopirate_receiver.c` ist bereits korrekt (der tatsächliche Fund dort,
+      Entprellung vs. Auto-Purge-Reihenfolge, ist bereits dokumentiert und im aktuellen Stand des
+      Repos bereits behoben), `protopirate_storage.c`s Feld-Kopierhelfer sind defensiv und
+      konsistent. `ProtoPirate` gilt damit für diese beiden wiederkehrenden Fundklassen nach
+      inzwischen 18 bereits dokumentierten Einzelfunden als weitgehend ausgeschöpft — für
+      künftige Sitzungen bleibt vor allem gezielte Einzelprotokoll-Kryptoverifikation (AUT64-
+      Rundenschlüssel, VAG-Dispatch Typ 1-4) offen, dafür wäre aber ein bekannter Referenz-
+      Testvektor nötig, den ich hier nicht habe.
+- [x] Stattdessen `g4meover-companion` (eigenes Repo, `main`, Commit `ceb068b`, fünf kleine
+      PC-Begleit-Skripte: `vault_organizer.py`, `flipperbridge.py`, `magtool.py`, `cockpit.py`,
+      `webdeck.py`) durchgesehen — `webdeck.py` hat bereits einen dokumentierten Fund
+      (`_apps_cache`-TTL). `vault_organizer.py` und `magtool.py` (Track-1/2-LRC, PAN/Expiry-
+      Parsing) gegen die zugehörigen ISO/IEC-7811-Zeichensatz-Annahmen durchgerechnet: beide
+      intern konsistent, kein Fund.
+- [x] Fund in `flipperbridge/flipperbridge.py::FlipperBridge.storage_send()`: der
+      MD5-Soll/Ist-Vergleich am Ende des Uploads berechnet `want` unbedingt aus den
+      tatsächlichen Daten (für eine leere Datei: `d41d8cd98f00b204e9800998ecf8427e`, nie ein
+      leerer String), setzt `got` für `data == b""` aber explizit auf `""` — der Vergleich
+      `want == got` kann für jede leere Datei nie zutreffen, unabhängig vom tatsächlichen
+      Geräteverhalten. Jeder Upload einer echten 0-Byte-Datei wird damit garantiert als
+      "FEHLER" gemeldet (Exit-Code 1), obwohl der vorherige `Ready`-Handshake und das Schreiben
+      selbst unverändert korrekt durchlaufen und auf dem Gerät eine korrekte leere Zieldatei
+      entsteht — Port-Vorschlag in
+      `app-improvements/g4meover-companion/flipperbridge-empty-file-send-false-negative-fix.md`.
+- [ ] Lokal zu tun: Patch gegen die eigene `flipperbridge.py`-Kopie anwenden, mit einer
+      tatsächlich 0 Byte großen lokalen Datei `flipperbridge.py -p <port> send <leer> /ext/...`
+      ausführen — vor dem Fix "FEHLER"/Exit 1 trotz korrekt angelegter leerer Zieldatei (per
+      `storage stat` auf dem Gerät gegenprüfbar), danach "OK (md5 verifiziert)"/Exit 0.
+      Anschließend Regressionsprobe mit einer nicht-leeren Datei sowie einem absichtlich
+      erzeugten echten MD5-Mismatch (z. B. zweiter, abweichender Upload dazwischen) wiederholen
+      — beide müssen unverändert wie vorher funktionieren ("OK" bzw. "FEHLER" korrekt erkannt).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, siehe oben).

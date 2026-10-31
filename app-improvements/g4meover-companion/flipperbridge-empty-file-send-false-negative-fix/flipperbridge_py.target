@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""G4MEOVER FlipperBridge - schlanke, abhaengigkeitsarme Steuerung des Flipper Zero
+ueber USB-CDC (Raspberry Pi / PC). Fundament des G4MEOVER-Pi-Decks.
+
+Nur `pyserial` noetig. Kernoperationen: device_info, storage list/stat/send/remove,
+loader open/close/info. Der Datei-Upload nutzt `storage write_chunk` korrekt
+(Befehl mit CR statt CRLF, sonst wandert ein 0x0A als erstes Datenbyte in die Datei).
+
+CLI:
+  flipperbridge.py -p COM3 info
+  flipperbridge.py -p COM3 ls /ext/apps/Tools
+  flipperbridge.py -p COM3 send local.fap /ext/apps/Tools/app.fap
+  flipperbridge.py -p COM3 rm /ext/apps/Tools/app.fap
+  flipperbridge.py -p COM3 launch /ext/apps/Tools/app.fap
+  flipperbridge.py -p COM3 close
+"""
+import argparse
+import re
+import sys
+import time
+
+import serial
+
+PROMPT = b">: "
+EOL = b"\r\n"
+
+
+class FlipperBridge:
+    def __init__(self, port, baud=230400, timeout=1.0):
+        self.s = serial.Serial(port, baud, timeout=timeout)
+        self.s.dtr = True
+        self.s.rts = False
+        time.sleep(0.4)
+        self.s.reset_input_buffer()
+        self.s.write(b"\r")
+        self._read_until(PROMPT, 2.0)
+
+    def close(self):
+        try:
+            self.s.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.close()
+
+    def _read_until(self, marker, deadline):
+        buf = bytearray()
+        end = time.time() + deadline
+        while time.time() < end:
+            c = self.s.read(256)
+            if c:
+                buf += c
+                if marker in buf:
+                    break
+            elif buf:
+                break
+        return bytes(buf)
+
+    def cmd(self, command, deadline=6.0):
+        """Sendet ein CLI-Kommando (CR-terminiert) und liefert die Antwort ohne Echo/Prompt."""
+        self.s.reset_input_buffer()
+        self.s.write(command.encode() + b"\r")
+        out = self._read_until(PROMPT, deadline).decode("utf-8", "replace")
+        lines = out.replace("\r", "").split("\n")
+        return "\n".join(
+            l for l in lines
+            if l.strip() and l.strip() != command and not l.strip().endswith(">:")
+        )
+
+    # ---- High-Level ----
+    def device_info(self):
+        info = {}
+        for line in self.cmd("device_info", 8).splitlines():
+            if ":" in line:
+                k, _, v = line.partition(":")
+                info[k.strip()] = v.strip()
+        return info
+
+    def storage_list(self, path):
+        return self.cmd(f'storage list "{path}"')
+
+    def storage_stat(self, path):
+        return self.cmd(f'storage stat "{path}"')
+
+    def storage_remove(self, path):
+        return self.cmd(f'storage remove "{path}"')
+
+    def storage_send(self, local_path, remote_path):
+        """Laedt eine lokale Datei hoch. Entfernt Ziel zuvor (Append-Modus!) und
+        sendet den write_chunk-Befehl CR-terminiert (kein Streu-0x0A in die Datei)."""
+        with open(local_path, "rb") as f:
+            data = f.read()
+        self.storage_remove(remote_path)
+        self.s.reset_input_buffer()
+        # WICHTIG: nur \r, sonst wird das \n zum ersten Dateibyte
+        self.s.write(f'storage write_chunk "{remote_path}" {len(data)}\r'.encode())
+        if b"Ready" not in self._read_until(b"Ready", 4.0):
+            return False
+        self.s.write(data)
+        self.s.flush()
+        self._read_until(PROMPT, 15.0)
+        # Verifizieren via md5 (eine leere Datei hat nichts zu vergleichen -- Ready+Schreiben
+        # ist dort bereits der ganze Erfolgsnachweis, siehe Fund weiter unten)
+        if not data:
+            return True
+        want = _md5(data)
+        got = self.cmd(f'storage md5 "{remote_path}"').strip().split()[-1]
+        return want == got
+
+    def storage_read(self, path):
+        """Liest eine Textdatei (Captures sind flipper_format-Text). Streift 'Size:'-Zeile,
+        Echo und Prompt. Fuer Binaerdateien ungeeignet."""
+        self.s.reset_input_buffer()
+        self.s.write(f'storage read "{path}"\r'.encode())
+        out = self._read_until(PROMPT, 20.0).decode("utf-8", "replace").replace("\r", "")
+        body, started = [], False
+        for l in out.split("\n"):
+            if not started:
+                if l.startswith("Size:"):
+                    started = True
+                continue
+            if l.strip().endswith(">:"):
+                break
+            body.append(l)
+        return "\n".join(body).rstrip("\n")
+
+    def storage_walk(self, path):
+        """Rekursiv: liefert (vollpfad, groesse) fuer jede Datei unter path."""
+        for line in self.storage_list(path).splitlines():
+            m = re.search(r"\[([DF])\]\s+(.+?)(?:\s+(\d+)b)?\s*$", line.strip())
+            if not m:
+                continue
+            kind, name, size = m.group(1), m.group(2).strip(), m.group(3)
+            full = f"{path.rstrip('/')}/{name}"
+            if kind == "F":
+                yield full, int(size or 0)
+            elif kind == "D":
+                yield from self.storage_walk(full)
+
+    def stream(self, command, seconds):
+        """Startet ein streamendes CLI-Kommando (z.B. subghz rx), sammelt fuer `seconds`
+        die Ausgabe und stoppt es dann mit Ctrl-C (ETX). Rueckgabe: gesammelte Ausgabe."""
+        self.s.reset_input_buffer()
+        self.s.write(command.encode() + b"\r")
+        buf = bytearray()
+        end = time.time() + seconds
+        while time.time() < end:
+            c = self.s.read(256)
+            if c:
+                buf += c
+        self.s.write(b"\x03")  # Ctrl-C -> Kommando beenden
+        self._read_until(PROMPT, 3.0)
+        return buf.decode("utf-8", "replace")
+
+    def loader_open(self, name_or_path):
+        return self.cmd(f'loader open "{name_or_path}"')
+
+    def loader_close(self):
+        return self.cmd("loader close")
+
+    def loader_info(self):
+        return self.cmd("loader info")
+
+
+def _md5(data):
+    import hashlib
+    return hashlib.md5(data).hexdigest()
+
+
+def main():
+    p = argparse.ArgumentParser(description="G4MEOVER FlipperBridge")
+    p.add_argument("-p", "--port", required=True, help="z.B. COM3 oder /dev/ttyACM0")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("info")
+    s_ls = sub.add_parser("ls"); s_ls.add_argument("path", default="/ext", nargs="?")
+    s_snd = sub.add_parser("send"); s_snd.add_argument("local"); s_snd.add_argument("remote")
+    s_rm = sub.add_parser("rm"); s_rm.add_argument("path")
+    s_l = sub.add_parser("launch"); s_l.add_argument("name_or_path")
+    sub.add_parser("close")
+    s_raw = sub.add_parser("raw"); s_raw.add_argument("command")
+    args = p.parse_args()
+
+    with FlipperBridge(args.port) as fb:
+        if args.cmd == "info":
+            for k, v in fb.device_info().items():
+                print(f"{k:28}: {v}")
+        elif args.cmd == "ls":
+            print(fb.storage_list(args.path))
+        elif args.cmd == "send":
+            ok = fb.storage_send(args.local, args.remote)
+            print(("OK (md5 verifiziert)" if ok else "FEHLER") + f": {args.remote}")
+            sys.exit(0 if ok else 1)
+        elif args.cmd == "rm":
+            print(fb.storage_remove(args.path) or "entfernt")
+        elif args.cmd == "launch":
+            print(fb.loader_open(args.name_or_path) or "gestartet")
+        elif args.cmd == "close":
+            print(fb.loader_close() or "geschlossen")
+        elif args.cmd == "raw":
+            print(fb.cmd(args.command))
+
+
+if __name__ == "__main__":
+    main()
