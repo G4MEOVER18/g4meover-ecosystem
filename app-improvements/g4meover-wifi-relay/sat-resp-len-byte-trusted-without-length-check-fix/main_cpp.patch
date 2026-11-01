@@ -1,0 +1,21 @@
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -88,11 +88,17 @@
+ // ESP-NOW-Empfang (Antworten der Satelliten) -> an Flipper-UART weiterreichen
+ static void on_espnow_recv(const uint8_t* mac, const uint8_t* data, int len) {
+     if (len <= 0 || len > (int)UKFE_RF_MAX_FRAME) return;
++    // data[0] (LEN-Byte) ist Teil der vom Absender gesendeten Nutzlast und damit nicht
++    // vertrauenswuerdig, bevor die MAC-Pruefung in ukfe_rf_parse_frame() greift. Ohne diesen
++    // Abgleich wuerde ein kuerzeres/gestutztes oder absichtlich praepariertes ESP-NOW-Frame
++    // ukfe_rf_parse_frame() veranlassen, bis zu UKFE_RF_MAX_FRAME Bytes zu lesen, obwohl `data`
++    // hier nur fuer die tatsaechlich empfangenen `len` Bytes gueltig ist.
++    if ((size_t)data[0] + 1 != (size_t)len) return;
+     UkfeRfMessage msg;
+     // Je Absender-MAC eigenes Anti-Replay-Fenster statt bisher NULL/ungeprueft --
+     // verhindert, dass ein mitgeschnittenes, gueltig signiertes Antwort-Frame beliebig
+     // oft erneut eingespielt und unverifiziert an den Flipper-UART durchgereicht wird.
+-    if (ukfe_rf_parse_frame(RELAY_SECRET, data, (size_t)data[0] + 1, &msg, sat_counter_slot(mac))) {
++    if (ukfe_rf_parse_frame(RELAY_SECRET, data, (size_t)len, &msg, sat_counter_slot(mac))) {
+         s_fromSatellite++;
+         Serial2.write(data, len);   // zum Flipper zurueck
+         Serial.printf("[<-SAT] %02X:%02X:%02X:%02X:%02X:%02X resp=0x%02X -> Flipper\n",

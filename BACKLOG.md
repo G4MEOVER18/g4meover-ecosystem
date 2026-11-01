@@ -10306,3 +10306,49 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       erzeugten echten MD5-Mismatch (z. B. zweiter, abweichender Upload dazwischen) wiederholen
       — beide müssen unverändert wie vorher funktionieren ("OK" bzw. "FEHLER" korrekt erkannt).
 - [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, siehe oben).
+
+## App-Verbesserung: g4meover-wifi-relay — ESP-NOW-Antwortpfad liest bis zu 54 Bytes hinter dem tatsächlich empfangenen Puffer
+
+- [x] Letzte Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 12, Security+
+      2.0) — Zweierrhythmus FM/App fortgesetzt, diese Sitzung also App-Verbesserung. `reports/`
+      durchgesehen, keine Wiederholung eines bereits erfassten Fundes.
+- [x] `g4meover-wifi-relay` erneut aufgegriffen (zuletzt zwei dokumentierte Funde, beide zum
+      Rolling-Counter): den bereits per-MAC-gefixten Satelliten-Antwortpfad
+      (`sat-resp-ack-replay-missing-counter-check-fix.md`) noch einmal im Detail geprüft —
+      `on_espnow_recv()` bildet die an `ukfe_rf_parse_frame()` übergebene Länge ausschließlich
+      aus `data[0]` (dem vom Absender gesendeten, nicht vertrauenswürdigen LEN-Byte), nie aus
+      `len` (der tatsächlich von ESP-NOW zugestellten, einzig für `data` gültigen Länge). Ein
+      1-Byte-Frame mit gelogenem LEN-Byte reicht, um `ukfe_rf_parse_frame()` zu einem Lesen bis
+      zu 54 Byte hinter dem tatsächlichen Empfangspuffer zu bewegen — betrifft nicht nur
+      vorsätzlich präparierte Frames, sondern auch echte, durch Funkstörung verkürzt zugestellte
+      Satelliten-Antworten. Der parallele Flipper→Relay-Pfad (`scan_and_relay()`) hat dieselbe
+      Längenableitung, prüft aber vor dem Parsen bereits korrekt `s_len < real_len` — nur der
+      ESP-NOW-Antwortpfad fehlte dieser Abgleich.
+- [x] Host-Repro (`repro-sat-resp-len-byte-oob-read/repro.c`) gegen die unveränderte
+      `ukfe_rf.c`/`.h` gebaut: 1-Byte-Lüge-Frame sowie ein um 1 Byte gestutztes echtes
+      0-Argument-Antwort-Frame lösen beide unter `gcc -O0`/`-O1
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` einen
+      `heap-buffer-overflow`-Lesezugriff in `ukfe_rf_parse_frame()` aus (isolierter
+      Kindprozess, `SIGABRT`); derselbe Codepfad nach dem Fix lehnt beide sicher ab, echte
+      vollständig zugestellte Antwort-Frames (mit und ohne Argumente) bleiben unverändert
+      akzeptiert. 7/7 Prüfungen bestanden, identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine UBSan-Befunde.
+- [x] Fix additiv auf dem bereits dokumentierten Zwischenstand (`sat-resp-ack-replay-missing-
+      counter-check-fix`) aufgesetzt: ein zusätzlicher Längenabgleich
+      (`data[0] + 1 != len`) vor dem `ukfe_rf_parse_frame()`-Aufruf, der danach `len` statt
+      `data[0] + 1` übergibt. Patch per `patch -p1` gegen zwei unabhängige Kopien desselben
+      Zwischenstands angewendet, beide Ergebnisse laut `md5sum` byte-identisch zur beigelegten
+      Zieldatei. Port-Vorschlag in
+      `app-improvements/g4meover-wifi-relay/sat-resp-len-byte-trusted-without-length-check-fix.md`.
+- [ ] Lokal zu tun: Patch gegen die eigene `src/main.cpp`-Kopie anwenden (Zwischenstand aus dem
+      vorherigen Fix muss bereits vorhanden sein, sonst `main_cpp.target` direkt einsetzen),
+      neu flashen. Mit einem zweiten Testgerät ein 1-Byte-ESP-NOW-Frame an die Relay-MAC senden
+      — vor dem Fix plattformabhängig undefiniertes Verhalten, nach dem Fix sicher verworfen
+      (`resp rejected` steigt, kein Absturz/Neustart). Danach eine echte Satelliten-Antwort im
+      Normalbetrieb gegenprüfen: muss weiterhin unverändert durchgereicht werden.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, siehe oben) — zusätzlich: dasselbe
+      `on_espnow_recv()`-Muster (Länge aus `data[0]` statt aus dem tatsächlichen ESP-NOW-`len`
+      abgeleitet) ist vermutlich byte-identisch auch in `heltec-v4-hub`, `usb-army-penetrator`
+      und `lilygo-ukfe-rx` vorhanden (alle teilen laut bisherigen Sitzungen dieselbe
+      `ukfe_rf.c`/`.h`-Basis) — in dieser Sitzung bewusst nicht mitgeprüft (ein abgeschlossener
+      Beitrag pro Sitzung), für eine künftige Sitzung je Gerät einzeln vorgemerkt.
