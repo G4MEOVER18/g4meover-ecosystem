@@ -1,5 +1,32 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 12):** zehntes Nachzieh-Protokoll (Security+ 2.0, `secplus_v2`) angeschlossen —
+siehe "Phase 12: Security+ 2.0" sowie "Verifikation Phase 12" unten. Von den nach Phase 11
+verbliebenen zwei Kandidaten (Secplus v2: 1133 Diff-Zeilen, Nice FloR-S: 1284) hatte Secplus v2
+den kleineren Gesamtdiff und war damit an der Reihe. Wie bei Secplus v1 (Phase 4) ist meine eigene
+`secplus_v2.c` strukturell noch die "alte", von Unleasheds eigenem Standard-Branch inzwischen
+abgelöste `multicntr`-Zählerlogik (vereinfachtes Standard-Modus-Branch bei Unleashed, meine
+Sonderfallbehandlung für `cnt == 0` beim Resync-Fenster-Wiedereinstieg bei Unleashed komplett
+entfernt) — ein blinder Dateiersatz hätte hier wie bei KeeLoq (Phase 2) und Secplus v1 (Phase 4)
+die eigene, unveränderte `multicntr`-Logik ersatzlos gelöscht. Unleasheds Standard-Branch hat
+daneben eine komplett eigenständige, bei mir gar nicht vorhandene Zusatzfunktion bekommen: ein
+"86-Bit (Keypad)"-Nachrichtenformat (`subghz_protocol_secplus_v2_encode_86()`,
+`SECPLUS_V2_86_COUNT_BIT`, PIN-Extraktion/-Anwendung) für Tastenfeld-Fernbedienungen mit PIN-Code —
+ein eigenständiges Protokollmerkmal, kein Override-Anschluss, und bewusst nicht Teil dieser
+Portierung (derselbe Grund, aus dem Unleasheds separater `common.c`-Umbau bei Princeton/Secplus v1/
+CAME Atomo/Alutech AT-4N/Somfy Keytis/KingGates Stylo4K/FAAC SLH schon nie mitportiert wurde). Wie
+bei KeeLoq (Phase 2) und Secplus v1 (Phase 4), aber anders als CAME Atomo/Alutech AT-4N (Phase 7/8),
+ist kein `bypass`-Mechanismus nötig: meine eigene `multicntr`-Logik hat kein eigenständiges
+Mehrfach-Zählermodus-Feature, das umgangen werden müsste — der Override ersetzt die gesamte
+bestehende Standard-/OFEX-Kette für einen Durchlauf vollständig, wie bei KeeLoq/Secplus v1. Von den
+ursprünglich gezählten ~15 Protokollen bleiben weiterhin vier (Beninca ARC, Jarolift, Prastel,
+Ditec GOL4) ohne eigenständige Protokolldatei (unverändert seit "Update (Phase 4)"), es bleiben 11
+echte Kandidaten. Davon sind KeeLoq (Phase 2), Secplus v1 (Phase 4), Somfy Telis (Phase 5), Phoenix
+V2 (Phase 6), CAME Atomo (Phase 7), Alutech AT-4N (Phase 8), Somfy Keytis (Phase 9), KingGates
+Stylo4K (Phase 10), FAAC SLH (Phase 11) und jetzt Secplus v2 (Phase 12) angeschlossen — macht 10 von
+11, 1 offen (Nice FloR-S). Princeton (Phase 3) bleibt der zusätzliche, nicht in der ursprünglichen
+Liste gezählte Fund — macht insgesamt 11 angeschlossene Protokolle.
+
 **Update (Phase 11):** neuntes Nachzieh-Protokoll (FAAC SLH, `faac_slh`) angeschlossen — siehe
 "Phase 11: FAAC SLH" sowie "Verifikation Phase 11" unten. Von den nach Phase 10 verbliebenen drei
 Kandidaten (FAAC SLH: 712 Diff-Zeilen, Secplus v2: 1133, Nice FloR-S: 1284) hatte FAAC SLH den
@@ -396,26 +423,39 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase11/` — Host-Repro
   (siehe "Verifikation Phase 11").
 
+**Jetzt geliefert (Phase 12, zehntes Nachzieh-Protokoll Security+ 2.0):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/secplus_v2.c`
+  — meine eigene `secplus_v2.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem sparse `git clone` zu Sitzungsbeginn
+  als unverändert aktueller `HEAD`-Stand bestätigt), additiv um die zwei Anschlussstellen
+  erweitert (siehe "Phase 12: Security+ 2.0" unten). Fertige Zieldatei zum direkten Ersetzen
+  meiner vorhandenen `lib/subghz/protocols/secplus_v2.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/secplus_v2_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase12/` — Host-Repro
+  (siehe "Verifikation Phase 12").
+
 **Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
 ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
 Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
-"Update (Phase 4)" oben) — es bleiben, nach dem jetzt angeschlossenen FAAC SLH (Phase 11),
-2 echte Kandidaten: Secplus v2, Nice FloR-S. Pro Datei derselbe kleine, lokal begrenzte Satz
-Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo/Alutech AT-4N/
-Somfy Keytis/KingGates Stylo4K/FAAC SLH, sofern sich der Gesamtdiff (teilweise durch Unleasheds
-separaten `common.c`-Umbau mitverursacht) klein genug von Hand auftrennen lässt — bei Somfy Telis
-(231 Diff-Zeilen, siehe "Phase 5"), Phoenix V2 (324 Zeilen, siehe "Phase 6"), CAME Atomo
-(403 Zeilen, siehe "Phase 7"), Alutech AT-4N (404 Zeilen, siehe "Phase 8"), Somfy Keytis
-(405 Zeilen, siehe "Phase 9"), KingGates Stylo4K (496 Zeilen, siehe "Phase 10") und jetzt sogar
-FAAC SLH (712 Zeilen, siehe "Phase 11") hat das wie bei Secplus v1 (231 Zeilen) und Princeton
-(214 Zeilen) zuverlässig funktioniert, obwohl Phoenix V2 zusätzlich Unleasheds eigenständiges
-"CounterMode"-Feature im Diff hatte (siehe "Update (Phase 6)" — bewusst nicht mitportiert), CAME
-Atomo zusätzlich Unleasheds separaten `common.c`-Umbau sowie einen neuen sechsten/siebten
-Tastencode samt eines vierten Header-Timing-Zweigs im Diff hatte (siehe "Update (Phase 7)" —
-beide bewusst nicht mitportiert), Alutech AT-4N zusätzlich Unleasheds separaten `common.c`-Umbau
-sowie eine auf ein 6-Byte-Puffer-Array umgestellte Rainbow-Table-Ladefunktion im Diff hatte
-(siehe "Update (Phase 8)" bzw. "Phase 8: Alutech AT-4N" — beide bewusst nicht mitportiert; wie
-bei CAME Atomo war der `bypass`-Mechanismus bei Alutech AT-4N aber kein Fremdfeature und wurde
+"Update (Phase 4)" oben) — es bleibt, nach dem jetzt angeschlossenen Secplus v2 (Phase 12),
+1 echter Kandidat: Nice FloR-S (1284 Diff-Zeilen gegen Unleasheds `dev`-Branch). Pro Datei
+derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy
+Telis/Phoenix V2/CAME Atomo/Alutech AT-4N/Somfy Keytis/KingGates Stylo4K/FAAC SLH/Secplus v2,
+sofern sich der Gesamtdiff (teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht)
+klein genug von Hand auftrennen lässt — bei Somfy Telis (231 Diff-Zeilen, siehe "Phase 5"),
+Phoenix V2 (324 Zeilen, siehe "Phase 6"), CAME Atomo (403 Zeilen, siehe "Phase 7"), Alutech AT-4N
+(404 Zeilen, siehe "Phase 8"), Somfy Keytis (405 Zeilen, siehe "Phase 9"), KingGates Stylo4K
+(496 Zeilen, siehe "Phase 10") und FAAC SLH (712 Zeilen, siehe "Phase 11") hat das wie bei
+Secplus v1 (231 Zeilen) und Princeton (214 Zeilen) zuverlässig funktioniert, obwohl Phoenix V2
+zusätzlich Unleasheds eigenständiges "CounterMode"-Feature im Diff hatte (siehe
+"Update (Phase 6)" — bewusst nicht mitportiert), CAME Atomo zusätzlich Unleasheds separaten
+`common.c`-Umbau sowie einen neuen sechsten/siebten Tastencode samt eines vierten
+Header-Timing-Zweigs im Diff hatte (siehe "Update (Phase 7)" — beide bewusst nicht mitportiert),
+Alutech AT-4N zusätzlich Unleasheds separaten `common.c`-Umbau sowie eine auf ein
+6-Byte-Puffer-Array umgestellte Rainbow-Table-Ladefunktion im Diff hatte (siehe
+"Update (Phase 8)" bzw. "Phase 8: Alutech AT-4N" — beide bewusst nicht mitportiert; wie bei CAME
+Atomo war der `bypass`-Mechanismus bei Alutech AT-4N aber kein Fremdfeature und wurde
 mitportiert), Somfy Keytis zusätzlich Unleasheds separaten `common.c`-Umbau sowie die
 Umbenennung/Konsolidierung von `press_duration_counter` in das generische `seed`-Feld im Diff
 hatte (siehe "Update (Phase 9)" bzw. "Phase 9: Somfy Keytis" — beide bewusst nicht mitportiert;
@@ -424,17 +464,19 @@ eigenständiges Mehrfach-Zählermodus-Feature existiert), KingGates Stylo4K zus�
 separaten `common.c`-Umbau sowie dessen eigenständige, hier bewusst nicht mitportierte
 Custom-Button-Zyklus-Infrastruktur (`../blocks/custom_btn_i.h`) im Diff hatte (siehe
 "Update (Phase 10)" bzw. "Phase 10: KingGates Stylo4K" — beide ohne Bezug zum
-Override-Mechanismus) und FAAC SLH zusätzlich keinen `common.c`-Umbau, aber dafür eine
-vorgelagerte, komplett eigenständige Programmiermodus-Verzweigung im Diff hatte (siehe
-"Update (Phase 11)" bzw. "Phase 11: FAAC SLH" — ohne Bezug zum Override-Mechanismus, da sie
-`serial`/`btn`/`cnt`/`fix`/`hop` gar nicht berührt). KingGates Stylo4K ist dabei weiterhin der
-einzige Nachzieh-Kandidat, bei dem der Tasten-Override nicht mit einem reinen
-Feld-/Parameter-Override auskommt, sondern eine tatsächliche Rekonstruktion zweier Frame-Felder
-aus der neuen Taste braucht (siehe "Phase 10: KingGates Stylo4K") — bei FAAC SLH reicht dagegen,
-wie bei den sechs Protokollen vor KingGates Stylo4K, ein reiner Feld-Override, da `fix` im
-Klartext gesendet wird. Bei Protokollen mit deutlich größerem Gesamtdiff (Secplus v2: 1133,
-Nice FloR-S: 1284) ist derselbe sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein
-blinder Dateiersatz — noch nicht versucht. Keine dieser Dateien ist in dieser Sitzung angefasst.
+Override-Mechanismus), FAAC SLH zusätzlich keinen `common.c`-Umbau, aber dafür eine vorgelagerte,
+komplett eigenständige Programmiermodus-Verzweigung im Diff hatte (siehe "Update (Phase 11)" bzw.
+"Phase 11: FAAC SLH" — ohne Bezug zum Override-Mechanismus, da sie `serial`/`btn`/`cnt`/`fix`/
+`hop` gar nicht berührt) und Secplus v2 zusätzlich Unleasheds komplett eigenständiges "86-Bit
+(Keypad)"-Nachrichtenformat im Diff hatte (siehe "Update (Phase 12)" bzw. "Phase 12: Security+
+2.0" — ein eigenständiges Protokollmerkmal, bewusst nicht mitportiert, ohne Bezug zum
+Override-Mechanismus). KingGates Stylo4K ist dabei weiterhin der einzige Nachzieh-Kandidat, bei
+dem der Tasten-Override nicht mit einem reinen Feld-/Parameter-Override auskommt, sondern eine
+tatsächliche Rekonstruktion zweier Frame-Felder aus der neuen Taste braucht (siehe "Phase 10:
+KingGates Stylo4K") — bei FAAC SLH und Secplus v2 reicht dagegen, wie bei den sechs Protokollen
+vor KingGates Stylo4K, ein reiner Feld-Override. Bei Nice FloR-S (1284 Diff-Zeilen) ist derselbe
+sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht
+versucht. Diese Datei ist in dieser Sitzung nicht angefasst.
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -1011,6 +1053,62 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
    Protokollen, Fix-Feld-Bits [3:0]). Der bestehende `furi_string_cat_printf()`-Aufruf selbst
    bleibt in allen drei Zweigen unverändert.
 
+### Phase 12: Security+ 2.0 (zehntes Protokoll der Nachzieh-Liste)
+
+**Was:** `secplus_v2` ist bei Unleashed ebenfalls Mitglied der ursprünglich gezählten
+Rolling-Code-Protokolle. Beim Diff meiner eigenen `secplus_v2.c` gegen Unleasheds aktuellen
+`dev`-Branch (siehe "Quelle") zeigte sich dieselbe Grundsituation wie bei Secplus v1 (Phase 4):
+meine eigene `subghz_protocol_secplus_v2_encode()` fährt noch die „alte", `multicntr`-basierte
+Zählerlogik mit der Resync-Dreifallunterscheidung bei `cnt == 0` (Mult unter/zwischen/über dem
+Resync-Fenster `0xE500000`..`0xFFFFFFF`), die Unleasheds eigener Standard-Branch inzwischen durch
+eine deutlich schlankere Fassung ersetzt hat (kein `multicntr`, keine `cnt == 0`-Sonderfallkette
+mehr — nur noch `if(!override) { cnt += mult; if(cnt > 0xFFFFFFF) cnt = 0xE500000; }` gefolgt von
+einem unbedingten Mindestwert-Clamp `if(cnt < 0xE500000) cnt = 0xE500000;`). Ein blinder
+Dateiersatz hätte wie bei KeeLoq (Phase 2) und Secplus v1 (Phase 4) die eigene, unveränderte
+`multicntr`-Logik ersatzlos gelöscht. Den weitaus größten Teil des 1133-Zeilen-Gesamtdiffs macht
+daneben eine komplett eigenständige, bei mir gar nicht vorhandene Zusatzfunktion aus: ein
+„86-Bit (Keypad)"-Nachrichtenformat für Tastenfeld-Fernbedienungen mit eigenem PIN-Code
+(`subghz_protocol_secplus_v2_encode_86()`, `SECPLUS_V2_86_COUNT_BIT`, eine eigene
+`secplus_data`-Instanzvariable, PIN-Extraktions-/Anwendungs-Helfer, ein eigener
+Deserialisierungs-/Anzeige-Zweig) — ein eigenständiges Protokollmerkmal für eine ganz andere
+Geräteklasse (Tastenfeld statt einfacher Fernbedienung), kein Override-Anschluss, und bewusst
+nicht Teil dieser Portierung, aus demselben Grund, aus dem Unleasheds separater `common.c`-Umbau
+bei allen bisherigen Nachzieh-Protokollen schon nie mitportiert wurde.
+
+Für den normalen (Nicht-Keypad-)Pfad, den meine eigene Datei ausschließlich kennt, bleiben
+dieselben zwei Anschlussstellen wie bei Secplus v1 (Phase 4): ein Tasten-Override im Encoder, ein
+Zähler-Override als vorangestellter Zweig der bestehenden Standard-/OFEX-Kette. Wie bei KeeLoq
+(Phase 2) und Secplus v1 (Phase 4), aber anders als CAME Atomo/Alutech AT-4N (Phase 7/8), ist kein
+`bypass`-Mechanismus nötig: meine eigene `multicntr`-Logik hat kein eigenständiges
+Mehrfach-Zählermodus-Feature, das umgangen werden müsste.
+
+Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `secplus_v2.c`:
+1. `subghz_protocol_secplus_v2_encode()`: direkt nach der bestehenden `instance->generic.btn =
+   subghz_protocol_secplus_v2_get_btn_code();`-Zeile (meine eigene, Custom-Button-abhängige
+   Tastencode-Zuweisung, bleibt unverändert) und vor dem bestehenden Aufbau von `fixed_1[1]` aus
+   `instance->generic.btn` ein eigenständiger
+   `subghz_block_generic_global_button_override_get(&instance->generic.btn)`-Aufruf mit
+   `FURI_LOG_D()`-Erfolgsmeldung — byte-für-byte dieselbe Anbindung wie bei Secplus v1/Somfy
+   Telis/Phoenix V2/Somfy Keytis/KingGates Stylo4K/FAAC SLH. Direkt danach bekommt die
+   bestehende, durch `furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF` gegate
+   Standard-/OFEX-Kette denselben neuen, vorangestellten Zweig wie bei Secplus v1 (Phase 4):
+   `if(subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) { /* Override
+   direkt verwendet */ } else if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
+   ... } else { /* OFEX, unverändert */ }`. Bei anhängendem Override wird weder der
+   Standard-Resync-Pfad (inkl. der `multicntr`-Berechnung, die unverändert vor der Verzweigung
+   stehen bleibt, da auch Secplus v1 sie dort unangetastet ließ) noch der OFEX-Pfad erreicht —
+   beide Zweige bleiben für den unveränderten Fall exakt wie vorher.
+2. `subghz_protocol_decoder_secplus_v2_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   dem bestehenden `remote_controller()`-Aufruf gesetzt — exakt Unleasheds eigene Anbindung für
+   den Nicht-Keypad-Zweig, byte-für-byte übernommen (siehe "Verifikation Phase 12"). Anders als
+   bei Secplus v1 ist `btn_is_available` hier `true`: Secplus v2s Tastenwert ist, anders als
+   Secplus v1s aus dem Festcode abgeleiteter Wert, ein unabhängiges 8-Bit-Feld
+   (`subghz_protocol_secplus_v2_get_btn_code()`), dieselbe Festlegung, die Unleashed selbst
+   trifft. `cnt_length_bit` ist `28` (der reale, aus der 18-Trit-Basis-3-Kodierung
+   zurückgerechnete Zählerbereich `0x0`..`0xFFFFFFF`), `btn_length_bit` ist `8` (volle
+   Byte-Breite, kein Nibble wie bei den meisten anderen Protokollen).
+
 ## Risiko
 
 - **Wichtigster eigener Fund dieser Sitzung — kein blindes Ersetzen möglich:** Ich habe zuerst
@@ -1126,6 +1224,18 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
   `furi_hal_subghz_get_rolling_counter_mult() == 0` unverändert (keiner der Teilzweige greift) —
   ein Rand-/Altstandsfall ohne Bezug zum Override-Mechanismus, im Host-Repro (Szenario G)
   mitgeprüft, aber bewusst nicht mitbehoben.
+- **Secplus v2 (Phase 12): die mitportierte `multicntr`-Logik ist bewusst die ältere, bei
+  Unleashed selbst inzwischen abgelöste Fassung.** Ein Edit-Menü, das sich an Unleasheds
+  aktuellem Standard-Branch orientiert und erwartet, dass ein Zähler-Override auf exakt dieselbe
+  Nachfolge-Arithmetik trifft wie dort (einfacher Clamp statt Dreifallunterscheidung), sieht bei
+  mir weiterhin die alte Resync-Dreifallunterscheidung für den unveränderten (Nicht-Override-)
+  Fall — kein durch diesen Port eingeführtes Verhalten, sondern dieselbe Alt-Logik, die auch ohne
+  jeden Override bereits bei mir läuft; der Override selbst ersetzt sie für einen Durchlauf
+  vollständig und ist von diesem Unterschied nicht betroffen. Das „86-Bit (Keypad)"-
+  Nachrichtenformat bleibt bei mir vollständig fehlend — ein `.sub`-Key-File, das dieses Format
+  nutzt (`Bit`-Feld `86` statt der üblichen `87`/`88`), wird von meinem unveränderten
+  `min_count_bit_for_found`-Check weiterhin wie bisher behandelt (keine neue Verschlechterung
+  durch diesen Port, da der Override nur den bereits bestehenden, nicht-Keypad-Pfad betrifft).
 
 ## Verifikation (auf dem Host, ohne Hardware)
 
@@ -1833,6 +1943,86 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
     -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 12 (Security+ 2.0)
+
+- **Patch additiv, byte-identisch:** `connective-patches/secplus_v2_c.patch` per `git apply
+  --check` sowie real per `git apply` gegen eine frische, unabhängige Zweitkopie und per `patch
+  -p1 --dry-run` sowie real per `patch -p1` gegen eine zweite, ebenfalls frische, unabhängige
+  Zweitkopie meiner eigenen `secplus_v2.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem sparse `git clone` zu Sitzungsbeginn
+  geholt, unverändert zu Phase 1-11) angewendet — beide Ergebnisse per `md5sum` byte-identisch
+  zueinander und zur mitgelieferten Zieldatei bestätigt (`8e0446f3e898371df92980cc0fcaa27b`).
+  `diff --stat`-Äquivalent nach dem Anwenden: **18 Zeilen Hinzufügung, 1 Löschung** (dieselbe Art
+  Zeilenverschiebung wie bei Somfy Telis/Phoenix V2/Somfy Keytis/KingGates Stylo4K/FAAC SLH: die
+  bestehende `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {`-Zeile wird durch
+  die um den neuen Override-Zweig erweiterte Zeile `} else if(furi_hal_subghz_get_rolling_counter_
+  mult() != -0x7FFFFFFF) {` ersetzt — keine inhaltliche Löschung, reine Verschiebung in dieselbe
+  Bedingung).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase12/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die neue Anschlussstelle ist
+  per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten, bereits gepatchten
+  `secplus_v2.c` in ein eigenes `.inc`-Fragment extrahiert und in eine minimale
+  Wrapper-Funktion eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch
+  reproduzierbar: `sed 400,403p` für den Tasten-Override-Aufruf, `sed 411,458p` für die
+  `multicntr`-Berechnung plus den Zähler-Override-Zweig plus die zwei unveränderten
+  Geschwister-Zweige — die dazwischenliegenden 5 Zeilen 405-409, die bestehenden
+  `fixed_1`/`fixed_2`/`rolling_digits`/`roll_1`/`roll_2`-Deklarationen, sind bewusst ausgespart,
+  da dieses Repro nur die beiden Override-Aufrufstellen selbst prüft, nicht die
+  Manchester-Rahmenkodierung, die diese Felder danach konsumiert; `sed 996,1002p` für den
+  `get_string()`-Push-Block). Geprüft (27 Prüfungen):
+  1. **Szenario A (nur Tasten-Override):** der überschriebene Wert landet unverändert in
+     `instance->generic.btn` — bei diesem Protokoll ist `btn_length_bit` die volle Byte-Breite
+     (8), die Maske `0xFF >> (8-8)` damit die Identität; anders als bei FAAC SLH (4 Bit, Phase
+     11) gibt es hier keine engere Breite, an der sich eine Maskierung beobachten ließe (die
+     Maskierungsformel selbst wird stattdessen in Szenario C/D am `cnt`-Feld gezeigt, dessen
+     reale Breite mit 28 von 32 Bit enger als der Typ ist).
+  2. **Szenario B (Regression, kein Tasten-Override):** `btn` bleibt unverändert.
+  3. **Szenario C (nur Zähler-Override, Standard-Modus wäre sonst aktiv):** der Override
+     übernimmt den überschriebenen, auf `cnt_length_bit` (28) maskierten Wert verbatim und
+     überspringt die gesamte `multicntr`-/Standard-Kette vollständig, auch wenn
+     `furi_hal_subghz_get_rolling_counter_mult()` gleichzeitig auf einen gewöhnlichen
+     Standard-Modus-Wert gesetzt ist. Override-Flag einmalig verbraucht.
+  4. **Szenario D (Zähler-Override, OFEX-Sentinel aktiv):** der Override greift weiterhin vor
+     der gesamten Kette, auch wenn `furi_hal_subghz_get_rolling_counter_mult()` gleichzeitig auf
+     den OFEX-Sentinel-Wert `-0x7FFFFFFF` gesetzt ist.
+  5. **Szenario E (Regression, kein Override, Standard-Modus, `cnt != 0`, kein Überlauf):**
+     einfacher Inkrement um `multicntr`.
+  6. **Szenario F (Regression, kein Override, Standard-Modus, `cnt != 0`, Überlauf über
+     `0xFFFFFFF`):** Rücksetzung auf den Resync-Sentinel `0xE500000`.
+  7. **Szenario G (Regression, kein Override, Standard-Modus, die
+     `mult==0xFFFFFFF && cnt!=0`-Eigenheit):** setzt `cnt` direkt auf `0` zurück — der dedizierte
+     „Zähler vor dem Anwenden eines neuen Werts zurücksetzen"-Schritt.
+  8. **Szenario H (Regression, kein Override, Standard-Modus, `cnt == 0`, alle drei
+     Resync-Unterfälle):** Mult unter `0xE500000` springt auf `0xE500000`; Mult `>= 0xFFFFFFF`
+     springt auf den oberen Sentinel `0xFFFFFFF` (bei genau demselben Mult-Wert wie Szenario G,
+     aber über den `cnt==0`-Zweig statt den `cnt!=0`-Zweig erreicht); Mult zwischen beiden
+     Grenzen wird wie beim gewöhnlichen Inkrement zu `cnt` addiert.
+  9. **Szenario I (Regression, kein Override, OFEX-Modus, alle drei realen Unterfälle):**
+     einfacher Inkrement; Überlauf über `0xFFFFFFF` auf den Resync-Sentinel `0xE500000`; bereits
+     im Resync-Fenster (`>=0xE500000`, `!=0xFFFFFFE`) auf den oberen Fenster-Sentinel `0xFFFFFFE`.
+  10. **Szenario J (beide Overrides gleichzeitig):** Tasten- und Zähler-Override greifen
+      unabhängig im selben Durchlauf — der reale Code ruft den Tasten-Block unbedingt vor dem
+      Zähler-Block auf, unabhängig davon, ob ein Zähler-Override anhängt.
+  11. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+      unbedingt `28`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `true`/
+      `current_btn`/`btn_length_bit` unbedingt `8` korrekt, für zwei unterschiedliche
+      Zähler-/Tastenwerte (inkl. des Randfalls beide `0`).
+  12. Die in Phase 1 dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit`
+      vor dem ersten `_override_get()`-Aufruf) für die realen Bitbreiten dieses Protokolls
+      (28/8) explizit durchexerziert: `get_string()`-Fragment zuerst ausgeführt (setzt beide
+      Längen), danach ein Override-Set/Get-Durchlauf im `encode()`-Fragment unter
+      Wiederverwendung dieser Längen — kein UB, korrekt maskiertes Ergebnis.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **27 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus
+    `firmware-mining/repro-subghz-block-generic-global-override-port-phase12/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -1962,7 +2152,19 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
    übrigen 2 der tatsächlich existierenden Nachzieh-Kandidaten (Secplus v2, Nice FloR-S), dann
    `endless_tx` an die eigene SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt
    fester Wiederholzahl).
-12. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
+12. **Phase 12 (geliefert, diese Sitzung — Security+ 2.0):** zehntes Nachzieh-Protokoll
+   angeschlossen, neuntes mit tatsächlicher Zähler-Hälfte. Gesamtdiff mit 1133 Zeilen wie in
+   "Update (Phase 11)" angekündigt der kleinere der zwei verbliebenen Kandidaten. Wie bei
+   Secplus v1 (Phase 4) ist meine eigene `multicntr`-Logik die ältere, bei Unleashed selbst
+   inzwischen abgelöste Fassung — ein blinder Dateiersatz hätte sie ersatzlos gelöscht. Der
+   weitaus größte Teil des Diffs entfällt auf ein komplett eigenständiges „86-Bit
+   (Keypad)"-Nachrichtenformat (siehe "Phase 12: Security+ 2.0"), das wie Unleasheds separater
+   `common.c`-Umbau bei allen bisherigen Nachzieh-Protokollen bewusst nicht mitportiert wird.
+   Kein `bypass`-Mechanismus nötig — wie bei KeeLoq/Secplus v1 (Phase 2/4), weil kein
+   eigenständiges Mehrfach-Zählermodus-Feature existiert. Weiterhin offen nach Phase 12: der
+   letzte verbliebene Nachzieh-Kandidat (Nice FloR-S, 1284 Diff-Zeilen), dann `endless_tx` an die
+   eigene SubGhz-Transmitter-App anschließen (Hold-OK = Dauersenden statt fester Wiederholzahl).
+13. **SubGhz Remote App-Port (separater, deutlich größerer Port, weiterhin nicht Teil dieser
    Port-Skizze):** erst ab hier wird ein Port der App **SubGhz Remote** (siehe "Was") sinnvoll —
    ihr `subrem_tx_start_sub()` braucht exakt den hier gelieferten Mechanismus, um den Tastenwert
    vor dem Senden zu überschreiben. Verdient eine eigene Port-Vorschlag-Datei mit eigener
@@ -1972,7 +2174,7 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
    mehrere funktionale Unterschiede sichtbar, u. a. der OTG-Einschaltpfad: die App nutzt einen
    begrenzten `furi_hal_power_enable_otg()`-Retry mit 5 Versuchen, meine eigene Version einen
    einmaligen Aufruf über den `Power`-Service).
-13. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
+14. Bauen nach Phase 1: `ufbt` (bzw. `fbt firmware_all`) — reine Ergänzung, sollte ohne
    Compile-Fehler durchlaufen. Funktionstest: ein beliebiges SubGhz-Signal anzeigen lassen (löst
    den neuen `base.c`-Hook aus), Verhalten muss unverändert bleiben (reiner Infrastruktur-Schritt,
    noch kein sichtbares Feature). Ab Phase 2 mit Hardware testbar: KeeLoq-Signal erfassen, über
@@ -2012,7 +2214,12 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
    Somfy Keytis, am eigenen, autorisiert getesteten FAAC-SLH-Empfänger (bzw. einer kompatiblen
    Genius-Fernbedienung/-Empfänger) — kein `CounterMode`-Durchspielen nötig; zusätzlich gezielt
    prüfen, dass ein anhängender Override beim Halten der UP-Taste (Programmiermodus) folgenlos
-   bleibt und erst beim nächsten regulären Sendevorgang mit bekanntem Seed greift.
+   bleibt und erst beim nächsten regulären Sendevorgang mit bekanntem Seed greift. Nach Phase 12
+   zusätzlich mit Secplus v2 testbar: dieselbe Zähler-/Tasten-Prüfung wie bei Somfy Keytis, am
+   eigenen, autorisiert getesteten Secplus-v2-Empfänger (z. B. LiftMaster/Chamberlain-Antrieb) —
+   kein `CounterMode`-Durchspielen nötig; nur das gewöhnliche, nicht-Keypad-Signalformat ist
+   betroffen — ein geladenes 86-Bit-Keypad-Signal (falls je eines erfasst wird) bleibt von diesem
+   Port unberührt, da meine eigene Datei dieses Format gar nicht kennt.
 
 ## Quelle
 
@@ -2174,3 +2381,19 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `faac_slh.c`:
   (per frischem `git clone` zu Sitzungsbeginn Phase 6 erneut als unverändert aktueller
   `HEAD`-Stand bestätigt, identisch zu Phase 1-5): eigene Basis für
   `lib/subghz/protocols/phoenix_v2.c`, Ausgangspunkt für `connective-patches/phoenix_v2_c.patch`.
+- (Phase 12) Unleashed-Firmware, `dev`-Branch (Standard-Branch, per `git remote show origin`
+  bestätigt), Commit `b28253c8c1e2ff1c8d1b664f82049a8b19f6a941` (per frischem sparse `git clone`
+  zu Sitzungsbeginn geholt — unverändert zum in Phase 10/11 verwendeten Stand, per `git
+  ls-remote` auf denselben Commit bestätigt): `lib/subghz/protocols/secplus_v2.c` zum
+  vollständigen Diff gegen meine eigene Basis herangezogen, die zwei Override-Anschlusspunkte
+  (siehe "Phase 12: Security+ 2.0") daraus übernommen; der übrige, hier nicht übernommene Teil
+  des Diffs besteht aus zwei getrennten Blöcken — Unleasheds vereinfachtem, meine eigene
+  `multicntr`-Logik ablösendem Standard-Zähler-Zweig sowie dem komplett eigenständigen „86-Bit
+  (Keypad)"-Nachrichtenformat (siehe "Update (Phase 12)" bzw. "Phase 12: Security+ 2.0") — beide
+  hängen mit diesem Port nicht zusammen und werden nicht übernommen.
+- (Phase 12) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per frischem sparse `git clone` zu Sitzungsbeginn Phase 12 erneut als unverändert aktueller
+  `HEAD`-Stand bestätigt, identisch zu Phase 1-11; für die Patch-Verifikation zusätzlich zwei
+  weitere, unabhängige Zweitkopien derselben Basis angelegt, siehe "Verifikation Phase 12"):
+  eigene Basis für `lib/subghz/protocols/secplus_v2.c`, Ausgangspunkt für
+  `connective-patches/secplus_v2_c.patch`.
