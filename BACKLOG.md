@@ -10352,3 +10352,102 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       und `lilygo-ukfe-rx` vorhanden (alle teilen laut bisherigen Sitzungen dieselbe
       `ukfe_rf.c`/`.h`-Basis) — in dieser Sitzung bewusst nicht mitgeprüft (ein abgeschlossener
       Beitrag pro Sitzung), für eine künftige Sitzung je Gerät einzeln vorgemerkt.
+
+## Firmware-Feature-Mining: SubGhzBlockGenericGlobal Phase 13 — Nice FloR-S als elftes und letztes Nachzieh-Protokoll angeschlossen
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `git log` durchgesehen:
+      letzte Sitzung war App-Verbesserung (`g4meover-wifi-relay`, ESP-NOW-Antwortpfad-
+      Längenabgleich), davor Firmware-Feature-Mining (Phase 12, Security+ 2.0) — Firmware-
+      Feature-Mining war damit für diese Sitzung an der Reihe (Zweierrhythmus FM/App
+      fortgesetzt). Git-Identität vor dem ersten eigenen Commit gesetzt
+      (`G4MEOVER18 <g4me.over.18@gmail.com>`). Lokales `main` lag zu Sitzungsbeginn hinter einer
+      veralteten lokalen Remote-Tracking-Referenz zurück (reiner Checkout-Stand des frischen
+      Containers, `origin/main` per `git fetch` auf den tatsächlich aktuellen Stand nachgezogen,
+      kein echter Branch-Zeiger-Drift) — gegen `origin/main` synchronisiert, danach deckungsgleich.
+- [x] Nach Phase 12 war Nice FloR-S der letzte verbliebene echte Kandidat der ursprünglichen
+      SubGhzBlockGenericGlobal-Nachzieh-Liste. Frischer `git clone` von
+      `G4MEOVER18/G4MEOVER-FW` (`main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e` —
+      identisch zum in Phase 1-12 verwendeten Stand, per `md5sum` gegen die eigene
+      `nice_flor_s.c` bestätigt) sowie von `DarkFlippers/unleashed-firmware` (`dev`-Branch,
+      Commit `1cdda9a44698126ac49dab9153761762be82252d`). Beide `lib/subghz/protocols/
+      nice_flor_s.c` vollständig gelesen und gegeneinander gedifft: 1154 Zeilen Gesamtdiff
+      (1284 war der Stand zum Zeitpunkt der Einordnung in Phase 12 — Unleasheds `dev` hat sich
+      seitdem weiterbewegt, die drei hier relevanten Anschlusspunkte selbst sind unverändert);
+      der weit überwiegende, hier nicht übernommene Rest besteht aus einer bei mir komplett
+      fehlenden "Nice One"/"Nice O-Code"-Erweiterung (112-Bit-Rahmen, Installer-Code,
+      Zertifikat-Parcels, `public_api.h`-Custom-Button-Zyklus) sowie derselben Art
+      RAM-Puffer-Umstellung der Rainbow-Table-Ladefunktion wie bei Alutech AT-4N (Phase 8).
+      Zusätzlich gegen `Next-Flip/Momentum-Firmware` quergelesen: eigene Basis ist byte-
+      identisch zum `mntm-012`-Tag (per `md5sum` bestätigt), der aktuelle `dev`-Branch trägt
+      denselben, hier portierten Mechanismus bereits byte-für-byte identisch zu Unleasheds
+      Anschluss — unabhängige Zweitbestätigung über eine zweite Fork-Linie.
+- [x] Wie CAME Atomo/Alutech AT-4N (Phase 7/8) hat meine eigene `nice_flor_s.c` ein
+      eigenständiges `nice_flors_counter_mode`-Feature (0 = Standard/OFEX, 1 = "floxi2r"-Toggle,
+      2 = "ox2"-Toggle) — derselbe modulweite `bypass`-Mechanismus nötig. Anders als bei den
+      beiden ist der Auslöser kein neues Flag: `subghz_block_generic_global.cnt_need_override`,
+      dasselbe Flag, das `..._counter_override_get()` selbst bereits seit Phase 1 gated. Drei
+      additive Anschlussstellen übernommen: Tasten-Override-Aufruf direkt nach dem bestehenden
+      `btn = ..._get_btn_code();`, der `cnt_need_override`-zu-`bypass`-Anschlusspunkt plus die um
+      `|| bypass` erweiterte Zähler-Moduskette, sowie der `get_string()`-Push-Block
+      (`cnt_length_bit` 16, `btn_length_bit` 4). Zwei real beobachtbare Nebenwirkungen des
+      gemeinsam genutzten `bypass`-Flags dokumentiert: ein anhängender Zähler-Override entkommt
+      Modus 1/2 (wie bei CAME Atomo/Alutech AT-4N); zusätzlich verdrängt auch ein reiner
+      Tasten-Override ohne jeden Zähler-Override denselben aktiven Modus 1/2 für den einen
+      Durchlauf — reales, bereits mitgeliefertes Verhalten, keine Einführung durch diesen Port.
+      Dokumentiert in `firmware-mining/subghz-block-generic-global-override-port.md`
+      ("Update (Phase 13)", "Phase 13: Nice FloR-S", "Verifikation Phase 13", "Quelle").
+- [x] Patch `connective-patches/nice_flor_s_c.patch` (34 Zeilen Hinzufügung, 6 Löschungen) per
+      `git apply --check`/real sowie `patch -p1 --dry-run`/real gegen zwei unabhängige,
+      frische Zweitkopien angewendet — beide Ergebnisse per `md5sum` byte-identisch zueinander
+      und zur mitgelieferten Zieldatei `lib/subghz/protocols/nice_flor_s.c`
+      (`38fb8601de28c61a1fa87d4039f438bd`) bestätigt.
+- [x] Host-Repro (`repro-subghz-block-generic-global-override-port-phase13/repro.c`) gegen die
+      tatsächliche, unveränderte Phase-1-`generic.c` gebaut: 30 Prüfungen (Tasten-/Zähler-
+      Override in Modus 0 inkl. Maskierung, Zähler-Override entkommt Modus 1, Tasten-Override
+      allein verdrängt Modus 2 als dokumentierte Nebenwirkung, Regression aller drei Modi sowie
+      aller drei OFEX-Resync-Unterfälle, Zähler-Override trotz aktivem OFEX-Sentinel, beide
+      Overrides gleichzeitig, `get_string()`-Push-Block, Reihenfolge-Abhängigkeit der
+      Bit-Breiten) unter `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` bestanden, identischer Output beider Optimierungsstufen,
+      keine Compiler-Warnungen, keine Sanitizer-Befunde, `g_unexpected_stub_calls` bleibt bei 0.
+- [ ] Lokal zu tun: `connective-patches/nice_flor_s_c.patch` gegen die eigene
+      `lib/subghz/protocols/nice_flor_s.c` anwenden (oder die mitgelieferte Zieldatei direkt
+      ersetzen, falls die eigene Kopie seit `b359f6fc32f282ce7217dd2d48a4e3478771852e` keine
+      eigenen Änderungen an dieser Datei hat), neu bauen und flashen. Mit einem echten Nice
+      FloR-S-Signal (aufgenommen oder aus einer eigenen, bereits vorhandenen `.sub`-Datei)
+      zunächst ohne jeden Override senden — unverändertes Verhalten. Danach über das
+      Signal-Settings-Menü Taste und/oder Zähler überschreiben und erneut senden — der
+      überschriebene Wert muss im gesendeten Rahmen ankommen (z. B. per zweitem Flipper/SDR im
+      Empfang gegenprüfbar). Falls lokal einer der drei Zählermodi (`nice_flors_counter_mode`
+      1/2) aktiv eingestellt ist: gezielt die dokumentierte Nebenwirkung nachvollziehen (ein
+      reiner Tasten-Override ohne Zähler-Override verdrängt für den einen Sendevorgang den
+      aktiven Modus zugunsten des Standard-Inkrements) — falls das lokal stört, Reihenfolge/
+      Gating in `subghz_protocol_encoder_nice_flor_s_get_upload()` entsprechend lokal anpassen.
+- [x] Mit Nice FloR-S (Phase 13) ist die ursprüngliche SubGhzBlockGenericGlobal-Nachzieh-Liste
+      vollständig abgearbeitet (11 von 11 echten Kandidaten plus Princeton als zusätzlicher,
+      nicht ursprünglich gezählter Fund — 12 angeschlossene Protokolle insgesamt). Weitere
+      Arbeit an diesem Themenblock wäre nur noch Hardware-Verifikation der bereits gelieferten
+      Patches (siehe "Weiterhin offen").
+- [ ] Konsistenzfund (nicht in dieser Sitzung behoben, da reine Dokumentations-Nacharbeit ohne
+      eigenen Prüfwert): der BACKLOG.md-Abschnitt zu Phase 12 (Security+ 2.0) fehlt vollständig
+      — zwischen Phase 11 und der `flipperbridge`-App-Verbesserung springt die Historie direkt
+      zu dieser Phase-13-Eintragung, obwohl der Phase-12-Commit und der Port-Dokument-Abschnitt
+      existieren. Für eine künftige Sitzung vorgemerkt: Phase-12-Eintrag aus dem bestehenden
+      `firmware-mining/subghz-block-generic-global-override-port.md`-Abschnitt "Phase 12:
+      Security+ 2.0" nachträglich rekonstruieren und einfügen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5, NFC/RFID-Parser-
+      Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-
+      Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an
+      fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7
+      (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt), ProtoViews restliche
+      vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-
+      Quelltextsichtung für eine mögliche Flipper-UART-Anbindung, veraltete `README.md`,
+      AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate
+      (fehlender externer Referenz-Testvektor), die zwölf UI-`views/*.c`-Dateien von
+      `simultaneous_rfid_reader` noch nicht erstgeprüft, lokaler Test aller bisher nicht lokal
+      gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt zusätzlich:
+      lokaler Test des hier gelieferten `nice_flor_s`-Override-Ports sowie der oben vermerkten
+      fehlenden Phase-12-BACKLOG-Eintragung.

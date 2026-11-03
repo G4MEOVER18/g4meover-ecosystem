@@ -1,5 +1,32 @@
 # SubGhzBlockGenericGlobal: fehlender Rolling-Code-Counter/Button-Override- und Endless-TX-Mechanismus
 
+**Update (Phase 13):** elftes und letztes Nachzieh-Protokoll (Nice FloR-S, `nice_flor_s`)
+angeschlossen — siehe "Phase 13: Nice FloR-S" sowie "Verifikation Phase 13" unten. Nach Phase 12
+war Nice FloR-S (1284 Diff-Zeilen gegen Unleasheds damaligen Stand) der letzte verbliebene echte
+Kandidat. Wie CAME Atomo/Alutech AT-4N (Phase 7/8) hat meine eigene `nice_flor_s.c` ein
+eigenständiges `nice_flors_counter_mode`-Feature (0 = Standard/OFEX, 1 = "floxi2r"-Toggle,
+2 = "ox2"-Toggle), das die reinen Override-Aufrufe allein nicht erreichen — hier also derselbe
+`bypass`-Mechanismus wie bei CAME Atomo/Alutech AT-4N nötig. Anders als bei den beiden ist der
+Auslöser für `bypass` beim Zähler-Pfad kein neues, eigenes Flag, sondern dasselbe
+`subghz_block_generic_global.cnt_need_override`, das bereits
+`subghz_block_generic_global_counter_override_get()` selbst gated (Phase 1) — der neue
+Anschlusspunkt `if(subghz_block_generic_global.cnt_need_override) bypass = true;` liest also nur
+ein Flag mit, das für einen anhängenden Zähler-Override ohnehin schon gesetzt ist. Daraus folgen
+zwei real beobachtbare, bereits mit dem Mechanismus mitgelieferte Nebenwirkungen (siehe
+"Verifikation Phase 13", Szenario D/E): ein anhängender Zähler-Override entkommt Modus 1/2
+genauso wie bei CAME Atomo/Alutech AT-4N; zusätzlich setzt aber auch ein reiner
+Tasten-Override — ohne jeden anhängenden Zähler-Override — dasselbe `bypass = true` und
+verdrängt damit für diesen einen Durchlauf ebenfalls den aktiven Modus 1/2 zugunsten des
+Standard-/OFEX-Pfads, rein als Folge des gemeinsam genutzten `bypass`-Flags zwischen beiden
+Aufrufstellen. Von den ursprünglich gezählten ~15 Protokollen bleiben weiterhin vier (Beninca
+ARC, Jarolift, Prastel, Ditec GOL4) ohne eigenständige Protokolldatei (unverändert seit "Update
+(Phase 4)"), es bleiben 11 echte Kandidaten. Davon sind KeeLoq (Phase 2), Secplus v1 (Phase 4),
+Somfy Telis (Phase 5), Phoenix V2 (Phase 6), CAME Atomo (Phase 7), Alutech AT-4N (Phase 8), Somfy
+Keytis (Phase 9), KingGates Stylo4K (Phase 10), FAAC SLH (Phase 11), Secplus v2 (Phase 12) und
+jetzt Nice FloR-S (Phase 13) angeschlossen — macht 11 von 11, 0 offen. Princeton (Phase 3) bleibt
+der zusätzliche, nicht in der ursprünglichen Liste gezählte Fund — macht insgesamt 12
+angeschlossene Protokolle, die Nachzieh-Liste damit vollständig abgearbeitet.
+
 **Update (Phase 12):** zehntes Nachzieh-Protokoll (Security+ 2.0, `secplus_v2`) angeschlossen —
 siehe "Phase 12: Security+ 2.0" sowie "Verifikation Phase 12" unten. Von den nach Phase 11
 verbliebenen zwei Kandidaten (Secplus v2: 1133 Diff-Zeilen, Nice FloR-S: 1284) hatte Secplus v2
@@ -435,13 +462,25 @@ Funktionen auf) — das bleibt Phase 2.
 - `firmware-mining/repro-subghz-block-generic-global-override-port-phase12/` — Host-Repro
   (siehe "Verifikation Phase 12").
 
-**Für die weitere Nachzieh-Liste (nicht Teil dieser Sitzung, siehe "Port-Skizze"):** von den
-ursprünglich ~15 gezählten Rolling-Code-Protokollen existieren vier (Beninca ARC, Jarolift,
-Prastel, Ditec GOL4) bei mir noch gar nicht als eigenständige Protokolldatei (siehe
-"Update (Phase 4)" oben) — es bleibt, nach dem jetzt angeschlossenen Secplus v2 (Phase 12),
-1 echter Kandidat: Nice FloR-S (1284 Diff-Zeilen gegen Unleasheds `dev`-Branch). Pro Datei
-derselbe kleine, lokal begrenzte Satz Zeilen wie jetzt bei KeeLoq/Princeton/Secplus v1/Somfy
-Telis/Phoenix V2/CAME Atomo/Alutech AT-4N/Somfy Keytis/KingGates Stylo4K/FAAC SLH/Secplus v2,
+**Jetzt geliefert (Phase 13, elftes und letztes Nachzieh-Protokoll Nice FloR-S):**
+- `firmware-mining/subghz-block-generic-global-override-port/lib/subghz/protocols/nice_flor_s.c`
+  — meine eigene `nice_flor_s.c` (Basis `G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem `git clone` zu Sitzungsbeginn als
+  unverändert aktueller `HEAD`-Stand bestätigt), additiv um die drei Anschlussstellen erweitert
+  (siehe "Phase 13: Nice FloR-S" unten). Fertige Zieldatei zum direkten Ersetzen meiner
+  vorhandenen `lib/subghz/protocols/nice_flor_s.c`.
+- `firmware-mining/subghz-block-generic-global-override-port/connective-patches/nice_flor_s_c.patch`
+  — dieselbe Ergänzung als Patch gegen eine unveränderte `G4MEOVER18/G4MEOVER-FW`-Basis.
+- `firmware-mining/repro-subghz-block-generic-global-override-port-phase13/` — Host-Repro
+  (siehe "Verifikation Phase 13").
+
+**Für die weitere Nachzieh-Liste:** von den ursprünglich ~15 gezählten Rolling-Code-Protokollen
+existieren vier (Beninca ARC, Jarolift, Prastel, Ditec GOL4) bei mir noch gar nicht als
+eigenständige Protokolldatei (siehe "Update (Phase 4)" oben) — mit dem jetzt angeschlossenen
+Nice FloR-S (Phase 13) ist die ursprüngliche Nachzieh-Liste vollständig abgearbeitet, 0
+verbleibende Kandidaten. Pro Datei derselbe kleine, lokal begrenzte Satz Zeilen wie bei
+KeeLoq/Princeton/Secplus v1/Somfy Telis/Phoenix V2/CAME Atomo/Alutech AT-4N/Somfy Keytis/
+KingGates Stylo4K/FAAC SLH/Secplus v2/Nice FloR-S,
 sofern sich der Gesamtdiff (teilweise durch Unleasheds separaten `common.c`-Umbau mitverursacht)
 klein genug von Hand auftrennen lässt — bei Somfy Telis (231 Diff-Zeilen, siehe "Phase 5"),
 Phoenix V2 (324 Zeilen, siehe "Phase 6"), CAME Atomo (403 Zeilen, siehe "Phase 7"), Alutech AT-4N
@@ -470,13 +509,17 @@ komplett eigenständige Programmiermodus-Verzweigung im Diff hatte (siehe "Updat
 `hop` gar nicht berührt) und Secplus v2 zusätzlich Unleasheds komplett eigenständiges "86-Bit
 (Keypad)"-Nachrichtenformat im Diff hatte (siehe "Update (Phase 12)" bzw. "Phase 12: Security+
 2.0" — ein eigenständiges Protokollmerkmal, bewusst nicht mitportiert, ohne Bezug zum
-Override-Mechanismus). KingGates Stylo4K ist dabei weiterhin der einzige Nachzieh-Kandidat, bei
-dem der Tasten-Override nicht mit einem reinen Feld-/Parameter-Override auskommt, sondern eine
-tatsächliche Rekonstruktion zweier Frame-Felder aus der neuen Taste braucht (siehe "Phase 10:
-KingGates Stylo4K") — bei FAAC SLH und Secplus v2 reicht dagegen, wie bei den sechs Protokollen
-vor KingGates Stylo4K, ein reiner Feld-Override. Bei Nice FloR-S (1284 Diff-Zeilen) ist derselbe
-sorgfältige Einzelabgleich wie bei KeeLoq in Phase 2 nötig, kein blinder Dateiersatz — noch nicht
-versucht. Diese Datei ist in dieser Sitzung nicht angefasst.
+Override-Mechanismus) und Nice FloR-S zusätzlich Unleasheds komplett eigenständige "Nice
+One"/"Nice O-Code"-Erweiterung sowie dieselbe Art RAM-Puffer-Umstellung der Rainbow-Table-
+Ladefunktion wie Alutech AT-4N im Diff hatte (siehe "Update (Phase 13)" bzw. "Phase 13:
+Nice FloR-S" — beide ohne Bezug zum Override-Mechanismus). KingGates Stylo4K ist dabei weiterhin
+der einzige Nachzieh-Kandidat, bei dem der Tasten-Override nicht mit einem reinen
+Feld-/Parameter-Override auskommt, sondern eine tatsächliche Rekonstruktion zweier Frame-Felder
+aus der neuen Taste braucht (siehe "Phase 10: KingGates Stylo4K") — bei FAAC SLH, Secplus v2 und
+Nice FloR-S reicht dagegen, wie bei den sechs Protokollen vor KingGates Stylo4K, ein reiner
+Feld-Override (Nice FloR-S zusätzlich mit dem von CAME Atomo/Alutech AT-4N bekannten
+`bypass`-Mechanismus, da ein eigenständiges Mehrfach-Zählermodus-Feature existiert — siehe
+"Phase 13: Nice FloR-S").
 
 ### Phase 2: KeeLoq als Pilotprotokoll
 
@@ -1108,6 +1151,75 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `secplus_v2.c
    trifft. `cnt_length_bit` ist `28` (der reale, aus der 18-Trit-Basis-3-Kodierung
    zurückgerechnete Zählerbereich `0x0`..`0xFFFFFFF`), `btn_length_bit` ist `8` (volle
    Byte-Breite, kein Nibble wie bei den meisten anderen Protokollen).
+
+### Phase 13: Nice FloR-S (elftes und letztes Protokoll der Nachzieh-Liste)
+
+**Was:** `nice_flor_s` ist der letzte verbliebene echte Kandidat der ursprünglichen
+Nachzieh-Liste. Beim Diff meiner eigenen `nice_flor_s.c` gegen Unleasheds aktuellen
+Standard-Branch (siehe "Quelle") zeigte sich ein Gesamtdiff von aktuell 1154 Zeilen (zum
+Zeitpunkt der ursprünglichen Einordnung in "Update (Phase 12)" waren es 1284 — Unleasheds `dev`
+hat sich seitdem weiterbewegt, wie schon bei CAME Atomo zwischen Phase 6 und 7 rein per
+Submodul-Tag-Bump; die drei hier relevanten Override-Anschlusspunkte selbst sind davon
+unberührt). Der weit überwiegende, hier nicht übernommene Teil besteht aus einer bei mir
+komplett fehlenden
+Zusatzfunktion: einem eigenständigen "Nice One"/"Nice O-Code"-Erweiterungsformat (112-Bit-Rahmen,
+Installer-Code, eigener Zähler-Scramble, Zertifikat-Parcels, `public_api.h`-Anbindung für einen
+Custom-Button-Zyklus) sowie einer auf einen 32-Byte-RAM-Puffer umgestellten
+Rainbow-Table-Ladefunktion (dieselbe Art Umbau wie bei Alutech AT-4N, Phase 8) — beide hängen mit
+diesem Port nicht zusammen und werden nicht übernommen, exakt dieselbe Begründung wie bei
+Unleasheds separatem `common.c`-Umbau in den vorherigen zehn Phasen.
+
+Wie bei CAME Atomo/Alutech AT-4N (Phase 7/8) hat meine eigene `nice_flor_s.c` ein eigenständiges
+`nice_flors_counter_mode`-Feature (statisches Modul-Byte, 0 = Standard/OFEX, 1 = "floxi2r"-Toggle
+zwischen `0xFFFE`/`0x0001`, 2 = "ox2"-Toggle zwischen `cnt`/`0`), das ein reiner
+`..._counter_override_get()`-Aufruf an der bestehenden Stelle allein nicht erreichen würde, sobald
+Modus 1 oder 2 aktiv ist — ich liefere deshalb denselben modulweiten `bypass`-Mechanismus wie bei
+CAME Atomo/Alutech AT-4N. Der Auslöser ist hier aber kein neues, eigenständiges Flag: ich
+verwende direkt `subghz_block_generic_global.cnt_need_override`, dasselbe Flag, das
+`subghz_block_generic_global_counter_override_get()` selbst schon seit Phase 1 gated (nur wenn es
+gesetzt ist, liefert der Aufruf überhaupt `true` und liest den überschriebenen Wert) — ein
+anhängender Zähler-Override hat das Flag also ohnehin bereits gesetzt, der neue Anschlusspunkt
+liest es nur zusätzlich für `bypass` mit.
+
+Ich liefere additiv, genau drei Anschlussstellen in meiner eigenen `nice_flor_s.c`:
+1. Direkt nach dem bestehenden `btn = subghz_protocol_nice_flor_s_get_btn_code();`-Aufruf in
+   `subghz_protocol_encoder_nice_flor_s_get_upload()` ein eigenständiger
+   `subghz_block_generic_global_button_override_get(&btn)`-Aufruf mit `FURI_LOG_D()`-
+   Erfolgsmeldung — wirkt auf die lokale `btn`-Variable, nicht auf `instance->generic.btn`
+   selbst (dieselbe Stelle, an der auch die bestehende, eigene Custom-Button-Zyklus-Logik ihren
+   Wert liefert); genau diese lokale Variable ist es, die weiter unten unverändert in
+   `byte = btn << 4 | (0xF ^ btn ^ loops[i]);` in die 16 gesendeten Parcels einfließt — kein
+   Rekonstruktionsbedarf wie bei KingGates Stylo4K (Phase 10), der Override sitzt bereits vor
+   dem einzigen Verbraucher dieser Variable. Bei Erfolg wird zusätzlich `bypass = true` gesetzt.
+2. Direkt danach, vor der bestehenden `if(nice_flors_counter_mode == 0) {`-Verzweigung, ein
+   eigenständiges `if(subghz_block_generic_global.cnt_need_override) bypass = true;` sowie die
+   Erweiterung der Bedingung selbst zu `if(nice_flors_counter_mode == 0 || bypass)`. Innerhalb
+   des so erreichten Standard-/OFEX-Zweigs wird die bestehende
+   `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {`-Bedingung zu
+   `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF || bypass) { bypass = false;
+   if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) { ... }`
+   erweitert — bei anhängendem Override wird die bestehende `+mult`-Arithmetik durch den
+   überschriebenen, auf `cnt_length_bit` maskierten Wert ersetzt, auch wenn der OFEX-Sentinel
+   gleichzeitig aktiv ist. Die beiden unveränderten Geschwisterzweige (Modus 1, Modus 2) bleiben
+   exakt wie vorher — kein Löschen, nur ein zusätzlicher, vorangestellter `|| bypass`-Fluchtweg
+   aus der Modus-Auswahl selbst.
+3. `subghz_protocol_decoder_nice_flor_s_get_string()`: `cnt_is_available`/`cnt_length_bit`/
+   `current_cnt` sowie `btn_is_available`/`current_btn`/`btn_length_bit` unbedingt direkt nach
+   dem bestehenden `remote_controller()`-Aufruf gesetzt — exakt Unleasheds eigene Anbindung für
+   den Nicht-O-Code-Zweig, byte-für-byte übernommen (siehe "Verifikation Phase 13").
+   `cnt_length_bit` ist `16` (der reale 16-Bit-Zählerbereich dieses Protokolls),
+   `btn_length_bit` ist `4` (dieselbe 4-Bit-Nibble-Breite wie bei KeeLoq/Princeton/Somfy
+   Telis/Phoenix V2/CAME Atomo/Somfy Keytis/FAAC SLH, nicht die 8/20/28 Bit von KingGates
+   Stylo4K/FAAC-SLH-Zähler/Secplus-v2-Zähler).
+
+Eine von mir bewusst dokumentierte, bereits mit dem Mechanismus mitgelieferte Nebenwirkung des
+gemeinsam genutzten `bypass`-Flags (siehe "Verifikation Phase 13", Szenario D/E): weil
+Anschlusspunkt 1 und der Zähler-Zweig in Anschlusspunkt 2 dasselbe `bypass` lesen/setzen, entkommt
+nicht nur ein anhängender Zähler-Override den Modi 1/2 (wie bei CAME Atomo/Alutech AT-4N), sondern
+auch ein reiner Tasten-Override — ganz ohne anhängenden Zähler-Override — verdrängt für diesen
+einen Durchlauf denselben aktiven Modus 1/2 zugunsten des Standard-/OFEX-Zweigs. Das ist reales,
+bereits vorhandenes Verhalten des hier angeschlossenen Mechanismus, keine Einführung durch diesen
+Port.
 
 ## Risiko
 
@@ -2023,6 +2135,96 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `secplus_v2.c
     -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
     ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
 
+### Verifikation Phase 13 (Nice FloR-S)
+
+- **Patch additiv, byte-identisch:** `connective-patches/nice_flor_s_c.patch` per `git apply
+  --check` sowie real per `git apply` gegen eine frische, unabhängige Zweitkopie und per `patch
+  -p1 --dry-run` sowie real per `patch -p1` gegen eine zweite, ebenfalls frische, unabhängige
+  Zweitkopie meiner eigenen `nice_flor_s.c` (`G4MEOVER18/G4MEOVER-FW`, `main`, Commit
+  `b359f6fc32f282ce7217dd2d48a4e3478771852e`, per frischem `git clone` zu Sitzungsbeginn geholt,
+  unverändert zu Phase 1-12) angewendet — beide Ergebnisse per `md5sum` byte-identisch
+  zueinander und zur mitgelieferten Zieldatei bestätigt (`38fb8601de28c61a1fa87d4039f438bd`).
+  `git diff --stat` nach dem Anwenden: **34 Zeilen Hinzufügung, 6 Löschungen** (dieselbe Art
+  Zeilenverschiebung wie bei Somfy Telis/Phoenix V2/Somfy Keytis/KingGates Stylo4K/FAAC
+  SLH/Secplus v2: die bestehenden `if(nice_flors_counter_mode == 0) {`- und
+  `if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {`-Zeilen werden durch die um
+  den neuen `|| bypass`-Zweig erweiterten Zeilen ersetzt — keine inhaltliche Löschung, reine
+  Verschiebung in dieselbe Bedingung).
+- **Funktionsverhalten
+  (`firmware-mining/repro-subghz-block-generic-global-override-port-phase13/`):** `repro.c`
+  verlinkt gegen die tatsächliche, unveränderte Phase-1-`generic.c`; die neuen Anschlussstellen
+  sind per `sed`-Zeilenbereich byte-identisch aus der mitgelieferten, bereits gepatchten
+  `nice_flor_s.c` in zwei eigene `.inc`-Fragmente extrahiert und in minimale Wrapper-Funktionen
+  eingebunden (Zeilenbereiche in den Kommentaren von `repro.c`, mechanisch reproduzierbar:
+  `sed 154,160p` für den bestehenden `btn = ..._get_btn_code();`-Aufruf plus den
+  Tasten-Override-Aufruf, `sed 168,210p` für den `cnt_need_override`-zu-`bypass`-Anschlusspunkt
+  plus die vollständige, bypass-gegate Modus-Verzweigung inkl. beider unveränderter
+  Geschwisterzweige — die dazwischenliegenden 7 Zeilen 161-167, die bestehende
+  `size_upload`-Puffergrößenprüfung, sind bewusst ausgespart, da dieses Repro nur die beiden
+  Override-Aufrufstellen selbst prüft, nicht die Rainbow-Table-Verschlüsselung oder die
+  16-Parcel-Manchester-Sendeschleife, die `btn`/`cnt` danach konsumieren; `sed 935,943p` für den
+  `get_string()`-Push-Block). Geprüft (30 Prüfungen):
+  1. **Szenario A (nur Tasten-Override, Modus 0, kein Zähler-Override):** der überschriebene
+     Wert wird zurückgegeben, maskiert auf `btn_length_bit` (4 von 8 Bit — `0xBD & 0xF == 0xD`,
+     hier beobachtbar, anders als bei Secplus v2s Phase-12-Szenario A, wo die volle 8-Bit-Breite
+     die Maske zur Identität machte); der Zähler läuft unverändert mit dem normalen
+     Standard-Inkrement weiter, da kein Zähler-Override anhängt und Modus bereits 0 ist — das
+     per Tasten-Override gesetzte `bypass` hat hier keine sichtbare Wirkung.
+  2. **Szenario B (Regression, kein Override, Modus 0):** `btn` bleibt der von
+     `get_btn_code()` gelieferte Wert, `cnt` erhält das einfache Standard-Inkrement.
+  3. **Szenario C (nur Zähler-Override, Modus 0, Standard-Mult wäre sonst aktiv):** der
+     Override übernimmt den überschriebenen, auf `cnt_length_bit` (16) maskierten Wert verbatim,
+     die gesamte `+mult`-Arithmetik wird übersprungen.
+  4. **Szenario D (Zähler-Override anhängend, während Modus 1 "floxi2r" aktiv ist):**
+     `subghz_block_generic_global_counter_override_get()` liefert nur `true`, wenn
+     `cnt_need_override` vorher per `..._set()` gesetzt wurde — der neue Anschlusspunkt
+     verwendet exakt dasselbe Flag als `bypass`-Auslöser, ein anhängender Zähler-Override setzt
+     `bypass` also immer vor der Modus-Prüfung — der floxi2r-Toggle wird für diesen Durchlauf
+     umgangen, genau wie ein anhängender Override bei CAME Atomo/Alutech AT-4N (Phase 7/8) die
+     dortige Zählermodus-Auswahl umgeht. Ohne anhängenden Override hätte Modus 1 stattdessen
+     `0x5000` → `0xFFFE` getoggelt (siehe Szenario F).
+  5. **Szenario E (nur Tasten-Override anhängend, kein Zähler-Override, Modus 2 "ox2" aktiv):**
+     das per Tasten-Override gesetzte `bypass` ist dasselbe Flag, das die Modus-Verzweigung
+     prüft — obwohl gar kein Zähler-Override anhängt, wird der aktive Modus-2-Toggle für diesen
+     einen Durchlauf zugunsten des Standard-Zweigs verdrängt (`override_get()` liefert `false`,
+     da `cnt_need_override` nicht gesetzt ist, der `+mult`-Zweig läuft stattdessen). Ohne
+     anhängenden Tasten-Override hätte Modus 2 stattdessen `0x7` → `0` getoggelt (siehe
+     Szenario G) — die im Fließtext ("Phase 13: Nice FloR-S") dokumentierte Nebenwirkung des
+     gemeinsam genutzten `bypass`-Flags, reales, bereits mit dem Mechanismus mitgeliefertes
+     Verhalten.
+  6. **Szenario F (Regression, kein Override, Modus 1, beide realen Unterfälle):** Toggle
+     zwischen `0xFFFE` und `0x0001`.
+  7. **Szenario G (Regression, kein Override, Modus 2, beide realen Unterfälle):** `cnt >= 1`
+     setzt auf `0` zurück, `cnt == 0` erhöht auf `1`.
+  8. **Szenario H (Regression, kein Override, Modus 0, OFEX-Sentinel aktiv, alle drei realen
+     Unterfälle):** `cnt == 0xFFFF` setzt auf `0` zurück; `cnt >= 1 && cnt != 0xFFFE` springt auf
+     `0xFFFE`; sonst (`cnt == 0` oder `cnt == 0xFFFE`) wird um eins erhöht.
+  9. **Szenario I (Zähler-Override anhängend, OFEX-Sentinel aktiv, Modus 0):** derselbe
+     `cnt_need_override`-zu-`bypass`-Auslöser wie Szenario D macht den Override auch bei
+     aktivem OFEX-Sentinel erreichbar — die Bedingung wird über den `|| bypass`-Arm wahr, nicht
+     über den Mult-Vergleich.
+  10. **Szenario J (beide Overrides gleichzeitig, Modus 0):** Tasten- und Zähler-Override
+      greifen unabhängig im selben Durchlauf — der reale Code ruft den Tasten-Block unbedingt
+      vor dem Zähler-Block auf.
+  11. `get_string()`s Push-Block setzt `cnt_is_available` unbedingt `true`/`cnt_length_bit`
+      unbedingt `16`/`current_cnt` korrekt sowie `btn_is_available` unbedingt `true`/
+      `current_btn`/`btn_length_bit` unbedingt `4` korrekt, für zwei unterschiedliche
+      Zähler-/Tastenwerte (inkl. des Randfalls beide `0`).
+  12. Die in Phase 1 dokumentierte Reihenfolge-Abhängigkeit (`cnt_length_bit`/`btn_length_bit`
+      vor dem ersten `_override_get()`-Aufruf) für die realen Bitbreiten dieses Protokolls
+      (16/4) explizit durchexerziert: `get_string()`-Fragment zuerst ausgeführt (setzt beide
+      Längen), danach ein Override-Set/Get-Durchlauf im `encode()`-Fragment unter
+      Wiederverwendung dieser Längen — kein UB, korrekt maskiertes Ergebnis auf beiden Feldern.
+  - Gebaut und ausgeführt mit `gcc -std=c17 -Wall -Wextra -O0`/`-O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=undefined`: **30 Prüfungen bestanden**, identischer Output beider
+    Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde,
+    `g_unexpected_stub_calls` bleibt bei 0.
+  - Build-Befehl (aus
+    `firmware-mining/repro-subghz-block-generic-global-override-port-phase13/`):
+    `gcc -std=c17 -Wall -Wextra -O0 -fsanitize=address,undefined -fno-sanitize-recover=undefined
+    -I ../subghz-block-generic-global-override-port -I mocks/lib/subghz/blocks -I mocks
+    ../subghz-block-generic-global-override-port/lib/subghz/blocks/generic.c stubs.c repro.c -o repro`
+
 ## Port-Skizze
 
 1. **Phase 1 (geliefert, diese Sitzung):** `generic.h`/`generic.c` additiv um
@@ -2397,3 +2599,24 @@ Ich liefere additiv, genau zwei Anschlussstellen in meiner eigenen `secplus_v2.c
   weitere, unabhängige Zweitkopien derselben Basis angelegt, siehe "Verifikation Phase 12"):
   eigene Basis für `lib/subghz/protocols/secplus_v2.c`, Ausgangspunkt für
   `connective-patches/secplus_v2_c.patch`.
+- (Phase 13) Unleashed-Firmware, `dev`-Branch, Commit `1cdda9a44698126ac49dab9153761762be82252d`
+  (per frischem `git clone` zu Sitzungsbeginn geholt): `lib/subghz/protocols/nice_flor_s.c` zum
+  vollständigen Diff gegen meine eigene Basis herangezogen, die drei Override-Anschlusspunkte
+  (siehe "Phase 13: Nice FloR-S") daraus übernommen; der übrige, hier nicht übernommene Teil des
+  Diffs besteht aus zwei getrennten Blöcken — einer bei mir komplett fehlenden "Nice
+  One"/"Nice O-Code"-Erweiterung (112-Bit-Rahmen, Installer-Code, Zertifikat-Parcels,
+  `public_api.h`-Custom-Button-Zyklus) sowie der auf einen 32-Byte-RAM-Puffer umgestellten
+  Rainbow-Table-Ladefunktion (dieselbe Art Umbau wie bei Alutech AT-4N, Phase 8) — beide hängen
+  mit diesem Port nicht zusammen und werden nicht übernommen. Zusätzlich gegen
+  `Next-Flip/Momentum-Firmware` quergelesen: eigene Basis ist byte-identisch zum `mntm-012`-Tag
+  (Commit `e1784e7418d8b074e971983ceb6fef0f37e52ae4`, per `md5sum` bestätigt), der `dev`-Branch
+  (Commit `d3f89dfe2ef6b01839201598e9be1590cba80322`) trägt denselben, hier portierten
+  Mechanismus bereits byte-für-byte identisch zu Unleasheds Anschluss (eigenständige
+  Bestätigung über eine zweite, unabhängige Fork-Linie, zusätzlich zur sonst üblichen
+  Unleashed-Quelle).
+- (Phase 13) `G4MEOVER18/G4MEOVER-FW`, `main`, Commit `b359f6fc32f282ce7217dd2d48a4e3478771852e`
+  (per frischem `git clone` zu Sitzungsbeginn Phase 13 erneut als unverändert aktueller
+  `HEAD`-Stand bestätigt, identisch zu Phase 1-12; für die Patch-Verifikation zusätzlich zwei
+  weitere, unabhängige Zweitkopien derselben Basis angelegt, siehe "Verifikation Phase 13"):
+  eigene Basis für `lib/subghz/protocols/nice_flor_s.c`, Ausgangspunkt für
+  `connective-patches/nice_flor_s_c.patch`.
