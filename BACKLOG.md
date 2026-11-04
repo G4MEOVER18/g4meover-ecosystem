@@ -10451,3 +10451,96 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt zusätzlich:
       lokaler Test des hier gelieferten `nice_flor_s`-Override-Ports sowie der oben vermerkten
       fehlenden Phase-12-BACKLOG-Eintragung.
+
+## Ideen-Recherche: Simultaneous UHF RFID Reader (haffnerriley) — zwölf UI-views/*.c-Dateien erstgeprüft, convert_to_hex_string()-Fund
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` gelesen, `reports/`-Verzeichnis und `git log` durchgesehen:
+      letzte Sitzung war Firmware-Feature-Mining (SubGhzBlockGenericGlobal Phase 13, Nice
+      FloR-S), davor App-Verbesserung (g4meover-wifi-relay). Git-Identität vor dem ersten eigenen
+      Commit gesetzt (`G4MEOVER18 <g4me.over.18@gmail.com>`). Lokaler Checkout stand zu
+      Sitzungsbeginn mit `HEAD` sieben Commits vor dem lokalen `main`-Zeiger; `git fetch origin`
+      zeigte, dass `origin/main` tatsächlich bereits auf demselben, aktuellen Stand wie `HEAD`
+      liegt — wie in den letzten Sitzungen reiner veralteter lokaler Remote-Tracking-Snapshot des
+      frischen Checkouts, kein echter Branch-Zeiger-Drift. Lokales `main` per `git reset --hard
+      origin/main` synchronisiert.
+- [x] SubGhzBlockGenericGlobal-Nachzieh-Liste ist mit Phase 13 vollständig abgearbeitet (keine
+      weitere Firmware-Mining-Fortsetzung an diesem Themenblock möglich); App-Verbesserung
+      (`g4meover-deck`, `g4meover-wifi-relay`-Geschwister `heltec-v4-hub`/`lilygo-ukfe-rx`/
+      `heltec-ukfe-rx`) geprüft, aber keine der naheliegenden Kandidatenstellen (ESP-NOW-Längen-
+      Abgleich in `heltec-v4-hub`/`lilygo-ukfe-rx`/`heltec-ukfe-rx` bereits korrekt auf die reale
+      Empfangslänge geklemmt; `g4meover-deck/scenario_runner.py`s eigenständiger, unpersistenter
+      Counter bereits in einer früheren Sitzung explizit als bewusst isolierter Labor-Fall
+      eingeordnet) ergab einen neuen, eigenständigen Fund — stattdessen den offenen
+      Ideen-Recherche-Rückstellpunkt aufgegriffen: die bei `simultaneous_rfid_reader` zuletzt noch
+      offenen zwölf UI-`views/*.c`-Dateien.
+- [x] Frischer `git clone` von `haffnerriley/Simultaneous-UHF-RFID-FlipperZero` (`main`, Commit
+      `1dfefed1c67078da8c416b7b93c02eaa25e220fa`, identisch zum bereits dokumentierten Stand) —
+      alle zwölf `views/*.c`-Dateien (4620 Zeilen) vollständig gelesen.
+- [x] Fund in `view_read.c::convert_to_hex_string()`: identischer Fehler wie bereits bei
+      `uhf_rfid/uhf_app.c::convertToHexString()` dokumentiert (`firmware-mining/
+      uhfrfid-hexstring-oob-read-fix.md`) — mit dem aus `uhf_rfid` übernommenen YRM100-Kern in
+      die Views dieses Forks gewandert. `malloc(sizeof(char) * str_len)`/`memcpy(str, furi_str,
+      str_len)` reservieren und kopieren ohne die `+1` für den Nullterminator aus
+      `furi_string_get_cstr()`. Alle fünf Aufrufstellen (`view_config.c:397,733`,
+      `view_kill.c:107,215`, `view_lock.c:59`) übergeben feste 4-Byte-Passwortpuffer (der
+      `array == NULL || length == 0`-Zweig wird hier nie erreicht) und reichen den Rückgabewert
+      per `snprintf(tempBuffer, N, "%s", ...)` weiter — Heap-Buffer-Overflow-Read bei jedem
+      einzelnen der fünf Aufrufe. Zusätzlich: anders als bei `uhf_rfid` (dort Absturz durch
+      unconditional `free()` auf einen String-Literal-Leerfall) ruft hier an keiner der fünf
+      Stellen irgendjemand `free()` auf den Rückgabewert — eigenständiges Speicherleck, vom
+      reinen Terminator-Fix unberührt.
+- [x] Nebenfund, dieselbe Funktion: `view_config.c:731–735` — eine `strncpy()`-Anweisung auf den
+      sofort verworfenen `convert_to_hex_string()`-Rückgabewert, trotz Kommentar "Modify the
+      value of the AP" ohne jede Wirkung auf `App->ApTempBuffer` (die tatsächliche
+      Aktualisierung läuft über den separat registrierten `byte_input_set_result_callback(...,
+      App->ApTempBuffer, ...)`); kein Speicherfehler über Puffergrenzen hinaus
+      (`ApInputBufferSize` 4 < 12-Byte-Zielallokation), aber totes, irreführendes Füllcode mit
+      zusätzlichem Leck-Seiteneffekt.
+- [x] Fix (additiv, zwei Zeilen plus echter Leerfall-Rückgabewert statt String-Literal, nur
+      `convert_to_hex_string()` selbst): `+1` bei Allokation und `memcpy`-Länge ergänzt, Leerfall
+      gibt jetzt einen echten, freibaren 1-Byte-Heap-String zurück. Patch
+      (`ideas/simultaneous-rfid-reader-convert-to-hex-string-no-terminator-fix/
+      view_read_c.patch`) gegen zwei frische, unabhängige Zweitkopien per `git apply --check`/
+      real sowie `patch -p1 --dry-run`/real verifiziert, beide Ergebnisse per `md5sum`
+      byte-identisch zueinander und zur Referenzkopie.
+- [x] Host-Repro (`ideas/repro-simultaneous-rfid-reader-convert-to-hex-string-no-terminator/
+      repro.c`): drei fork-isolierte Szenarien unter `gcc -std=c17 -Wall -Wextra -O0`/`-O1
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined`, `ASAN_OPTIONS=detect_leaks=1`
+      (LeakSanitizer unter Linux mit `-fsanitize=address` standardmäßig aktiv). Szenario A/ALT
+      (realer `view_lock.c`-Zielpuffer `malloc(8)`/`snprintf`) bricht mit
+      `AddressSanitizer: heap-buffer-overflow ... READ of size 13 ... 0 bytes after 12-byte
+      region` ab; Szenario A/NEU (Terminator-Fix allein, nachgebildete Aufrufstelle weiterhin
+      ohne `free()`) läuft nicht ab, aber `LeakSanitizer: detected memory leaks, Direct leak of
+      13 byte(s)` bestätigt das vom Funktions-Fix unberührte Leck; Szenario B (Terminator-Fix
+      plus `free()` an der Aufrufstelle) läuft bei beiden Optimierungsstufen identisch sauber
+      durch, keine Compiler-Warnungen. Sichtbar auch der unveränderte Truncation-Effekt des
+      festen 8-Byte-Zielpuffers (`tempBuffer="DE AD B"` statt der vollen 12-Zeichen-Darstellung) —
+      bereits vorbestehendes, nicht sicherheitsrelevantes Anzeige-Detail, nicht Gegenstand dieses
+      Fixes.
+- [x] `ideas/simultaneous-rfid-reader-app-status.md` um den Abschnitt "Fund 3:
+      `view_read.c::convert_to_hex_string()` — kein Nullterminator, Rückgabewert nirgends
+      freigegeben" ergänzt, `ideas/pentest-app-katalog.md`-Katalogzeile und laufender
+      Recherche-Log entsprechend aktualisiert — für dieses Projekt ist damit kein
+      Erstprüfungs-Rückstand mehr offen.
+- [ ] Lokal zu tun: Patch gegen die eigene `Simultaneous-UHF-RFID-FlipperZero`-Kopie anwenden, mit
+      `ufbt`/`fbt` bauen. Regressionsfall: Access-/Kill-Passwort in den Settings-Views setzen und
+      wieder anzeigen lassen muss vor und nach dem Fix identisch funktionieren (korrekte,
+      vollständige Hex-Anzeige statt eines durch Zufall im Heap stehenden Suffixes).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/
+      Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0, siehe vorheriger Report), das hier neu dokumentierte Speicherleck an den
+      fünf `convert_to_hex_string()`-Aufrufstellen sowie der tote `strncpy()`-Nebenfund in
+      `view_config.c:731–735` (beide bewusst nicht in diesen Patch gezogen), lokaler Test aller
+      bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt
+      zusätzlich: lokaler Test des hier gelieferten `convert_to_hex_string()`-Terminator-Fixes.

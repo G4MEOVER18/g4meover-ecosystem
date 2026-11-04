@@ -337,9 +337,31 @@ dem Flipper führt — keine Umgehung einer fremden Schutzfunktion.
 Gering: additive Zwei-Zeilen-Klemme an der bestehenden Zielgröße, keine Signatur-/Strukturänderung,
 Host-Repro Fall 1 bestätigt den unveränderten Normalfall explizit.
 
+## Fund 3: `view_read.c::convert_to_hex_string()` — kein Nullterminator, Rückgabewert nirgends freigegeben
+
+Die zuletzt noch offenen zwölf UI-`views/*.c`-Dateien jetzt vollständig gelesen (4620 Zeilen).
+Fund im zentralen Passwort-Hex-Formatierer `convert_to_hex_string()` (`view_read.c`), identisch
+zum bereits dokumentierten `convertToHexString()`-Fehler im Ursprungsprojekt `uhf_rfid`
+(`firmware-mining/uhfrfid-hexstring-oob-read-fix.md`) — hier mit in die Views dieses Forks
+gewandert: fehlende `+1` bei Allokation/Kopie für den Nullterminator (Heap-Buffer-Overflow-Read
+bei allen fünf Aufrufstellen in `view_config.c`/`view_kill.c`/`view_lock.c`, die den Rückgabewert
+per `snprintf(..., "%s", ...)` weiterverarbeiten) sowie ein an keiner der fünf Aufrufstellen
+behobenes Speicherleck (anders als bei `uhf_rfid`, wo stattdessen ein unconditional `free()` im
+Leerfall abstürzt). Zusätzlicher Nebenfund in `view_config.c:731–735`: eine tote `strncpy()`-
+Anweisung auf einen sofort verworfenen `convert_to_hex_string()`-Rückgabewert, die den im
+Kommentar behaupteten Effekt ("Modify the value of the AP") gar nicht erzielt — die tatsächliche
+Aktualisierung von `App->ApTempBuffer` passiert ausschließlich über den separat registrierten
+`byte_input`-Widget-Callback.
+
+Vollständiger Befund, Patch (`view_read_c.patch`, nur die eine Funktion) und Host-Repro unter
+AddressSanitizer/UBSan/LeakSanitizer (drei Szenarien: Overflow-Read, Leck trotz reinem
+Funktions-Fix, saubere Kombination aus Fix + `free()` an der Aufrufstelle) in
+`ideas/simultaneous-rfid-reader-convert-to-hex-string-no-terminator-fix.md`.
+
 ## Nächster Schritt (aktualisiert)
-YRM100-Kern dieses Forks ist jetzt vollständig gelesen. Weiterhin offen: die zwölf
-UI-`views/*.c`-Dateien (app.c, view_about/config/delete/delete_success/epc/epc_info/kill/lock/
-read/saved/tag_actions/write.c) noch nicht erstgeprüft, für eine künftige Sitzung vorgemerkt.
-Lokaler Build-/Funktionstest des hier gelieferten Fixes sowie des bereits zuvor dokumentierten
-`ring_buffer_extract_line()`-Fixes weiterhin offen.
+YRM100-Kern und alle zwölf UI-`views/*.c`-Dateien dieses Forks jetzt vollständig gelesen, kein
+offener Erstprüfungs-Rückstand mehr. Weiterhin offen: lokaler Build-/Funktionstest aller drei
+bisher gelieferten Fixes (`ring_buffer_extract_line()`, `uhf_tag_set_tid()`/`_set_user()`,
+`convert_to_hex_string()`); das in Fund 3 benannte, bewusst nicht mitgezogene Speicherleck an den
+fünf Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` als
+eigenständige Nacharbeit für eine künftige Sitzung.

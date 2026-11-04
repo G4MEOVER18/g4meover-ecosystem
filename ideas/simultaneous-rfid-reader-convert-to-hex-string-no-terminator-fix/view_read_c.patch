@@ -1,0 +1,25 @@
+--- copy2/simultaneous_rfid_reader/views/view_read.c	2026-11-04 00:30:05.282270939 +0000
++++ copy1/simultaneous_rfid_reader/views/view_read.c	2026-11-04 00:30:23.286624769 +0000
+@@ -12,7 +12,9 @@
+ */
+ char* convert_to_hex_string(uint8_t* array, size_t length) {
+     if(array == NULL || length == 0) {
+-        return " ";
++        char* empty = (char*)malloc(1);
++        empty[0] = '\0';
++        return empty;
+     }
+     FuriString* temp_str = furi_string_alloc();
+ 
+@@ -22,9 +24,9 @@
+     const char* furi_str = furi_string_get_cstr(temp_str);
+ 
+     size_t str_len = strlen(furi_str);
+-    char* str = (char*)malloc(sizeof(char) * str_len);
++    char* str = (char*)malloc(sizeof(char) * (str_len + 1));
+ 
+-    memcpy(str, furi_str, str_len);
++    memcpy(str, furi_str, str_len + 1);
+     furi_string_free(temp_str);
+     return str;
+ }
