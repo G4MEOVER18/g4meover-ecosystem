@@ -1,0 +1,23 @@
+--- a/magtool/magtool.py	2026-11-04 06:23:45.785470108 +0000
++++ b/magtool/magtool.py	2026-11-04 06:23:45.787412912 +0000
+@@ -66,6 +66,20 @@
+     t1 = build_track1(args.pan, args.name, args.expiry, args.service)
+     t2 = build_track2(args.pan, args.expiry, args.service)
+     t3 = args.track3 or ""
++    # Eigene Validierung vor dem Schreiben anwenden (sonst erzeugt z.B. ein '^' in
++    # --name klaglos einen dritten Feldtrenner in Track 1 -- siehe Fund unten).
++    errs = {1: validate_track1(t1), 2: validate_track2(t2)}
++    if t3:
++        errs[3] = validate_track2(t3, 107)
++    bad = {n: es for n, es in errs.items() if es}
++    if bad:
++        for n, es in sorted(bad.items()):
++            for e in es:
++                print(f"Track {n}: {e}", file=sys.stderr)
++        sys.exit(
++            "Erzeugte Tracks sind ungueltig (z.B. '^' in --name oder nicht "
++            "erlaubte Zeichen) -- Datei wurde NICHT geschrieben."
++        )
+     content = (
+         f"{MAG_HEADER}\n{MAG_VERSION}\n"
+         f"# Mag device track data\n"

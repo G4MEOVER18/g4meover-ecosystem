@@ -10544,3 +10544,75 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `view_config.c:731–735` (beide bewusst nicht in diesen Patch gezogen), lokaler Test aller
       bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt
       zusätzlich: lokaler Test des hier gelieferten `convert_to_hex_string()`-Terminator-Fixes.
+
+## App-Verbesserung: g4meover-companion / magtool — `build` schreibt ungeprüft, auch wenn das Ergebnis die eigenen Validierungsregeln verletzt
+
+- [x] Letzte Sitzung war Ideen-Recherche (Simultaneous UHF RFID Reader,
+      `convert_to_hex_string()`-Terminator-Fix), davor Firmware-Feature-Mining (Phase 13, Nice
+      FloR-S), davor App-Verbesserung (`g4meover-wifi-relay`) — diese Sitzung also wieder
+      App-Verbesserung. `reports/` durchgesehen, keine Wiederholung eines bereits erfassten
+      Fundes.
+- [x] Frischer `git clone` von `G4MEOVER18/g4meover-companion` (`main`, Commit
+      `ceb068bf278feae4a8180d24330111e0b911301d`, identisch zum zuletzt geprüften Stand).
+      Von den fünf PC-Begleit-Skripten hatten `flipperbridge.py` und `webdeck.py` bereits
+      dokumentierte Funde; `vault_organizer.py` und `magtool.py` waren laut vorherigem Report
+      bereits "gegen die zugehörigen ISO/IEC-7811-Zeichensatz-Annahmen durchgerechnet: beide
+      intern konsistent, kein Fund" — dort ging es um die LRC-/Zeichensatz-Berechnung selbst.
+      `cockpit.py` vollständig gelesen: dünner Terminal-Wrapper um `flipperbridge.py`, kein
+      neuer, eigenständiger Fund.
+- [x] `magtool.py` erneut aufgegriffen, diesmal die Interaktion zwischen `cmd_build()` und den
+      bereits vorhandenen `validate_track1()`/`validate_track2()` geprüft statt der
+      Zeichensatz-/LRC-Mathematik selbst: `cmd_build()` validiert vor dem Schreiben
+      ausschließlich PAN/Expiry/Service-Code per Regex, `--name` und `--track3` laufen
+      ungeprüft in `build_track1()`/Track 3 ein. Enthält `--name` selbst ein `^` oder ein
+      Zeichen außerhalb von `T1_CHARSET` (auch `.upper()` rettet z. B. Umlaute nicht), entsteht
+      eine laut `validate_track1()` strukturell falsche Track-1-Zeile (z. B. ein dritter
+      Feldtrenner) — `build` schreibt sie trotzdem anstandslos mit Exit-Code 0. Dasselbe gilt
+      für einen ungültigen `--track3`-Rohstring. `build` und `validate` desselben Tools
+      widersprechen sich damit: Erfolg laut `build`, "FEHLER" laut `validate` für dieselbe
+      Datei — Port-Vorschlag in
+      `app-improvements/g4meover-companion/magtool-build-missing-track-validation-fix.md`.
+- [x] Fix additiv: `cmd_build()` ruft nach dem Track-Aufbau die bereits vorhandenen
+      `validate_track1()`/`validate_track2()` auf und bricht bei einem Fehler mit klarer
+      Meldung ab, statt zu schreiben; `build_track1()`/`build_track2()`/die
+      Validierungsfunktionen selbst bleiben unverändert. Patch
+      (`magtool-build-missing-track-validation-fix/connective-patches/magtool_py.patch`)
+      per `git apply --check`/real sowie `patch -p1 --dry-run`/real gegen zwei frische,
+      unabhängige Zweitkopien angewendet, beide Ergebnisse laut `md5sum` byte-identisch
+      zueinander und zur Zieldatei (`magtool_py.target`,
+      `f671c6e142f08f59d4000f4a7cc17af1`); `python3 -m py_compile` auf allen drei Kopien ohne
+      Fehler.
+- [x] Host-Repro
+      (`magtool-build-missing-track-validation-fix/repro-build-no-validation/repro.py`):
+      importiert die unveränderten Bausteine direkt aus der echten `magtool.py`, transkribiert
+      ALT/NEU 1:1 aus `cmd_build()`. 5/5 Fälle bestanden: normaler Name sowie gültiger
+      nicht-leerer `--track3` schreiben bei ALT und NEU identisch (Regression); Caret im
+      `--name`, Umlaut im `--name` sowie ungültiger `--track3` schreiben bei ALT weiterhin
+      anstandslos, bei NEU verweigert — jeweils zusätzlich geprüft, dass
+      `build_track1()`/`build_track2()` selbst zwischen ALT und NEU identische Tracks liefern
+      (nur der Schreibvorgang ändert sich).
+- [ ] Lokal zu tun: Patch gegen die eigene `magtool.py`-Kopie anwenden.
+      `magtool.py build --pan 4111111111111111 --expiry 2512 --name "SMITH^JOHN" --out test.mag`
+      ausführen — vor dem Fix Exit-Code 0 trotz einer laut `validate` fehlerhaften Datei, nach
+      dem Fix sofortiger Abbruch ohne geschriebene Datei. Danach Regressionsprobe mit einem
+      normalen Namen ohne Sonderzeichen wiederholen (unverändert erfolgreich, `validate` meldet
+      weiterhin "OK"). Reine PC-Seite, kein Flipper/Hardware nötig.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/
+      Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-Aufrufstellen
+      sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt zusätzlich: lokaler Test des
+      hier gelieferten `magtool`-`build`-Validierungs-Fixes.

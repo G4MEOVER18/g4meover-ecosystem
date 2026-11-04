@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""G4MEOVER magtool - PC-Begleit-Tool fuer die G4MEOVER-MagSpoof-App.
+
+Baut, validiert und liest `.mag`-Dateien (Flipper Mag device, Version 1).
+Reines Test-/Forschungswerkzeug fuer eigene Karten / autorisierte Tests.
+
+Subcommands:
+  build     .mag aus PAN/Name/Expiry/Service-Code erzeugen (Track 1 + 2)
+  validate  Tracks strukturell pruefen (Sentinels, Zeichensatz, Felder) + LRC zeigen
+  info      Felder einer .mag auslesen (PAN, Name, Expiry, Service-Code)
+"""
+import argparse
+import re
+import sys
+
+MAG_HEADER = "Filetype: Flipper Mag device"
+MAG_VERSION = "Version: 1"
+
+# Zeichensaetze (ISO/IEC 7811)
+T1_CHARSET = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_"
+)  # 0x20..0x5F
+T2_CHARSET = set("0123456789:;<=>?")  # 5-bit numerisch + Steuerzeichen
+
+
+# ---------- LRC / Paritaet ----------
+def _t2_lrc(data_chars):
+    """LRC-Zeichen fuer 5-bit-Tracks (Track 2/3), ueber die Datenzeichen incl. Sentinels.
+    Rueckgabe: das LRC-Zeichen (aus T2_CHARSET)."""
+    # 4-Bit-Wert je Zeichen: '0'-'9' -> 0-9, ':'=10 ';'=11 '<'=12 '='=13 '>'=14 '?'=15
+    vals = [ord(c) - ord("0") for c in data_chars]
+    lrc = 0
+    for v in vals:
+        lrc ^= (v & 0x0F)  # spaltenweise even-Paritaet ueber 4 Datenbits
+    return chr(lrc + ord("0"))
+
+
+def _t1_lrc(data_chars):
+    """LRC fuer 7-bit-Track 1 (6 Datenbits), ueber die Zeichen ab '%'..'?'."""
+    lrc = 0
+    for c in data_chars:
+        lrc ^= ((ord(c) - 0x20) & 0x3F)
+    return chr(lrc + 0x20)
+
+
+# ---------- Track-Bau ----------
+def build_track1(pan, name, expiry, service):
+    # %B<PAN>^<NAME>^<YYMM><SVC><disc>?
+    name = name.upper().strip()
+    track = f"%B{pan}^{name}^{expiry}{service}?"
+    return track
+
+
+def build_track2(pan, expiry, service):
+    # ;<PAN>=<YYMM><SVC><disc>?
+    return f";{pan}={expiry}{service}?"
+
+
+def cmd_build(args):
+    if not re.fullmatch(r"\d{12,19}", args.pan):
+        sys.exit("PAN muss 12-19 Ziffern sein.")
+    if not re.fullmatch(r"\d{4}", args.expiry):
+        sys.exit("Expiry muss YYMM (4 Ziffern) sein.")
+    if not re.fullmatch(r"\d{3}", args.service):
+        sys.exit("Service-Code muss 3 Ziffern sein.")
+    t1 = build_track1(args.pan, args.name, args.expiry, args.service)
+    t2 = build_track2(args.pan, args.expiry, args.service)
+    t3 = args.track3 or ""
+    # Eigene Validierung vor dem Schreiben anwenden (sonst erzeugt z.B. ein '^' in
+    # --name klaglos einen dritten Feldtrenner in Track 1 -- siehe Fund unten).
+    errs = {1: validate_track1(t1), 2: validate_track2(t2)}
+    if t3:
+        errs[3] = validate_track2(t3, 107)
+    bad = {n: es for n, es in errs.items() if es}
+    if bad:
+        for n, es in sorted(bad.items()):
+            for e in es:
+                print(f"Track {n}: {e}", file=sys.stderr)
+        sys.exit(
+            "Erzeugte Tracks sind ungueltig (z.B. '^' in --name oder nicht "
+            "erlaubte Zeichen) -- Datei wurde NICHT geschrieben."
+        )
+    content = (
+        f"{MAG_HEADER}\n{MAG_VERSION}\n"
+        f"# Mag device track data\n"
+        f"Track 1: {t1}\n"
+        f"Track 2: {t2}\n"
+        f"Track 3: {t3}\n"
+    )
+    with open(args.out, "w", newline="\n") as f:
+        f.write(content)
+    print(f"Geschrieben: {args.out}")
+    print(f"  Track 1: {t1}")
+    print(f"  Track 2: {t2}")
+    print(f"  LRC(T1)={_t1_lrc(t1)!r}  LRC(T2)={_t2_lrc(t2)!r}")
+
+
+# ---------- Parsing / Validierung ----------
+def read_tracks(path):
+    tracks = {1: "", 2: "", 3: ""}
+    with open(path, encoding="utf-8") as f:
+        head = f.readline().strip()
+        if not head.startswith("Filetype: Flipper Mag device"):
+            sys.exit(f"Kein Mag-device-File: {path}")
+        for line in f:
+            m = re.match(r"Track (\d):\s?(.*)", line.rstrip("\n"))
+            if m:
+                tracks[int(m.group(1))] = m.group(2)
+    return tracks
+
+
+def validate_track1(t):
+    errs = []
+    if not t:
+        return ["leer"]
+    if not t.startswith("%"):
+        errs.append("Startsentinel '%' fehlt")
+    if not t.endswith("?"):
+        errs.append("Endsentinel '?' fehlt")
+    bad = sorted(set(c for c in t if c not in T1_CHARSET))
+    if bad:
+        errs.append(f"ungueltige Zeichen: {bad}")
+    if t.count("^") != 2:
+        errs.append("erwarte genau 2 Feldtrenner '^'")
+    if len(t) > 79:
+        errs.append(f"zu lang ({len(t)}>79)")
+    return errs
+
+
+def validate_track2(t, maxlen=40):
+    errs = []
+    if not t:
+        return ["leer"]
+    if not t.startswith(";"):
+        errs.append("Startsentinel ';' fehlt")
+    if not t.endswith("?"):
+        errs.append("Endsentinel '?' fehlt")
+    bad = sorted(set(c for c in t if c not in T2_CHARSET))
+    if bad:
+        errs.append(f"ungueltige Zeichen: {bad}")
+    if t.count("=") != 1:
+        errs.append("erwarte genau 1 Feldtrenner '='")
+    if len(t) > maxlen:
+        errs.append(f"zu lang ({len(t)}>{maxlen})")
+    return errs
+
+
+def cmd_validate(args):
+    tracks = read_tracks(args.file)
+    ok = True
+    checks = {
+        1: validate_track1(tracks[1]),
+        2: validate_track2(tracks[2], 40),
+        3: validate_track2(tracks[3], 107) if tracks[3] else ["(leer, optional)"],
+    }
+    for n in (1, 2, 3):
+        errs = checks[n]
+        lrc = ""
+        if tracks[n]:
+            lrc = f"  LRC={_t1_lrc(tracks[n]) if n==1 else _t2_lrc(tracks[n])!r}"
+        real_errs = [e for e in errs if not e.startswith("(")]
+        status = "OK" if not real_errs else "FEHLER"
+        if real_errs:
+            ok = False
+        print(f"Track {n}: {status}{lrc}")
+        for e in errs:
+            print(f"    - {e}")
+    sys.exit(0 if ok else 2)
+
+
+def cmd_info(args):
+    tracks = read_tracks(args.file)
+    t1, t2 = tracks[1], tracks[2]
+    print(f"Datei: {args.file}")
+    m1 = re.match(r"%B(\d+)\^([^^]*)\^(\d{2})(\d{2})(\d{3})", t1)
+    if m1:
+        pan, name, yy, mm, svc = m1.groups()
+        print("  [Track 1]")
+        print(f"    PAN         : {pan}")
+        print(f"    Name        : {name.strip()}")
+        print(f"    Expiry (MM/YY): {mm}/{yy}")
+        print(f"    Service-Code: {svc}")
+    m2 = re.match(r";(\d+)=(\d{2})(\d{2})(\d{3})", t2)
+    if m2:
+        pan, yy, mm, svc = m2.groups()
+        print("  [Track 2]")
+        print(f"    PAN         : {pan}")
+        print(f"    Expiry (MM/YY): {mm}/{yy}")
+        print(f"    Service-Code: {svc}")
+    if not (m1 or m2):
+        print("  (keine Standard-Felder erkannt)")
+
+
+def main():
+    p = argparse.ArgumentParser(prog="magtool", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    b = sub.add_parser("build", help=".mag erzeugen")
+    b.add_argument("--pan", required=True, help="12-19 Ziffern")
+    b.add_argument("--name", default="G4MEOVER/TEST", help="NACHNAME/VORNAME")
+    b.add_argument("--expiry", required=True, help="YYMM")
+    b.add_argument("--service", default="101", help="3-stelliger Service-Code")
+    b.add_argument("--track3", default="", help="optionaler Track-3-Rohstring")
+    b.add_argument("--out", required=True, help="Ausgabe .mag")
+    b.set_defaults(func=cmd_build)
+
+    v = sub.add_parser("validate", help="Tracks pruefen")
+    v.add_argument("file")
+    v.set_defaults(func=cmd_validate)
+
+    i = sub.add_parser("info", help="Felder auslesen")
+    i.add_argument("file")
+    i.set_defaults(func=cmd_info)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
