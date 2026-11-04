@@ -1,4 +1,4 @@
-# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal + Phase 4 (Phase 1-4b von 5)
+# Texkom (13,56-MHz-Zutrittsschlüssel): Protokollkern + Poller + Listener/Signal + Phase 4 + Phase 5 (vollständig, 5 von 5)
 
 ## Was
 
@@ -103,6 +103,69 @@ mehrteilige NFC-Protokollfamilien (MIFARE-Plus-/Ultralight-AES-Port):
 bereite Datei (siehe "Betroffene Dateien") — mit `RX_CONF3` weiterhin als einzigem, nur an
 Hardware zu klärendem Punkt (siehe "Risiko"). Die UI-Anbindung (Phase 5) weiterhin nicht
 Teil dieser Sitzung.
+
+## Update (Phase 5, diese Sitzung) — letzter Schritt: Protokollbaum-Registrierung und UI
+
+Phase 5 schließt diese Portierung ab. Geliefert sind jetzt alle fünf geplanten Phasen:
+`lib/nfc/protocols/nfc_protocol.c/.h` (neuer Basisknoten `NfcProtocolTexkom`),
+`lib/nfc/protocols/nfc_device_defs.c/nfc_poller_defs.c/nfc_listener_defs.c` (Dispatch-Tabellenzeilen
+auf die bereits in Phase 1-4b gelieferten Dateien), `lib/nfc/SConscript` (Export der drei
+öffentlichen Header), sowie die UI-Anbindung selbst
+(`applications/main/nfc/helpers/protocol_support/texkom/texkom.c/.h`, `texkom_render.c/.h`).
+
+Beim Nachvollziehen der ursprünglich als "ein Enum-Wert, ein Baumeintrag, plus die
+UI-Anbindung" benannten Port-Skizze (siehe "Port-Skizze", Punkt 6) sind zwei bislang nicht
+benannte, aber tatsächlich nötige Anschlussstellen aufgefallen, ohne die ein Texkom-Tag die
+App zum Absturz bringen bzw. überhaupt keine UI zeigen würde — siehe "Betroffene Dateien" für
+den vollen Umfang:
+
+1. `applications/main/nfc/application.fam` — jedes Protokoll-UI-Modul ist bei mir als
+   eigenständiges Plugin (`App(appid="nfc_<protokoll>", apptype=FlipperAppType.PLUGIN, ...)`)
+   registriert, das zu einer eigenen `.fal`-Datei unter `apps_data/nfc/plugins/` baut. Ohne
+   einen eigenen `nfc_texkom`-Eintrag hier gäbe es nie eine `nfc_texkom.fal` — die unten
+   genannte Laufzeit-Ladefunktion fände beim ersten Texkom-Tag schlicht keine Datei.
+2. `applications/main/nfc/helpers/protocol_support/nfc_protocol_support.c` —
+   `nfc_protocol_support_plugin_names[NfcProtocolNum]`, die Tabelle, die
+   `nfc_protocol_support_alloc()` von der Enum-Konstante `NfcProtocolTexkom` auf den
+   Datei-Namensteil `"texkom"` übersetzt (`furi_string_alloc_printf(APP_ASSETS_PATH("plugins/
+   nfc_%s.fal"), protocol_name)`). Ohne einen eigenen Eintrag bleibt dieser Tabellenplatz ein
+   stiller `NULL`-Zeiger (C initialisiert einen nicht benannten Eintrag eines designated-init-
+   Arrays automatisch auf 0) — `protocol_name` wäre `NULL`, und `furi_string_alloc_printf()`
+   mit einem `NULL`-`%s`-Argument ist undefiniertes Verhalten, in der Praxis ein Absturz beim
+   ersten Lesen einer Texkom-Karte, nicht erst beim Senden/Emulieren.
+
+Beide Lücken sind rein additiv (eine neue `App()`-Eintragung, eine neue Tabellenzeile) und
+wurden gefunden, indem ich dem tatsächlichen Lade-Code in `nfc_protocol_support.c` gefolgt
+bin, statt mich auf die ursprüngliche, zwei Jahre alte Port-Skizzen-Formulierung zu verlassen
+— beide Stellen fehlten dort komplett.
+
+**Bewusst nicht mitgenommen:** `nfc_protocol_support.c` selbst hat sich zwischen meinem
+Firmware-Stand und dem aktuellen Unleashed-`dev`-Stand erheblich weiterentwickelt (Plugin-
+Lade-Fehlerbildschirm `NFC_PROTOCOL_SUPPORT_SCENE_LOAD_FAILED`, `extra_scenes`-Dispatch,
+`call_depth`-Wiedereintritts-Schutz, Datei-Umbenennungs-/Schatten-Datei-Fixes bei
+`SceneSaveName`, u. a.) — alles unabhängig von Texkom, siehe die eigene `diff` dieser Sitzung
+gegen den aktuellen `dev`-Stand. Nur die eine neue Tabellenzeile `[NfcProtocolTexkom] =
+"texkom"` ist Texkom-spezifisch und Teil dieses Patches; der Rest bleibt außen vor, exakt das
+Prinzip, das Phase 4a bereits für die unabhängige ISO15693-1oo4/1oo256-Änderung im selben
+Unleashed-Diff angewendet hat. Ebenso unabhängig von Texkom und bewusst nicht mitgenommen:
+`application.fam` selbst trägt inzwischen flächendeckend ein neues `fap_exclude_libs=["gcc"]`
+auf praktisch jedem `App()`-Eintrag sowie diverse neue Parser-Plugins/Quellausschlüsse — davon
+übernommen ist ausschließlich der neue `nfc_texkom`-Eintrag selbst.
+
+**Nebenfund (nicht behoben, für eine künftige Sitzung vorgemerkt):** beim Diff-Abgleich dieser
+Sitzung sind zwei von Texkom unabhängige `memcpy()`-Stellen aufgefallen, die die Elementzahl
+statt der Bytezahl übergeben (`lib/nfc/nfc_scanner.c`,
+`applications/main/nfc/helpers/nfc_detected_protocols.c` — beide kopieren ein
+`NfcProtocol`-Array mit `memcpy(dst, src, count)` statt `memcpy(dst, src, count *
+sizeof(NfcProtocol))`). Der aktuelle Unleashed-`dev`-Stand hat beide bereits auf die korrekte
+Form gebracht; bei mir sind beide Stellen noch mit der alten, zu kurzen Kopie vorhanden — ein
+potenzielles Unterlesen, falls `NfcProtocol` (ein `enum`, typischerweise 4 Byte) bei mehr als
+einem erkannten Protokoll zu kurz kopiert. Reine Dokumentations-Randnotiz dieser Sitzung,
+nicht Teil dieses Patches (kein Texkom-Bezug) — siehe "Offen" im zugehörigen Report.
+
+Alle Dateien dieser Sitzung sind rein additiv (neue Zeilen/neue Dateien, keine Änderung an
+bestehender Logik außerhalb der genannten Tabellenzeilen) und gegen zwei bzw. drei frische,
+unabhängige Zweitkopien meiner eigenen Firmware-Basis verifiziert — siehe "Verifikation".
 
 ## Nutzen
 
@@ -250,14 +313,38 @@ Voraussetzungen für Phase 4b, keine eigene Protokolldatei:**
   TK17- vs. TK13-Signalcodierung anhand des Rahmen-Typbytes) und der
   Größen-/Codierungs-Dispatch in `furi_hal_nfc_texkom_listener_tx()` (`texkom_signal_tx()`
   selbst bleibt gemockt — bereits in Phase 3 host-verifiziert).
+**Jetzt geliefert (Phase 5, diese Sitzung) — Protokollbaum-Registrierung und UI, letzter
+Schritt dieser Portierung:**
 - `applications/main/nfc/helpers/protocol_support/texkom/texkom.c/.h`,
-  `texkom_render.c/.h` (165 Zeilen) — UI-Anbindung (Kartentyp-Icon, Infoanzeige), reine
-  Boilerplate nach demselben Muster wie alle bereits bei mir integrierten NFC-Protokolle.
-- `lib/nfc/protocols/nfc_protocol.c/.h` (bei mir bereits vorhanden, zu erweitern) —
-  Registrierung als neuer, eigenständiger Basisknoten `NfcProtocolTexkom` im Protokollbaum
-  (Geschwisterknoten von ISO14443-3A/3B/Felica/ISO15693-3/ST25TB, keine Kindprotokolle) —
-  rein additiv: ein neuer Enum-Wert, ein neuer Baumeintrag, keine Änderung an einem
-  bestehenden Protokollknoten.
+  `texkom_render.c/.h` (165 Zeilen, unverändert übernommen nach `firmware-mining/
+  texkom-nfc-protocol-core-port/phase5-ui/`) — UI-Anbindung (Lese-/Emulations-Szenen,
+  Infoanzeige), reine Boilerplate nach demselben Muster wie `st25tb` (byte-für-byte
+  dieselbe Struktur bis auf die zusätzliche `NfcProtocolFeatureEmulateFull`, siehe
+  "Verifikation").
+- `lib/nfc/protocols/nfc_protocol.c/.h` — Registrierung als neuer, eigenständiger
+  Basisknoten `NfcProtocolTexkom` im Protokollbaum (Geschwisterknoten von
+  ISO14443-3A/3B/Felica/ISO15693-3/ST25TB, keine Kindprotokolle) — rein additiv: ein neuer
+  Enum-Wert, ein neuer Baumeintrag, keine Änderung an einem bestehenden Protokollknoten.
+- `lib/nfc/protocols/nfc_device_defs.c/nfc_poller_defs.c/nfc_listener_defs.c` — je eine neue
+  `#include` und eine neue Dispatch-Tabellenzeile (`[NfcProtocolTexkom] = &nfc_device_texkom`
+  / `&nfc_poller_texkom` / `&nfc_listener_texkom`), die auf die bereits in Phase 1-3
+  gelieferten, unveränderten Dateien zeigen. In `nfc_listener_defs.c` bewusst **nicht**
+  mitgenommen: eine unabhängige, im selben Unleashed-Diff enthaltene Änderung
+  (`[NfcProtocolMfPlus] = NULL` → `&mf_plus_listener`) — siehe "Risiko".
+- `lib/nfc/SConscript` — die drei öffentlichen Header (`texkom.h`, `texkom_poller.h`,
+  `texkom_listener.h`) zur `SDK_HEADERS`-Liste ergänzt, an derselben Stelle wie bei jedem
+  anderen bereits integrierten Protokoll.
+- `applications/main/nfc/application.fam` — neuer `App(appid="nfc_texkom", ...)`-Eintrag
+  (Plugin-Baudefinition für `helpers/protocol_support/texkom/*.c`), ohne den nie eine
+  `nfc_texkom.fal` gebaut würde. Dieser Anschlusspunkt stand in der ursprünglichen
+  Port-Skizze (Punkt 6) noch nicht — siehe "Update (Phase 5)" oben.
+- `applications/main/nfc/helpers/protocol_support/nfc_protocol_support.c` — eine neue
+  Tabellenzeile `[NfcProtocolTexkom] = "texkom"` in `nfc_protocol_support_plugin_names[]`,
+  der Dateiname-Baustein für den Laufzeit-Plugin-Lader. Ebenfalls nicht in der
+  ursprünglichen Port-Skizze benannt — siehe "Update (Phase 5)" oben. Die übrige, seit
+  meinem Firmware-Stand erheblich weiterentwickelte Datei (Plugin-Lade-Fehlerbildschirm,
+  `extra_scenes`-Dispatch, Wiedereintritts-Schutz u. a.) ist bewusst **nicht** Teil dieses
+  Patches — siehe "Risiko".
 
 ## Verifikation (auf dem Host, ohne Hardware)
 
@@ -679,6 +766,87 @@ Host-Repro mit synthetischen Vektoren), jede tatsächliche SPI-/GPIO-Ansteuerung
 und `RX_CONF3` (siehe "Risiko") — dafür bleibt echte Hardware mit
 Spektrumanalysator/Oszilloskop weiterhin der einzige Prüfmaßstab.
 
+### Phase 5 — Protokollbaum-Registrierung und UI (diese Sitzung, letzte Phase)
+
+Zwei unterschiedliche Prüfmaßstäbe, exakt wie bei Phase 4a bereits etabliert:
+
+**Quelltextabgleich** (die sechs reinen Registrierungsdateien, keine eigene Bit-/Byte-Logik):
+`lib/nfc/protocols/nfc_protocol.c/.h`, `nfc_device_defs.c/nfc_poller_defs.c/
+nfc_listener_defs.c`, `lib/nfc/SConscript`, `applications/main/nfc/application.fam`,
+`applications/main/nfc/helpers/protocol_support/nfc_protocol_support.c`. Für jede der sechs
+Dateien per `git diff` ein minimaler, auf exakt die Texkom-Zeilen beschränkter Patch
+abgeleitet (`firmware-mining/texkom-nfc-protocol-core-port/phase5-registration/*.patch`).
+
+Verifikation der Patches: drei unabhängig voneinander erzeugte Ergebnisse verglichen —
+(1) die Patches von Hand gegen eine frische Kopie meiner eigenen Firmware-Basis
+(`G4MEOVER18/G4MEOVER-FW`, `main`, unverändert `b359f6f`) abgeleitet, (2) dieselben sechs
+Patches per `git apply` in einem Lauf gegen eine zweite, unabhängig geklonte Kopie
+angewendet, (3) dieselben sechs Patches einzeln per `patch -p1` (unabhängiges Werkzeug von
+`git apply`) gegen eine dritte, unabhängig geklonte Kopie angewendet. Alle sechs betroffenen
+Dateien per `md5sum` über die drei Ergebnisse verglichen: **durchgängig byte-identisch**.
+Zusätzlich die drei nicht nur additiven, sondern auch inhaltlich eigenständigen Dateien
+(`nfc_protocol.c`, `nfc_device_defs.c`, `nfc_poller_defs.c`, `nfc_listener_defs.c`,
+`SConscript`, `nfc_protocol_support.c`) nach dem Anwenden per `diff` gegen den aktuellen
+Unleashed-`dev`-Stand verglichen: für `nfc_protocol.c/.h`, `nfc_device_defs.c`,
+`nfc_poller_defs.c` und `SConscript` **exakt keine Abweichung** — vollständig identisch zum
+Upstream-Stand. Für `nfc_listener_defs.c` genau eine verbleibende Abweichung, die bewusst
+ausgeschlossene, von Texkom unabhängige `NfcProtocolMfPlus`-Listener-Zeile (siehe
+"Betroffene Dateien" und "Risiko"). Für `nfc_protocol_support.c` eine erhebliche
+verbleibende Abweichung — die seit meinem Firmware-Stand unabhängig gewachsene restliche
+Datei (siehe "Betroffene Dateien") —, innerhalb der aber die eine neue, hier gelieferte
+Tabellenzeile `[NfcProtocolTexkom] = "texkom"` Zeichen-für-Zeichen mit dem Upstream-Stand
+übereinstimmt (per `grep`/Sichtprüfung der verbleibenden Diff-Ausgabe bestätigt). Für
+`application.fam` ebenfalls eine erhebliche verbleibende Abweichung (siehe dieselbe
+Begründung), mit demselben Befund: der neue `App(appid="nfc_texkom", ...)`-Block selbst ist
+Zeichen-für-Zeichen identisch zum Upstream-Block, nur an einer anderen Stelle relativ zu den
+unabhängig hinzugekommenen Parser-Plugin-Einträgen platziert.
+
+Zusätzlich: `python3 -c "import ast; ast.parse(open('application.fam').read())"` bestätigt
+gültige Python-Syntax der geänderten Datei (SCons-`.fam`-Dateien sind Python); für alle
+sechs geänderten C-Dateien eine Klammer-/Parenthesen-Bilanzprüfung (`{`/`}` sowie `(`/`)`
+jeweils gleich oft) als zusätzliche, einfache Sicherheitsnetz-Prüfung gegen eine
+unvollständig kopierte Zeile.
+
+**Host-Repro für die eine Stelle mit eigener Logik** (`applications/main/nfc/helpers/
+protocol_support/texkom/texkom_render.c::nfc_render_texkom_info()` — reine
+String-Formatierung, keine `furi_hal`/View/Widget-Abhängigkeit, anders als `texkom.c`
+selbst, das nur Szenen-Boilerplate nach dem `st25tb`-Muster ist und keine eigene Logik
+enthält). Host-Repro in `firmware-mining/repro-texkom-nfc-protocol-core-port/
+repro_render.c`: die Funktion unverändert transkribiert, `FuriString` durch einen minimalen,
+wachsenden Puffer-Ersatz ersetzt (implementiert exakt die vier tatsächlich genutzten Aufrufe
+`alloc`/`cat_printf`/`get_cstr`/`free`), die Phase-1-Kernfunktionen
+(`texkom_get_uid`/`texkom_is_crc_valid`/`texkom_get_expected_crc`/`texkom_update_crc`/
+`texkom_make_blank`/`texkom_set_uid`, CRC-Varianten, Features-Tabelle) aus dem bereits in
+`repro.c` verifizierten Bestand in diese eigenständige Übersetzungseinheit erneut mit
+hineinkopiert, nicht neu geprüft — exakt die seit `repro_poller.c` etablierte Technik.
+
+Unter `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined
+-fno-sanitize-recover=undefined` bei `-O0`/`-O1`: **6 Szenarien, alle bestanden**,
+identischer Output beider Optimierungsstufen, keine Compiler-Warnungen, keine
+Sanitizer-Befunde. Jedes Szenario vergleicht die tatsächliche Ausgabe Byte-für-Byte gegen
+eine unabhängig mit `snprintf()` aufgebaute Erwartung (kein Teilstring-/Enthält-Vergleich):
+TK13/TK17 mit gültiger CRC im vollen und im kurzen Format (prüft, dass `format_type`
+tatsächlich nur den "Frame:"-Block schaltet und sonst nichts), TK13 mit absichtlich
+verfälschtem CRC-Byte (prüft "Invalid" plus den exakten, unabhängig berechneten
+"Expected CRC"-Wert), MMBIT (prüft, dass die UID-Zeile exakt die von `texkom_get_uid()`
+selbst gemeldete Länge nutzt, nicht eine feste Konstante), sowie `TexkomTypeUnknown` (prüft
+den einen Fall, in dem `crc_valid` bereits falsch ist, aber auch `texkom_get_expected_crc()`
+selbst `false` liefert — und die "Expected CRC"-Zeile deshalb trotz ungültiger CRC
+unterdrückt bleiben muss).
+
+Gegenprobe zur Absicherung des Repros selbst: eine Mutante, die die reale
+`if(!crc_valid && texkom_get_expected_crc(...))`-Bedingung auf `if(texkom_get_expected_crc(
+...))` verkürzt (ein plausibler Transkriptionsfehler, der die "Expected CRC"-Zeile auch bei
+gültiger CRC anzeigen würde), lässt das erste Szenario sofort mit einer sichtbar
+abweichenden Ausgabe scheitern — das Repro ist also empfindlich für genau die Fehlerklasse,
+die ein Transkriptionsfehler in dieser einen Datei wäre.
+
+**Nicht** durch diesen Host-Test abgedeckt: `texkom.c` selbst (reine Szenen-Verdrahtung ohne
+eigene Logik, siehe oben), das tatsächliche Laden der `.fal`-Datei durch den
+`PluginManager`, und jede Interaktion mit echten `NfcApp`/`Widget`/`ViewDispatcher`-Objekten
+— dafür bleibt ein lokaler Build-/Flash-Test weiterhin der einzige Prüfmaßstab (siehe
+"Port-Skizze").
+
 ## Risiko
 
 - **Niedrig** für den gelieferten, host-verifizierten Phase-1-Protokollkern: rein additive
@@ -738,6 +906,27 @@ Spektrumanalysator/Oszilloskop weiterhin der einzige Prüfmaßstab.
   klar getrennte Risiken aufgeteilt: die hier gelieferte Logik (niedrig, jetzt
   host-verifiziert) und die reine Hardwareansteuerung samt `RX_CONF3` (mittel, nur an
   Hardware zu klären) — kein pauschales Risiko mehr über die ganze Datei.
+- **Niedrig** für die in dieser Sitzung gelieferte Phase-5-Registrierung/UI (siehe
+  "Verifikation"): sechs der sieben Dateien sind rein additive Tabellenzeilen/
+  `#include`s/ein neuer `App()`-Block in bereits bestehenden, generischen
+  Registrierungsdateien — keine Änderung an einer bestehenden Protokollzeile. Die eine
+  Datei mit eigener Logik (`texkom_render.c`) ist reine String-Formatierung ohne
+  Zeiger-Arithmetik über eine selbst nicht kontrollierte Länge, jetzt host-verifiziert.
+  `texkom.c` selbst enthält keine eigene Logik (reine Szenen-Verdrahtung, byte-für-byte
+  nach demselben Muster wie `st25tb`, siehe "Betroffene Dateien"). Bewusst nicht
+  mitgenommen, um den Patch auf Texkom beschränkt zu halten: die unabhängige
+  `NfcProtocolMfPlus`-Listener-Änderung in `nfc_listener_defs.c` sowie der komplette, seit
+  meinem Firmware-Stand unabhängig gewachsene Rest von `nfc_protocol_support.c` und
+  `application.fam` (siehe "Betroffene Dateien" und "Update (Phase 5)") — dieselbe
+  Abgrenzungstechnik wie bei der in Phase 4a ausgeschlossenen ISO15693-Änderung.
+- **Ohne Phase 5 wäre die gesamte Portierung praktisch nutzlos gewesen**: ohne die
+  Protokollbaum-Registrierung hätte mein Lesegerät einen erkannten Texkom-Tag nicht einmal
+  dem richtigen Protokoll zugeordnet; ohne den `application.fam`-Plugin-Eintrag und die
+  `nfc_protocol_support_plugin_names[]`-Zeile hätte selbst eine erfolgreiche Zuordnung
+  beim ersten Laden der (nie gebauten) `nfc_texkom.fal` abgestürzt (siehe "Update
+  (Phase 5)"). Phase 1-4b allein (host-verifizierte Protokoll-/Poller-/Listener-/
+  Signal-/Register-Logik) wären ohne diese Sitzung totes, nie erreichbares Code bei mir
+  geblieben.
 - **Kein zusätzliches Missbrauchsrisiko**: Texkom kennt kein Authentifizierungsgeheimnis;
   Lesen und Emulieren eines bekannten/eigenen Schlüssels ist strukturell identisch zum
   bereits unterstützten 125-kHz-Zutrittsformat-Modell (EM-Marin/Cyfral/Hitag), nur auf
@@ -779,24 +968,31 @@ Spektrumanalysator/Oszilloskop weiterhin der einzige Prüfmaßstab.
    Zustandsmaschine ist jetzt host-verifiziert (siehe "Verifikation"); offen bleibt nur
    noch `RX_CONF3` (AM-Kanal-Dämpfung), das sich nur an echter Hardware mit
    Spektrumanalysator/Oszilloskop bestätigen lässt — siehe "Risiko".
-6. **Phase 5:** `lib/nfc/protocols/nfc_protocol.c/.h` — `NfcProtocolTexkom` als neuen
-   Basisknoten registrieren (ein Enum-Wert, ein Baumeintrag), plus
-   `applications/main/nfc/helpers/protocol_support/texkom/*` (UI-Anbindung) — letzter
-   Schritt, einziger noch offener Teil dieser Portierung, erst sinnvoll sobald
-   Phase 1-4b lokal bauen.
-7. Bauen nach jeder Phase: `ufbt` (bzw. `fbt firmware_all`) — jede Struct-/
-   Signaturabweichung fällt sofort als Compile-Fehler auf. Mit Phase 4a+4b angewendet
-   lohnt sich jetzt ein erster vollständiger Build-Versuch: Phase 1-4b sollten
-   zusammen durchlaufen, solange nur noch Phase 5 (Protokollbaum-Registrierung/UI)
-   fehlt — jeder verbleibende Compile-Fehler an dieser Stelle wäre ein eigener Fund,
-   den diese Sitzung übersehen hat.
-8. Funktionstest lokal (ab Phase 2 mit Hardware nötig, Phase 1 bereits host-verifiziert):
-   eigenen Texkom-Schlüssel (TK13/TK15/TK17/MMBIT, je nach Verfügbarkeit) lesen, Rahmen
-   gegen ein unabhängiges Referenzwerkzeug (Proxmark3, falls vorhanden) vergleichen; nach
-   Phase 3 Emulation gegen ein zweites eigenes Lesegerät testen. Besonders für `RX_CONF3`
-   wichtig: erste Lesetests mit einem Spektrumanalysator/Oszilloskop am Antennenausgang
-   begleiten, um die einzige noch nicht quelltextseitig bestätigte Registerabweichung
-   tatsächlich zu validieren.
+6. **Phase 5 (geliefert, diese Sitzung — letzte Phase):** die sieben Einzelpatches aus
+   `firmware-mining/texkom-nfc-protocol-core-port/phase5-registration/` anwenden
+   (`nfc_protocol.c/.h`, `nfc_device_defs.c/nfc_poller_defs.c/nfc_listener_defs.c`,
+   `SConscript`, `application.fam`, `nfc_protocol_support.c`), dann die vier UI-Dateien aus
+   `firmware-mining/texkom-nfc-protocol-core-port/phase5-ui/` unverändert nach
+   `applications/main/nfc/helpers/protocol_support/texkom/` übernehmen. Registriert
+   `NfcProtocolTexkom` im Protokollbaum, verdrahtet die Dispatch-Tabellen auf die bereits
+   gebauten Phase-1-3-Dateien, und macht die UI tatsächlich ladbar (`application.fam`-
+   Plugin-Eintrag plus Namenstabellen-Zeile — siehe "Update (Phase 5)" für die beiden
+   Lücken, die die ursprüngliche Fassung dieses Punkts noch nicht benannt hatte). Mit
+   Phase 5 ist diese Portierung vollständig; es gibt keine weitere Phase.
+7. Bauen: `ufbt` (bzw. `fbt firmware_all`) — jede Struct-/Signaturabweichung fällt sofort
+   als Compile-Fehler auf. Mit allen fünf Phasen angewendet ist dies jetzt der erste
+   sinnvolle vollständige Build-Versuch dieser Portierung — jeder verbleibende
+   Compile-Fehler an dieser Stelle wäre ein eigener Fund, den diese Sitzung übersehen hat.
+8. Funktionstest lokal (ab Phase 2 mit Hardware nötig, Phase 1 und die Phase-5-
+   Render-Logik bereits host-verifiziert): eigenen Texkom-Schlüssel (TK13/TK15/TK17/MMBIT,
+   je nach Verfügbarkeit) lesen, Rahmen gegen ein unabhängiges Referenzwerkzeug
+   (Proxmark3, falls vorhanden) vergleichen; Emulation gegen ein zweites eigenes
+   Lesegerät testen; die Infoanzeige (Lese-Erfolg-Bildschirm, gespeicherte-Karte-Info)
+   gegen einen bekannten Schlüssel inklusive eines absichtlich ungültigen CRC-Bytes
+   prüfen (sollte "Invalid" plus den erwarteten CRC-Wert zeigen, wie in "Verifikation"
+   host-seitig vorweggenommen). Besonders für `RX_CONF3` wichtig: erste Lesetests mit
+   einem Spektrumanalysator/Oszilloskop am Antennenausgang begleiten, um die einzige
+   noch nicht quelltextseitig bestätigte Registerabweichung tatsächlich zu validieren.
 
 ## Quelle
 
@@ -850,3 +1046,20 @@ Spektrumanalysator/Oszilloskop weiterhin der einzige Prüfmaßstab.
 - Diese Sitzung (Phase 4b) `targets/f7/furi_hal/furi_hal_nfc_texkom.c` erneut über zwei
   unabhängige Abrufe geladen: Prüfsumme weiterhin `38c7f707f2d8c9156cdd726068cc9644`,
   527 Zeilen — identisch zum in Phase 4a geprüften Stand, keine Änderung seither.
+- Diese Sitzung (Phase 5) gegen einen frischen `dev`-Stand geprüft, Commit
+  `73ea4fca39816213414776731bdb081a3bc9ef76` (2026-11-04, per `git clone --branch dev`
+  bestimmt): alle Phase-1-4b-Dateien (`lib/nfc/protocols/texkom/*`,
+  `lib/digital_signal/presets/nfc/texkom_signal.{c,h}`,
+  `targets/f7/furi_hal/furi_hal_nfc_texkom.c`) per `md5sum` erneut identisch zum in
+  Phase 1-4b geprüften Stand bestätigt — seit Phase 4b keine Änderung. Neu gelesen und
+  gegen die eigene Firmware-Basis verglichen: `applications/main/nfc/helpers/
+  protocol_support/texkom/texkom.c/.h/texkom_render.c/.h`,
+  `lib/nfc/protocols/nfc_protocol.c/.h`, `nfc_device_defs.c/nfc_poller_defs.c/
+  nfc_listener_defs.c`, `lib/nfc/SConscript`, `applications/main/nfc/application.fam`,
+  `applications/main/nfc/helpers/protocol_support/nfc_protocol_support.c` sowie, zum
+  Vergleich derselben Baustelle, `applications/main/nfc/helpers/protocol_support/
+  st25tb/st25tb.c` (eigene Basis, als nächstverwandtes bereits integriertes
+  Basisprotokoll-Muster). Eigene Firmware-Basis (`G4MEOVER18/G4MEOVER-FW`, `main`,
+  weiterhin unverändert `b359f6f`) über drei unabhängige Klone geprüft (einer zur
+  Patch-Herleitung, zwei weitere ausschließlich zur `git apply`/`patch`/`md5sum`-
+  Gegenprobe, siehe "Verifikation").

@@ -1,0 +1,30 @@
+diff --git a/lib/nfc/protocols/nfc_protocol.c b/lib/nfc/protocols/nfc_protocol.c
+index 6767deb..c6e1b67 100644
+--- a/lib/nfc/protocols/nfc_protocol.c
++++ b/lib/nfc/protocols/nfc_protocol.c
+@@ -14,9 +14,9 @@
+  *
+  *                                                  (Start)
+  *                                                     |
+- *                            +------------------------+-----------+---------+------------+
+- *                            |                        |           |         |            |
+- *                       ISO14443-3A              ISO14443-3B    Felica  ISO15693-3    ST25TB
++ *                            +------------------------+-----------+---------+------------+--------+
++ *                            |                        |           |         |            |        |
++ *                       ISO14443-3A              ISO14443-3B    Felica  ISO15693-3    ST25TB   Texkom
+  *                            |                        |                     |
+  *            +---------------+-------------+     ISO14443-4B              SLIX
+  *            |               |             |
+@@ -176,6 +176,12 @@ static const NfcProtocolTreeNode nfc_protocol_nodes[NfcProtocolNum] = {
+             .children_num = 0,
+             .children_protocol = NULL,
+         },
++    [NfcProtocolTexkom] =
++        {
++            .parent_protocol = NfcProtocolInvalid,
++            .children_num = 0,
++            .children_protocol = NULL,
++        },
+     /* Add new protocols here */
+ };
+ 

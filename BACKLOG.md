@@ -10616,3 +10616,78 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `simultaneous_rfid_reader`, lokaler Test aller bisher nicht lokal gegengeprüften
       Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt zusätzlich: lokaler Test des
       hier gelieferten `magtool`-`build`-Validierungs-Fixes.
+
+## Firmware-Feature-Mining: Texkom Phase 5 — Protokollbaum-Registrierung und UI (Portierung abgeschlossen)
+
+- [x] `firmware-mining/texkom-nfc-protocol-core-port.md` als letzte offene Phase (5 von 5)
+      aufgegriffen: Protokollbaum-Registrierung (`lib/nfc/protocols/nfc_protocol.c/.h`,
+      `nfc_device_defs.c/nfc_poller_defs.c/nfc_listener_defs.c`, `lib/nfc/SConscript`) plus
+      UI-Anbindung (`applications/main/nfc/helpers/protocol_support/texkom/texkom.c/.h`,
+      `texkom_render.c/.h`), unverändert aus Unleashed-`dev` (Commit
+      `73ea4fca39816213414776731bdb081a3bc9ef76`) übernommen. Alle Phase-1-4b-Dateien
+      (Protokollkern, Poller, Listener, Signalpreset, `furi_hal_nfc_texkom.c`) per `md5sum`
+      erneut unverändert bestätigt.
+- [x] Beim Nachvollziehen der ursprünglichen Port-Skizze zwei bislang nicht benannte, aber
+      für eine lauffähige Portierung tatsächlich nötige Anschlussstellen gefunden: ohne einen
+      eigenen `App(appid="nfc_texkom", ...)`-Eintrag in `applications/main/nfc/
+      application.fam` würde nie eine `nfc_texkom.fal` gebaut; ohne eine neue Zeile
+      `[NfcProtocolTexkom] = "texkom"` in `nfc_protocol_support_plugin_names[]`
+      (`applications/main/nfc/helpers/protocol_support/nfc_protocol_support.c`) bliebe der
+      Dateiname-Baustein für den Laufzeit-Plugin-Lader ein stiller `NULL`-Zeiger — ein Absturz
+      beim ersten Lesen einer Texkom-Karte. Beide Lücken additiv geschlossen; die seit meinem
+      Firmware-Stand unabhängig gewachsene restliche `nfc_protocol_support.c` sowie die
+      flächendeckende `fap_exclude_libs=["gcc"]`-Ergänzung in `application.fam` bewusst nicht
+      mitgenommen (kein Texkom-Bezug), ebenso die unabhängige `NfcProtocolMfPlus`-Listener-
+      Zeile in `nfc_listener_defs.c`.
+- [x] Sieben Patches (`firmware-mining/texkom-nfc-protocol-core-port/phase5-registration/`)
+      gegen drei unabhängige, frische Zweitkopien meiner eigenen Firmware-Basis verifiziert:
+      einmal von Hand abgeleitet, einmal per `git apply` in einem Lauf, einmal einzeln per
+      `patch -p1` angewendet — alle sieben betroffenen Dateien per `md5sum` über die drei
+      Ergebnisse byte-identisch. Zusätzlich gegen den aktuellen Unleashed-`dev`-Stand
+      verglichen: fünf der sieben Dateien exakt identisch, bei den beiden übrigen
+      (`nfc_listener_defs.c`, `nfc_protocol_support.c`) genau die oben benannten, bewusst
+      ausgeschlossenen unabhängigen Stellen als einzige verbleibende Abweichung.
+- [x] Host-Repro für die eine Stelle mit eigener Logik
+      (`firmware-mining/repro-texkom-nfc-protocol-core-port/repro_render.c`,
+      `nfc_render_texkom_info()`, reine String-Formatierung ohne `furi_hal`-Bezug): 6
+      Szenarien (TK13/TK17 gültig, voll/kurz, TK13 mit verfälschter CRC plus exaktem
+      Expected-CRC-Wert, MMBIT mit korrekter UID-Länge, `TexkomTypeUnknown` ohne
+      "Expected CRC"-Zeile trotz ungültiger CRC) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1` bestanden, identischer Output, keine Warnungen, keine
+      Sanitizer-Befunde. Mutante (verkürzte `if(!crc_valid && ...)`-Bedingung) lässt das
+      Repro gezielt scheitern.
+- [x] Nebenfund, nicht behoben (kein Texkom-Bezug): zwei `memcpy()`-Stellen
+      (`lib/nfc/nfc_scanner.c`, `applications/main/nfc/helpers/nfc_detected_protocols.c`)
+      kopieren ein `NfcProtocol`-Array mit der Elementzahl statt der Bytezahl
+      (`memcpy(dst, src, count)` statt `memcpy(dst, src, count * sizeof(NfcProtocol))`) —
+      ein potenzielles Unterlesen bei mehr als einem erkannten Protokoll. Unleashed-`dev` hat
+      beide bereits korrigiert, bei mir sind beide noch mit der alten, zu kurzen Kopie
+      vorhanden. Für eine künftige Sitzung vorgemerkt.
+- [ ] Lokal zu tun: die Patches gegen die eigene `G4MEOVER-FW`-Kopie anwenden (sieben
+      Registrierungs-Patches plus die vier UI-Dateien unverändert nach
+      `applications/main/nfc/helpers/protocol_support/texkom/` kopieren), mit `ufbt`/`fbt`
+      bauen — erster vollständiger Build-Versuch dieser Portierung über alle fünf Phasen.
+      Danach Funktionstest mit einem echten Texkom-Schlüssel (Lesen, Anzeige, Emulation);
+      besonders `RX_CONF3` (AM-Kanal-Dämpfung) nur an Hardware mit
+      Spektrumanalysator/Oszilloskop abschließend zu klären.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, jetzt ohne `texkom` Phase 5):
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      Nearby-Files-Versionslücke v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/
+      Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-Aufrufstellen
+      sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, die hier neu notierten `memcpy()`-Unterlese-Stellen in
+      `nfc_scanner.c`/`nfc_detected_protocols.c`, lokaler Test aller bisher nicht lokal
+      gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt zusätzlich:
+      lokaler Build-/Funktionstest der hier abgeschlossenen Texkom-Portierung.

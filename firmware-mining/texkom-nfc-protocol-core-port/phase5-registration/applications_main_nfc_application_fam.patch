@@ -1,0 +1,23 @@
+diff --git a/applications/main/nfc/application.fam b/applications/main/nfc/application.fam
+index b28cebb..339317b 100644
+--- a/applications/main/nfc/application.fam
++++ b/applications/main/nfc/application.fam
+@@ -214,6 +214,18 @@ App(
+     fal_embedded=True,
+ )
+ 
++App(
++    appid="nfc_texkom",
++    targets=["f7"],
++    apptype=FlipperAppType.PLUGIN,
++    entry_point="nfc_texkom_ep",
++    requires=["nfc"],
++    sources=[
++        "helpers/protocol_support/texkom/*.c",
++    ],
++    fal_embedded=True,
++)
++
+ # Parser plugins
+ 
+ App(
