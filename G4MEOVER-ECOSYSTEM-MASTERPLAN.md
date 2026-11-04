@@ -2248,6 +2248,45 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   und Rotations-Runbook-Überschrift) auf 65 synchronisiert. DogyTag-Broker-Credential-Thema
   (2026-10-14/15) unverändert: Code-Fix verfügbar, Rotation/Anwenden bleibt lokal. Kein
   Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
+- 2026-11-04 (Cloud-Heartbeat): Repo-Hygiene zuerst — dieses Mal zwei getrennte Funde statt nur des
+  üblichen lokalen `main`-Zeiger-Rückstands: (1) die zwischengespeicherte `origin/main`-Ref war beim
+  Start neun Commits alt (`e174157`), während `HEAD` schon losgelöst auf dem tatsächlichen,
+  aktuellen `origin/main`-Stand (`06ec493`) saß — identisch zur bereits 2026-09-27 dokumentierten
+  Drift-Art (veraltete Ref, nicht veralteter `HEAD`); per `git fetch origin main` aktualisiert. (2)
+  Der lokale `main`-Branch-Zeiger selbst zeigte weiterhin auf den alten Stand (`e174157`, neun
+  Commits zurück) — per `git checkout -B main origin/main` auf `HEAD`/`origin/main` nachgezogen,
+  reiner Zeiger-Umbau ohne Datenverlust (die neun Commits waren bereits auf `origin/main` vorhanden,
+  kein Force-Push nötig). Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default
+  `Claude <noreply@anthropic.com>` statt der CONSTRAINTS.md-Vorgabe — korrigiert. Die sieben seit
+  dem 2026-10-31-Masterplan-Commit `c7b9983` gelandeten Commits (Firmware-Feature-Mining Phase
+  11-13 [FAAC SLH, Security+ 2.0, Nice FloR-S — laut `firmware-mining/subghz-block-generic-global-
+  override-port.md` damit alle elf tatsächlich existierenden Nachzieh-Kandidaten abgeschlossen],
+  App-Verbesserungen `g4meover-companion/flipperbridge`+`g4meover-wifi-relay`+`g4meover-companion/
+  magtool`, Ideen-Recherche Simultaneous-UHF-RFID-Reader) per `git log --oneline` gegen
+  `ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md`/diese Datei geprüft: keine
+  Überschneidung, dieselbe separate App-Verbesserungs-/Firmware-Mining-Routine (nur `BACKLOG.md`/
+  `app-improvements/`/`firmware-mining/`/`ideas/`/`reports/`). Konsistenzprüfungen ohne neuen Fund:
+  `ecosystem/devices.json`/`ecosystem/topology.json` weiterhin syntaktisch gültig; Blocker
+  „referenzierte Tool-Dateien fehlen im Repo" weiterhin bestehen (`ls ecosystem/`: nur
+  `devices.json`/`topology.json`); Repo-Sichtbarkeit (`g4meover-ecosystem`) per `list_repos`
+  weiterhin `private`; `g4meover-deck`/`g4meover-companion`/`dogytag-firmware`/`lora-ukfe`/
+  `g4meover-one-x` laut `list_repos` unverändert (`pushed_at` jeweils identisch zum letzten
+  Heartbeat); die Klartext-Zugangsdaten aus Commit `7e39b5b` tauchen im aktuellen Checkout
+  weiterhin nur als redigiertes Zitat in dieser Datei auf, nicht in echten Konfigurationsdateien.
+  Statt einer weiteren Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f oder der GUI-Architekturfrage
+  (beide seit Wochen ohne weiteren Cloud-Mehrwert, siehe Log-Einträge seit 2026-10-05/-18) einen
+  echten Doku-Konsistenzfund bearbeitet: Abschnitt 6 („Architektur-Entscheidungen") führte die
+  GUI-Framework-Frage bisher nur als Zweikampf PySide6 vs. Electron/Tauri mit *Vorschlag: PySide6*
+  — das widerspricht inzwischen der viel detaillierteren Analyse in P6.1a/P7.1b/PREP Punkt 4 (seit
+  2026-10-17), die mit `g4meover-deck/deck/deck_daemon.py`+`dashboard.html` eine dritte, bereits
+  funktionierende Option ohne jedes Qt/Electron/Tauri aufzeigt und als konsistenteste Wahl benennt.
+  Additiv ergänzt (dritte Option + Querverweis, *Vorschlag PySide6* als überholt markiert,
+  Szenario-Visualizer-Zeile auf dieselbe Entscheidung verwiesen statt zwei getrennte zu führen) —
+  die eigentliche Wahl bleibt bewusst weiterhin lokal zu entscheiden, hier nicht vorweggenommen.
+  Pi-SSH-/LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27, jetzt 69 Tage)
+  — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
+  Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
+  Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -2345,7 +2384,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 65 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 69 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2529,7 +2568,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 65 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 69 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
@@ -2752,7 +2791,15 @@ GUI-Code geschrieben (`topology.json` ist reine Graph-/Preset-Daten, kein Code).
 ---
 
 ## 6. Architektur-Entscheidungen (offen — beim Erreichen entscheiden)
-- GUI-Framework: **PySide6** (Qt, QWebEngine für Karte/Visualizer) vs. Web (Electron/Tauri). *Vorschlag: PySide6.*
+- GUI-Framework: **PySide6** (Qt, QWebEngine für Karte/Visualizer) vs. Web (Electron/Tauri) vs. **dritte,
+  seit 2026-10-16/17 real existierende Option** — `g4meover-deck/deck/deck_daemon.py` (stdlib
+  `http.server`) + `dashboard.html` (reines HTML/CSS/Vanilla-JS, kein Qt/Electron/Tauri nötig) ist
+  bereits gebaut und deckt Karte (P6.1a) und Visualizer (P7.1b) ohne zweiten GUI-Unterbau ab, siehe
+  Abschnitt 4 P6.1a und PREP Punkt 4. *Ursprünglicher Vorschlag PySide6 damit überholt — welche der
+  drei Optionen tatsächlich verwendet wird, bleibt bewusst lokal zu entscheiden (siehe PREP Punkt 4),
+  nicht aus der Cloud vorentschieden.*
 - APK: **Flutter** (BLE-Plugin, cross) vs. Kotlin-nativ. *Vorschlag: Flutter.*
 - Ein-Codebase Win/Kali: ja (PyInstaller je Ziel).
-- Szenario-Visualizer: QGraphicsScene (nativ) vs. Web/D3 in QWebEngine. *Vorschlag: Web/D3 (auch für Artefakt wiederverwendbar).*
+- Szenario-Visualizer: QGraphicsScene (nativ) vs. Web/D3 in QWebEngine vs. **Web/D3 in
+  `dashboard.html`** (siehe GUI-Framework-Zeile oben — dieselbe Entscheidung, nicht separat zu
+  treffen). *Vorschlag: Web/D3 (auch für Artefakt wiederverwendbar).*
