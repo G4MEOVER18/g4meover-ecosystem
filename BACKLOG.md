@@ -10691,3 +10691,65 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `nfc_scanner.c`/`nfc_detected_protocols.c`, lokaler Test aller bisher nicht lokal
       gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), jetzt zusätzlich:
       lokaler Build-/Funktionstest der hier abgeschlossenen Texkom-Portierung.
+
+## App-Verbesserung (RollJam — Signal B nie gespeichert)
+
+- [x] **RollJam** `rolljam_rf.c/.h` vollständig gegen die Frage "wo landet Signal B
+      tatsächlich" gelesen: keine einzige `storage_file_*`-Zeile, kein
+      `#include <storage/storage.h>` in der gesamten App — Signal B existiert
+      ausschließlich im RAM der laufenden App-Instanz und ist bei `free(app)`
+      (App-Ende) unwiderruflich weg, unabhängig davon, was der `DONE`-Bildschirm
+      ("Signal B still valid.") behauptet. Anderer Fehlertyp als der bereits
+      behobene `RollForge`-Fund (`rj-b-premature-saved-claim-fix.md`: dort existiert
+      eine manuelle Speicherfunktion, nur mit verfrühter Erfolgsbehauptung) — hier
+      fehlt die Speicherfunktion in der eigenständigen App vollständig.
+      Serialisierung 1:1 von der bereits produktiv genutzten `rollforge_save_sig()`
+      (`RollForge`, identisches gepacktes Puffer-Layout) übertragen statt neu
+      erfunden: neue Funktion `rolljam_rf_save_signal()` (`rolljam_rf.c/.h`), Aufruf
+      beim Übergang `PHASE2_JAMMING → PHASE3_REPLAY` nur bei `captured == true`,
+      neues Feld `RollJamApp.signal_b_saved` spiegelt den tatsächlichen
+      Rückgabewert, `DONE`-Bildschirm zeigt jetzt "Signal B saved to SD."/
+      "Signal B NOT saved." statt der bisherigen, bedingungslosen Zeile. Vier
+      additive Patches gegen zwei unabhängige, frische Zweitkopien von
+      `G4MEOVER18/RollJam` (`main`, Commit `1f90c00e1`) per `patch -p1`/`git apply`
+      verifiziert, alle vier betroffenen Dateien laut `md5sum` byte-identisch.
+      Host-Repro (Teil A: reine Byte-Erzeugung der neuen Speicherfunktion — leeres/
+      `NULL`-Signal abgelehnt, vier Flanken ergeben exakten Header-/`RAW_Data`-String
+      und Dateinamen, 31-Bit-Grenzwert ohne UB, volles 2048-Element-Signal ohne
+      Abschneiden; Teil B: Aufrufstellen-Logik mit Stub-Speicherfunktion — Erfolg,
+      Fehlschlag mit warnendem statt falsch behauptendem Status, Regression bei
+      Phase-2-Timeout) unter `-O0`/`-O1` mit ASan/UBSan bestanden, keine Warnungen,
+      keine Sanitizer-Befunde — in
+      `app-improvements/RollJam/signal-b-never-saved-fix.md`. Unabhängig von den
+      bereits dokumentierten, noch nicht übernommenen
+      `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`
+      (unterschiedliche Funktionen/Zeilenbereiche, keine Überlappung).
+- [ ] Lokal zu tun: die vier Patches gegen die eigene `RollJam`-Kopie anwenden,
+      `ufbt`/`fbt` bauen, mit beschreibbarer SD-Karte einen vollständigen Durchlauf
+      fahren — `/ext/subghz/rolljam/signal_b_HHMMSS.sub` muss danach existieren und
+      sich im normalen Flipper-SubGhz-Menü als RAW-Datei laden lassen.
+      Regressionsfall SD-Karte entfernt/voll vor Phase 2: `DONE` muss
+      "Signal B NOT saved." zeigen, Phase 3 (Replay von Signal A) bleibt unberührt.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, jetzt zusätzlich der
+      hier gelieferte `RollJam`-Signal-B-Speicher-Fix): `texkom` Phase 5 lokaler
+      Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES
+      Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun
+      verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-
+      Dispatch-Integration (blockiert an fehlender Config-Bitwert-Quelle),
+      GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-Installationsskript-
+      Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke v1.5→v1.7
+      (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/
+      `error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/
+      Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-
+      Aufrufstellen sowie der tote `strncpy()`-Nebenfund in
+      `view_config.c:731–735` von `simultaneous_rfid_reader`, die
+      `memcpy()`-Unterlese-Stellen in `nfc_scanner.c`/`nfc_detected_protocols.c`,
+      die noch nicht übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
+      `exit-button-left-key-unhandled-fix`, lokaler Test aller bisher nicht lokal
+      gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports).

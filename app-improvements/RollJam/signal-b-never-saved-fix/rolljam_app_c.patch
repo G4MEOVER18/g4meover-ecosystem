@@ -1,0 +1,43 @@
+--- a/rolljam_app.c
++++ b/rolljam_app.c
+@@ -86,7 +86,11 @@
+         canvas_draw_str(canvas, 0, 10, "Done!");
+         canvas_set_font(canvas, FontSecondary);
+         canvas_draw_str(canvas, 0, 22, "Car should be open.");
+-        canvas_draw_str(canvas, 0, 32, "Signal B still valid.");
++        canvas_draw_str(
++            canvas,
++            0,
++            32,
++            app->signal_b_saved ? "Signal B saved to SD." : "Signal B NOT saved.");
+         elements_button_center(canvas, "Again");
+         elements_button_left(canvas, "Exit");
+         break;
+@@ -219,6 +223,7 @@
+     app->frequency = ROLLJAM_FREQUENCY;
+     app->modulation = "AM650 (OOK)";
+     app->abort     = false;
++    app->signal_b_saved = false;
+     app->rf_mode   = RF_MODE_IDLE;
+     strncpy(app->status, "Ready", sizeof(app->status) - 1);
+ 
+@@ -274,7 +279,19 @@
+             // Proceed to replay even if Signal B capture timed out —
+             // Signal A is what unlocks the car.
+             if(!captured) {
++                app->signal_b_saved = false;
+                 snprintf(app->status, sizeof(app->status), "B skipped — replaying A");
++            } else {
++                // Signal B ist der "Spare"-Code des Angriffs — ohne diese
++                // Sicherung auf SD existiert er nur im RAM dieses App-Laufs
++                // und ist beim Verlassen der App unwiderruflich weg, egal
++                // was der DONE-Bildschirm behauptet.
++                app->signal_b_saved =
++                    rolljam_rf_save_signal(&app->signal_b, app->frequency, "signal_b");
++                snprintf(
++                    app->status,
++                    sizeof(app->status),
++                    app->signal_b_saved ? "B saved — replaying A" : "B save FAILED — replaying A");
+             }
+             app->state = ROLLJAM_PHASE3_REPLAY;
+             view_port_update(vp);

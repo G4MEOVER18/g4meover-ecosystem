@@ -1,0 +1,9 @@
+--- a/rolljam_app.h
++++ b/rolljam_app.h
+@@ -44,5 +44,6 @@
+ 
+     uint32_t            phase_start;
+     volatile bool       abort;
++    bool                signal_b_saved; // NEU: true nur, wenn Signal B tatsaechlich auf SD gesichert wurde
+     char                status[48];
+ } RollJamApp;

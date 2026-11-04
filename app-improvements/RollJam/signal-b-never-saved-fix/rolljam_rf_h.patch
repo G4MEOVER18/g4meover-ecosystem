@@ -1,0 +1,16 @@
+--- a/rolljam_rf.h
++++ b/rolljam_rf.h
+@@ -2,6 +2,13 @@
+ 
+ #include "rolljam_app.h"
+ 
++#define ROLLJAM_SAVE_DIR "/ext/subghz/rolljam"
++
++// Speichert ein RollJamSignal als Flipper SubGHz RAW .sub-Datei (gleiches
++// Dateiformat wie rollforge_save_sig() in der Schwester-App RollForge).
++// Lehnt NULL/leere Signale ab. Gibt true bei Erfolg zurueck.
++bool rolljam_rf_save_signal(const RollJamSignal* sig, uint32_t frequency, const char* filename_hint);
++
+ // Init / deinit CC1101 for the configured frequency+preset
+ bool rolljam_rf_init(RollJamApp* app);
+ void rolljam_rf_deinit(RollJamApp* app);
