@@ -10883,3 +10883,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       `RollJam`-Patches `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`,
       die noch nicht übernommene RollLab-`capture-timeout-not-wired-fix`, lokaler Test aller
       bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## Firmware-Feature-Mining: FDX-B — vier Data-Block-Unterfelder ohne Bit-Reversal und mit falschen Feldgrenzen
+
+- [x] Nach Abschluss der Texkom- (Phase 5) und SubGhzBlockGenericGlobal-Portreihen
+      (Phase 13, 11/11) systematisch alle `lib/lfrfid/protocols/*.c`-Dateien gegen
+      `DarkFlippers/unleashed-firmware` (`dev`) diffgrößen-sortiert durchgesehen, um einen
+      neuen Kandidaten zu finden, statt eine der beiden abgeschlossenen Reihen zu wiederholen.
+      `protocol_pyramid_get_parity()` dabei erneut aufgefallen, aber bereits als
+      `lfrfid-pyramid-wiegand-parity-oob-read-fix` dokumentiert — verworfen. `protocol_fdx_b.c`
+      hatte den größten Diff (180 Zeilen) aller LFRFID-Dateien, bestehend aus zwei unabhängigen
+      Blöcken: einem großen Periodendecoder für Implantat-Chips mit Tastverhältnis-Drift
+      (Unleashed-Commit `525dcce0e`, "improve fdx-b reading" — eigener, größerer
+      Port-Kandidat, hier nicht verfolgt) und einem davon unabhängigen, in einem eigenen
+      Commit isolierten Anzeige-Fix (`97d6628f3`, "Make FDX-B readout more descriptive
+      (#4297)") in `protocol_fdx_b_render_data()`.
+- [x] Letzterer geprüft: die vier Unterfelder nach `block_status`/`rudi_bit` (Bit 48–63 des
+      64-Bit-Datenblocks) werden bei mir mit falschen Feldgrenzen (ein eigenständiges 3-Bit
+      "Visual Start Digit"-Feld existiert bei mir gar nicht, seine Bits werden stattdessen in
+      ein fälschlich 5 statt 2 Bit breites "reserved" hineingelesen) und ohne die im Format
+      tatsächlich vorgesehene Bitspiegelung pro Feld gelesen (`bit_lib_get_bits()` liest
+      MSB-zuerst, das Format ist LSB-zuerst). Reiner Anzeigefehler beim Lesen einer fremden
+      Karte — keine Auswirkung auf ID/Länder-/Temperaturanzeige, Decoder/Encoder oder den
+      Schreibpfad (T5577/EM4305).
+- [x] Minimal-invasiver Patch (`firmware-mining/fdx-b-data-block-field-bit-order-fix/
+      protocol_fdx_b_c.patch`): die drei Feldauslese-Zeilen durch vier ersetzt (neues Feld
+      `visual_start_digit`, `reserved` jetzt 2 statt 5 Bit, je mit
+      `bit_lib_reverse_8_fast()`-Spiegelung), Textausgabe auf fünf benannte Zeilen umgestellt.
+      Gegen eine frische Zweitkopie aus meiner eigenen mntm-012-Basis per `patch -p1` und per
+      `git apply` verifiziert, Ergebnis laut `md5sum` byte-identisch.
+- [x] Host-Repro (`firmware-mining/repro-fdx-b-data-block-field-bit-order-fix/repro.c`):
+      transkribiert beide Fassungen sowie `bit_lib_get_bit()`/`bit_lib_get_bits()`/
+      `bit_lib_reverse_8_fast()` wörtlich aus `bit_lib.c`; Ground Truth unabhängig über eine
+      direkte Bit-für-Bit-Definition berechnet (keine zirkuläre Verifikation). Vier Szenarien
+      (gemischtes Bitmuster, alle Bits 0, alle Bits 1, nur Visual Start Digit gesetzt) unter
+      `-O0`/`-O1` mit ASan/UBSan bestanden: `24/24 Prüfungen bestanden`, `ALL CHECKS PASSED`,
+      identischer Output bei beiden Optimierungsstufen, keine Compiler-Warnungen, keine
+      Sanitizer-Befunde. Ein erster Testpuffer von nur 8 statt der echten 11 Byte
+      (`FDXB_DECODED_DATA_SIZE`) löste zunächst einen ASan-`stack-buffer-overflow` in
+      `bit_lib_get_bits()` selbst aus — das ist der bereits dokumentierte, separate Fund
+      `bit-lib-get-bits-read-past-buffer-fix` (`TODO FL-3534`-Markierung im Quelltext), hier
+      nicht erneut verfolgt, nur durch den realistischen Pufferumfang umgangen.
+- [x] `firmware-mining/fdx-b-data-block-field-bit-order-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Risiko/Nicht Teil dieses Ports/Port-Skizze/Testhinweis/Quelle).
+- [ ] Lokal zu tun: Patch gegen die eigene `G4MEOVER-FW`-Kopie anwenden, mit `ufbt`/`fbt`
+      bauen. Funktionstest: eine FDX-B-Testkarte/-Transponder (ISO 11784/11785) einlesen,
+      `RFU`/`User Info`/`Replacement Number`/neue `Visual Start Digit`-Zeile vorher/nachher
+      vergleichen; `ID`, `Country Code`/`Country`, `Temperature`, `Animal`/`Data Block`/
+      `RUDI Bit` müssen unverändert bleiben.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, jetzt zusätzlich der hier
+      gelieferte FDX-B-Anzeige-Fix): `texkom` Phase 5 lokaler Build-/Funktionstest,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/
+      `error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), das Speicherleck an den
+      fünf `convert_to_hex_string()`-Aufrufstellen sowie der tote `strncpy()`-Nebenfund in
+      `view_config.c:731–735` von `simultaneous_rfid_reader`, die noch nicht übernommenen
+      `RollJam`-Patches `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`,
+      die noch nicht übernommene RollLab-`capture-timeout-not-wired-fix`, der FDX-B-
+      Periodendecoder für Implantat-Chips mit Tastverhältnis-Drift (siehe "Nicht Teil dieses
+      Ports" oben, eigener größerer Port-Kandidat), lokaler Test aller bisher nicht lokal
+      gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports).
