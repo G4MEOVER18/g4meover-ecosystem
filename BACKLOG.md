@@ -10814,3 +10814,72 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       lokaler Test aller bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe
       vorherige Reports), jetzt zusätzlich: lokaler Build-/Funktionstest des hier gelieferten
       NFC-Protokollarray-`memcpy()`-Fixes.
+
+## App-Verbesserung: RollLab — `rlab_replay_done()` beendet TX, bevor die letzte Flanke physisch gesendet ist
+
+- [x] **RollLab** `rolllab_rf.c` gegen die Frage geprüft, wann eine laufende Signal-
+      Wiederholung (Replay Attack, Rollback Probe, Sync Window Probe — alle drei Modi
+      laufen über dieselben `rlab_replay_*()`-Funktionen) tatsächlich als fertig gilt:
+      `rlab_replay_done()` verknüpft `app->tx_pos >= app->ref_sig.count` (TX-Callback hat
+      alle Flanken einmal abgerufen) mit ODER gegen
+      `subghz_devices_is_async_complete_tx(app->device)` (Treiber meldet physische
+      Fertigstellung). Beides sind unterschiedliche Zeitpunkte: der TX-Callback wird — wie
+      bei jedem Timer-/Double-Buffering-getriebenen Bit-Bang-Sender — für die nächste Dauer
+      bereits aufgerufen, während die aktuelle noch physisch läuft; `tx_pos` erreicht die
+      Gesamtzahl also immer eine volle Flanke, bevor diese letzte Flanke fertig ausgegeben
+      ist. Die ODER-Verknüpfung lässt die Aufrufer-Schleife in diesem Moment abbrechen und
+      `subghz_devices_stop_async_tx()` aufrufen — die letzte Flanke wird mitten in ihrer
+      vorgesehenen Dauer abgeschnitten. Gegen den offiziellen Referenzgebrauch abgeglichen
+      (`DarkFlippers/unleashed-firmware`, `secplus_pin_radio.c::secplus_pin_radio_tx()`):
+      dort wird ausschließlich auf `is_async_complete_tx()` (plus Sicherheits-Timeout)
+      gewartet, ohne einen zusätzlichen eigenen Zähler.
+- [x] Besonders kontraproduktiv für Rollback Probe/Sync Window Probe: ein abgeschnittener
+      Code kann vom Empfänger schon wegen des unvollständigen Signals abgelehnt werden,
+      unabhängig von der eigentlich zu prüfenden Rolling-Code-Logik — das Tool würde dann
+      fälschlich "nicht verwundbar" anzeigen.
+- [x] Minimal-invasiver Patch (`app-improvements/RollLab/replay-done-premature-tx-stop-fix/
+      rolllab_rf_c.patch`): entfernt nur die zu früh wahre `tx_pos`-Teilbedingung, es bleibt
+      `subghz_devices_is_async_complete_tx(app->device)` als einzige Bedingung. Gegen eine
+      frische Zweitkopie von `G4MEOVER18/RollLab` (`main`, Commit `4ea80481`) per `patch -p1`
+      und per `git apply` verifiziert, Ergebnis laut `md5sum` über beide Anwendungswege
+      byte-identisch.
+- [x] Host-Repro (`app-improvements/RollLab/repro-replay-done-premature-tx-stop/repro.c`):
+      übernimmt `rlab_replay_tx_cb()`/`rlab_replay_done()` (ALT/NEU) wörtlich und lässt sie
+      gegen einen Mock-Treiber laufen, der den Double-Buffering-Vertrag von
+      `subghz_devices_start_async_tx()`/`is_async_complete_tx()` nachbildet. Für
+      `N ∈ {1, 2, 16, 1024}` Flanken unter `-O0`/`-O1` mit ASan/UBSan bestanden: ALT stoppt
+      jeweils nach `N-1` physisch abgeschlossenen Flanken (bei `N=1`: 0 von 1 — die Schleife
+      bricht ab, bevor der Treiber auch nur einen Tick ausführen konnte), NEU jeweils nach
+      allen `N`. `ALL CHECKS PASSED`, keine Compiler-Warnungen, keine Sanitizer-Befunde
+      (reiner Zustands-/Logikfehler, kein Speicherfehler).
+- [x] `app-improvements/RollLab/replay-done-premature-tx-stop-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Risiko/Testhinweis/Quelle). Kein Zusammenhang mit den bereits
+      dokumentierten RollLab-Funden (`capture-timeout-not-wired-fix`: RX-Capture-Seite;
+      `otg-power-false-ownership-claim-fix`: Power-Pfad; `analyze-silence-terminator-stats-
+      skew-fix`: Analyse-Pfad) — dieser Fund betrifft ausschließlich die TX-Fertig-Erkennung.
+- [ ] Lokal zu tun: den Patch gegen die eigene `RollLab`-Kopie anwenden, `ufbt`/`fbt` bauen.
+      Funktionstest mit CC1101-Empfänger oder Oszilloskop am Zielpin: Replay Attack auf ein
+      eigenes Testsignal auslösen, gesendete Flankenfolge mit der aufgenommenen vergleichen
+      — insbesondere die letzte Flanke muss jetzt ihre volle, aufgezeichnete Dauer
+      erreichen. Regressionsprüfung: Abbruch per Zurücktaste während einer laufenden
+      Wiedergabe bricht weiterhin sofort ab.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, jetzt zusätzlich der hier
+      gelieferte RollLab-TX-Fertig-Erkennungs-Fix): `texkom` Phase 5 lokaler Build-/
+      Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/
+      `error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), das Speicherleck an den
+      fünf `convert_to_hex_string()`-Aufrufstellen sowie der tote `strncpy()`-Nebenfund in
+      `view_config.c:731–735` von `simultaneous_rfid_reader`, die noch nicht übernommenen
+      `RollJam`-Patches `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`,
+      die noch nicht übernommene RollLab-`capture-timeout-not-wired-fix`, lokaler Test aller
+      bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports).

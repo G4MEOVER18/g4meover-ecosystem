@@ -1,0 +1,19 @@
+diff --git a/rolllab_rf.c b/rolllab_rf.c
+index 0f5ab85..1b9b004 100644
+--- a/rolllab_rf.c
++++ b/rolllab_rf.c
+@@ -206,8 +206,12 @@ void rlab_replay_stop(RollLabApp* app) {
+ }
+ 
+ bool rlab_replay_done(const RollLabApp* app) {
+-    return (app->tx_pos >= app->ref_sig.count) ||
+-           subghz_devices_is_async_complete_tx(app->device);
++    // Nur das Treiber-eigene Fertig-Signal zaehlt: subghz_devices_is_async_complete_tx()
++    // wird erst wahr, wenn die letzte Flanke tatsaechlich vollstaendig physisch ausgegeben
++    // wurde. tx_pos >= ref_sig.count wird dagegen schon einen vollen Flanken-Zyklus frueher
++    // wahr, weil rlab_replay_tx_cb() (wie der zugrunde liegende Timer-Treiber es verlangt)
++    // die naechste Dauer immer vorab abruft, waehrend die aktuelle noch physisch laeuft.
++    return subghz_devices_is_async_complete_tx(app->device);
+ }
+ 
+ void rlab_capture_stop_any(RollLabApp* app) {
