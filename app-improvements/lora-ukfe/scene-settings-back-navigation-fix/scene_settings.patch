@@ -1,0 +1,16 @@
+diff --git a/scenes/scene_settings.c b/scenes/scene_settings.c
+index da43582..d9a4019 100644
+--- a/scenes/scene_settings.c
++++ b/scenes/scene_settings.c
+@@ -31,9 +31,10 @@ void scene_settings_on_enter(void* ctx) {
+ }
+ 
+ bool scene_settings_on_event(void* ctx, SceneManagerEvent event) {
+-    UNUSED(ctx);
++    LораUkfeApp* app = ctx;
+     bool consumed = false;
+     if(event.type == SceneManagerEventTypeBack) {
++        scene_manager_previous_scene(app->scene_manager);
+         consumed = true;
+     }
+     return consumed;

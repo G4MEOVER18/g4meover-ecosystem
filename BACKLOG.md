@@ -10953,3 +10953,72 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Periodendecoder für Implantat-Chips mit Tastverhältnis-Drift (siehe "Nicht Teil dieses
       Ports" oben, eigener größerer Port-Kandidat), lokaler Test aller bisher nicht lokal
       gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## App-Verbesserung: lora-ukfe — Settings-Scene verschluckt den Back-Taster, ohne jemals zurückzunavigieren
+
+- [x] `lora-ukfe` gezielt auf die beiden bislang in keinem Fund erwähnten Scene-Dateien
+      geprüft (`scenes/scene_settings.c`, `scenes/scene_status.c`) — Quer-Check über alle
+      bisherigen `Quelle`-Abschnitte bestätigt, dass `scene_settings.c` noch nie geprüft
+      war. Fund: `scene_settings_on_event()`s Back-Zweig setzt nur `consumed = true`, ruft
+      aber nie `scene_manager_previous_scene()` — der `SceneManager` unternimmt bei
+      `consumed == true` von sich aus nichts, der Navigationsstapel bleibt stehen. Jeder
+      Back-Druck in dieser Scene ist wirkungslos, es gibt dort auch sonst keinen
+      Rücksprung-Menüpunkt. Abgleich mit den drei Geschwister-Scenes
+      (`scene_status.c`/`scene_log.c`/`scene_payload_list.c`, alle identisch:
+      `scene_manager_previous_scene(app->scene_manager); consumed = true;`) sowie
+      `scene_menu.c` (eigene Rücksprunglogik für die Kategorie-Ebene) bestätigt:
+      `scene_settings.c` ist die einzige der fünf Scenes im Verzeichnis, die vom
+      durchgängigen Muster abweicht — ein Copy-Paste-Auslassungsfehler.
+- [x] Nebenbefund (kein eigener Fix, nur zur Einordnung): `UkfeSceneSettings` und
+      `UkfeSceneModeMenu` sind aktuell von keiner Stelle aus erreichbar —
+      `grep -rn scene_manager_next_scene` über den gesamten Baum liefert nur drei
+      Aufrufstellen (Programmstart → `UkfeSceneMenu`, zweimal → `UkfeSceneLog` aus
+      `scene_menu.c`), keine zu `UkfeSceneSettings`/`UkfeSceneModeMenu`. Beide Scenes sind
+      vollständig implementiert und im Handler-Array verdrahtet, aber ohne Menüeintrag —
+      vermutlich ein Rest aus der Zeit vor der jetzigen Kategorie-/Katalog-Menüstruktur.
+      Der Back-Fehler selbst ist davon unabhängig real, wird aber erst sichtbar, sobald
+      künftig ein Menüeintrag dorthin ergänzt wird.
+- [x] Minimal-invasiver Patch (`app-improvements/lora-ukfe/scene-settings-back-navigation-fix/
+      scene_settings.patch`): `UNUSED(ctx)` entfällt, neuer Aufruf
+      `scene_manager_previous_scene(app->scene_manager)` im Back-Zweig vor dem bestehenden
+      `consumed = true`. Gegen eine frische Zweitkopie von `G4MEOVER18/lora-ukfe`
+      (`0dba410a`) mit `git apply --check` verifiziert, real angewendet, Ergebnisdatei per
+      `md5sum` identisch zur Patch-Quelle.
+- [x] Host-Repro (`app-improvements/lora-ukfe/repro-scene-settings-back-navigation/repro.c`):
+      `SceneManager` als minimales Push/Pop-Modell nachgebaut (wie beim FlipperJammer-Fund
+      `scene-run-exit-lands-on-duration-picker-fix`), beide `scene_settings_on_event()`-
+      Varianten 1:1 übernommen. Drei Szenarien unter `-O0`/`-O1` mit ASan/UBSan bestanden:
+      ALT bleibt nach einem und nach drei Back-Drücken deterministisch auf `Settings`
+      stehen, NEU landet korrekt auf `Menu`, NEU verhält sich identisch zu einem Modell der
+      bereits korrekten Geschwister-Scenes. `9/9 Prüfungen bestanden`, `ALLE CHECKS
+      PASSED`, identischer Output beider Optimierungsstufen, keine Compiler-Warnungen,
+      keine Sanitizer-Befunde.
+- [x] `app-improvements/lora-ukfe/scene-settings-back-navigation-fix.md` angelegt (Was/
+      Nutzen/Betroffene Dateien/Patch/Host-Repro/Risiko/Testhinweis/Quelle/Offen).
+- [ ] Lokal zu tun: Patch gegen die eigene `lora-ukfe`-Kopie anwenden, mit `ufbt`/`fbt`
+      bauen. Funktionstest setzt einen künftigen Menüeintrag zu `UkfeSceneSettings` voraus
+      (siehe Nebenbefund) — bis dahin nur per Host-Repro nachvollziehbar.
+- [ ] Offen: ob und wo in der Kategorie-Struktur von `scene_menu.c` ein Zugang zu
+      `UkfeSceneSettings`/`UkfeSceneModeMenu` ergänzt wird, ist eine eigene, hier bewusst
+      nicht mitentschiedene Frage für eine künftige Sitzung.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5 lokaler
+      Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3
+      Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), ProtoViews restliche vier Protokoll-Decoder sowie die
+      Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-
+      Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, die noch nicht übernommenen `RollJam`-Patches
+      `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`, die noch nicht
+      übernommene RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports).
