@@ -2287,6 +2287,42 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11 eskaliert; reine
   Tageszählung ist kein neuer Sachstand). Kein Hardware-Zugriff versucht, nichts geflasht, kein
   Firmware-/GUI-Code geschrieben.
+- 2026-11-05 (Cloud-Heartbeat): Repo-Hygiene zuerst — dieses Mal nur die zwischengespeicherte
+  lokale `main`-Ref betroffen, nicht `HEAD`: `HEAD` losgelöst saß bereits korrekt auf
+  `origin/main`s tatsächlichem Stand (`908b60e`), der lokale `main`-Zeiger war 9 Commits alt
+  (`e174157`) — per `git checkout main && git merge --ff-only 908b60e` nachgezogen; `git push`
+  bestätigte „Everything up-to-date", also dieselbe harmlose Ref-Drift-Art wie am 2026-09-27/
+  2026-11-04 (veraltete Ref, nicht veralteter `HEAD`), kein Force-Push nötig, kein Datenverlust.
+  Git-Identität dieses Checkouts stand wieder auf dem Cloud-Default `Claude <noreply@anthropic.com>`
+  — vor dem ersten Edit auf `G4MEOVER18 <g4me.over.18@gmail.com>` korrigiert. Die vier seit dem
+  2026-11-04-Masterplan-Commit `555602f` gelandeten Commits (App-Verbesserungen RollLab+RollJam,
+  Firmware-Feature-Mining NFC-memcpy-Fix+Texkom Phase 5) per `git diff --stat` gezielt gegen diese
+  Datei/`ecosystem/`/`FLEET-COMMANDS.md`/`CONSTRAINTS.md`/`WORKFLOW.md` geprüft: leerer Diff, keine
+  Überschneidung, dieselbe separate App-Verbesserungs-/Firmware-Mining-Routine. Statt einer weiteren
+  Wiederholungsrunde an P0.2c/d, P0.3a-d, P0.4e/f oder der GUI-Architekturfrage (alle zwölf Phasen
+  haben laut PREP-Log-Eintrag 2026-10-20 bereits mindestens eine Verfeinerungsrunde durchlaufen,
+  weitere Textmenge dort wäre laut den Einträgen seit 2026-10-05/-18 reine Wiederholung) echte
+  Konsistenzprüfungen gemacht, diesmal **ohne neuen Fund** (ehrlich vermerkt statt einer
+  Alibi-Textmenge): `ecosystem/devices.json`/`ecosystem/topology.json` per `json.load` weiterhin
+  syntaktisch gültig; die dort geführten Feldlücken (`dogytag`-`usb_id`, `esp32-wroom`/
+  `lilygo-t-display`-`mac`, alle `verified_at` weiterhin `null`) stimmen exakt mit der Beschreibung
+  hier in P0.2c überein. Blocker „referenzierte Tool-Dateien fehlen im Repo" (`pi_flash_v4.py`/
+  `g4meover_control.py`/`flipper_ctl.py`/`g4meover_resume.py`) erneut per `ls ecosystem/` geprüft:
+  weiterhin nur `devices.json`/`topology.json` im Verzeichnis, Blocker bleibt bestehen. Zusätzlich
+  per `git grep` über das gesamte aktuelle Checkout (außer dieser Datei) nach den redigierten
+  Pi-SSH-/LORIX-Klartextwerten (`Core2Quad`, `192.168.0.18`, `192.168.0.130`) gesucht: keine Treffer
+  — die Werte tauchen nach wie vor nur als Zitat in dieser Datei auf, nicht in einer echten
+  Konfigurationsdatei dieses Checkouts. `README.md`s Struktur-Verweise (`FLEET-COMMANDS.md`,
+  `UKFE-RF-V2-SPEC.md`, `UKFE-RF-CODEC-CROSSCHECK.md`, `TEST-PLAN.md`,
+  `docs/HANDBUCH-GLIEDERUNG.md`) einzeln auf Existenz geprüft: alle vorhanden, keine toten Links.
+  Repo-Sichtbarkeit (`g4meover-ecosystem`) per `list_repos` geprüft: weiterhin `private`.
+  Sibling-Repos `g4meover-deck`/`g4meover-companion`/`dogytag-firmware`/`lora-ukfe`/
+  `g4meover-one-x` laut `list_repos` unverändert (`pushed_at` jeweils identisch zum letzten
+  Heartbeat). Pi-SSH-/LORIX-Zugangsdaten-Rotation weiterhin unverändert offen (seit 2026-08-27,
+  jetzt 70 Tage) — keine erneute Push-Notification ohne neuen Sachstand (zuletzt am 2026-09-11
+  eskaliert; reine Tageszählung ist kein neuer Sachstand); die beiden Tageszähler im
+  PREP-Abschnitt unten (Punkt 5 und Rotations-Runbook-Überschrift) auf 70 synchronisiert. Kein
+  Hardware-Zugriff versucht, nichts geflasht, kein Firmware-/GUI-Code geschrieben.
 
 ## PREP für nächste lokale Session
 
@@ -2384,7 +2420,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
    Reverse-Kanal, siehe dort) — P2.1b (Transport-Entscheidung) und P2.2a (expliziter
    Moduswechsel-Befehl ja/nein) bleiben als offene Entscheidungen, die nur lokal gegen `G4MEOVER-FW`
    (außerhalb Cloud-Scope) bzw. im Zusammenspiel mit P8.2 zu treffen sind.
-5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 69 Tage überfällig:** Pi-SSH-Passwort und
+5. **Sicherheitsrelevant, siehe Risiken unten — jetzt 70 Tage überfällig:** Pi-SSH-Passwort und
    LORIX-Admin-Passwort rotieren, dann entscheiden, ob zusätzlich die Git-Historie bereinigt wird.
    Fertiges Drei-Schritt-Runbook (Rotation zuerst, Historie-Bereinigung erst danach, mit
    `git filter-repo --replace-text` statt Pfad-Entfernung, `--force-with-lease` statt `--force`,
@@ -2568,7 +2604,7 @@ nur Code/Repo/Plan, kein lokaler HW-Zugriff — Pi/COM nicht aus der Cloud errei
   Historie-Bereinigung sind bislang bestätigt — beides nur lokal mit ausdrücklicher Freigabe
   möglich (Force-Push, Zugangsdaten-Rotation). Bis dahin: Repo als kompromittiert für diese beiden
   Zugangsdaten behandeln.
-  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 69 Tage überfällig):**
+  - **Rotations-Runbook (fertig, nur lokal auszuführen — jetzt 70 Tage überfällig):**
     1. **Pi-SSH-Passwort:** lokal einloggen (Zugangsdaten wie bisher nur lokal notiert), `passwd`
        neues starkes Passwort setzen. Besser strukturell statt nur einmalig: Key-Auth einrichten
        (`ssh-copy-id`), danach `PasswordAuthentication no` in `/etc/ssh/sshd_config` setzen und
