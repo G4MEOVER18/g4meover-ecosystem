@@ -10753,3 +10753,64 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       die noch nicht übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
       `exit-button-left-key-unhandled-fix`, lokaler Test aller bisher nicht lokal
       gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## Firmware-Feature-Mining: NFC-Protokollarray-`memcpy()`-Bytezahl-Fix (zwei Stellen)
+
+- [x] Den beim Texkom-Phase-5-Port als Nebenfund notierten, bislang offenen Fund aufgegriffen:
+      zwei `memcpy()`-Aufrufe (`lib/nfc/nfc_scanner.c::nfc_scanner_filter_detected_protocols()`,
+      `applications/main/nfc/helpers/nfc_detected_protocols.c::nfc_detected_protocols_set()`)
+      kopieren `NfcProtocol`-Arrays mit der Elementzahl statt der Bytezahl
+      (`sizeof(NfcProtocol)` = 4, nicht 1). Gegen Tag `mntm-012` geprüft: beide Stellen bei mir
+      unverändert im alten Zustand, seit ihrer jeweiligen Erstfassung in
+      `Next-Flip/momentum-firmware` (Commits `d92b0a82c`/`f73d60cba`) so vorhanden.
+      `DarkFlippers/unleashed-firmware` (`dev`) hat beide getrennt korrigiert — Commit
+      `9ef0b565e` (PR #1016, behebt #917) für die Scanner-Stelle, Commit `2b4411f23` (PR #1073)
+      für die Auswahlliste; jeweils nur der eine `memcpy()`-Fix übernommen, nicht die übrigen,
+      deutlich umfangreicheren Änderungen dieser beiden Commits.
+- [x] Per Host-Repro (siehe unten) die tatsächliche Auswirkung eingegrenzt: kein Speicherfehler
+      (beide Arrays bleiben innerhalb ihrer Grenzen), sondern ein reiner Korrektheitsfehler, der
+      nur sichtbar wird, wenn **mehr als ein** Protokoll nach der Filterung/Übernahme übrig
+      bleibt (z. B. eine MIFARE-Plus-Karte, die sowohl als `MfClassic` als auch als `MfPlus`
+      erkannt wird) — im weit überwiegenden Regelfall mit genau einem erkannten Protokoll bleibt
+      der Fehler folgenlos, da die höherwertigen Bytes des Zielelements durch eine vorherige
+      vollständige Enum-Zuweisung bereits 0 sind.
+- [x] Zwei Patches (`firmware-mining/nfc-protocol-array-memcpy-byte-count-fix/
+      {nfc_scanner_c,nfc_detected_protocols_c}.patch`) gegen zwei unabhängige, frische
+      Zweitkopien der betroffenen Dateien aus meiner eigenen `mntm-012`-Basis
+      (`git show mntm-012:...`) verifiziert: einmal per `patch -p1`, einmal per `git apply` —
+      beide betroffenen Dateien laut `md5sum` über beide Anwendungswege byte-identisch.
+      Host-Repro (`firmware-mining/repro-nfc-protocol-array-memcpy-byte-count-fix/repro.c`): 6
+      Szenarien (Regressionsfall mit 1 verbleibendem Protokoll — ALT zufällig trotzdem korrekt,
+      NEU korrekt; 2 verbleibende Protokolle in beiden betroffenen Funktionen — ALT lässt
+      Folgeslots mit Altwerten stehen, NEU korrekt; Regressionsfall mit 0 erkannten Protokollen —
+      ALT und NEU identisch) unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1` bestanden: `ALL CHECKS PASSED`, keine Compiler-Warnungen, keine
+      Sanitizer-Befunde (erwartungsgemäß, da kein Speicherfehler vorliegt).
+- [x] `firmware-mining/nfc-protocol-array-memcpy-byte-count-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Risiko/Port-Skizze/Testhinweis/Quelle).
+- [ ] Lokal zu tun: die beiden Patches gegen die eigene `G4MEOVER-FW`-Kopie anwenden, mit
+      `ufbt`/`fbt` bauen. Funktionstest: eine gewöhnliche Einzelprotokoll-Karte scannen
+      (Ergebnis unverändert); falls eine Mehrprotokoll-Testkarte verfügbar ist (z. B. MIFARE
+      Plus im SL1-Modus), zusätzlich deren Protokollauswahl vor/nach dem Fix vergleichen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, jetzt ohne die hier behobenen
+      `memcpy()`-Unterlese-Stellen in `nfc_scanner.c`/`nfc_detected_protocols.c`): `texkom`
+      Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/
+      Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun
+      verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/
+      `error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht,
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), das Speicherleck an den
+      fünf `convert_to_hex_string()`-Aufrufstellen sowie der tote `strncpy()`-Nebenfund in
+      `view_config.c:731–735` von `simultaneous_rfid_reader`, die noch nicht übernommenen
+      `RollJam`-Patches `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`,
+      lokaler Test aller bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe
+      vorherige Reports), jetzt zusätzlich: lokaler Build-/Funktionstest des hier gelieferten
+      NFC-Protokollarray-`memcpy()`-Fixes.
