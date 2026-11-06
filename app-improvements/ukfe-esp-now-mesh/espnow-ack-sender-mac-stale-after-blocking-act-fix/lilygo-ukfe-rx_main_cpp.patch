@@ -1,0 +1,22 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 0cd1ab7..4cffb2e 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -260,6 +260,8 @@ void loop() {
+     int len = enowLen;
+     uint8_t frame[UKFE_RF_MAX_FRAME];
+     memcpy(frame, enowBuf, len);
++    uint8_t ackMac[6];
++    memcpy(ackMac, enowSenderMac, 6);  // Absender-MAC zusammen mit dem Frame sichern
+     enowFlag = false;
+     rxCount++;
+ 
+@@ -277,7 +279,7 @@ void loop() {
+                  (unsigned long)okCount);
+         tft_show(l1, "ESPNOW +ACK", l3, TFT_GREEN);
+         act(&msg);
+-        send_espnow_ack(enowSenderMac, msg.cmd, 0);   // ACK zurueck an WROOM/Deck
++        send_espnow_ack(ackMac, msg.cmd, 0);   // ACK zurueck an WROOM/Deck
+     } else {
+         Serial.println("ESPNOW PARSE FAIL (MAC/CRC/Counter)");
+     }

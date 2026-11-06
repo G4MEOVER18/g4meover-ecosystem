@@ -11108,3 +11108,77 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), die
       lora-ukfe-Settings-Scene erreicht aktuell keinen Menüeintrag (Nebenbefund aus der
       vorherigen Sitzung).
+
+## App-Verbesserung: ukfe-esp-now-mesh (heltec-ukfe-rx / lilygo-ukfe-rx) — ACK-Absender-MAC wird global gehalten und erst nach dem blockierenden act()-Aufruf gelesen
+
+- [x] Den seit der `espnow-origin-tag-counter-window-split-fix`-Sitzung einzigen Fund im
+      `ukfe-esp-now-mesh`-Verzeichnis als Ausgangspunkt genommen und beide betroffenen
+      Satelliten-Repos (`heltec-ukfe-rx`, `lilygo-ukfe-rx`) frisch geklont statt den
+      Vorsitzungs-Stand nur anzunehmen, diesmal auf den ESP-NOW-Verarbeitungsblock in
+      `loop()` konzentriert (bisher nicht eigenständig durchgesehen, der bisherige Fund
+      betraf ausschließlich das Anti-Replay-Fenster, nicht die ACK-Rückadressierung).
+- [x] Fund: beide Dateien kopieren den eingetroffenen Frame (`enowBuf`→lokales `frame[]`)
+      korrekt **vor** dem Freigeben der Mailbox (`enowFlag = false`) — die Absender-MAC
+      (`enowSenderMac`, gesetzt in `onEspNowRecv()`) dagegen nicht. `send_espnow_ack()`
+      liest sie erst **nach** dem blockierenden `act(&msg)`-Aufruf (WiFi-Scan ~2 s laut
+      eigenem Kommentar, BLE-Scan 3000 ms Default, HID-Ducky/-Stream Zeichen-für-Zeichen,
+      Wardrive-Scan). Da `enowFlag` schon vor `act()` wieder scharf ist, kann währenddessen
+      ein zweiter Frame eines anderen Senders eintreffen und `enowSenderMac` überschreiben
+      — die anschließende ACK für den ERSTEN Befehl geht dann an den ZWEITEN Sender. Der
+      eigentliche Befehl (`frame[]`/`msg`, bereits lokal kopiert) läuft davon unberührt
+      korrekt, nur die Quittung landet beim falschen Gerät. In der eigenen Topologie
+      realistisch, da sowohl `heltec-v4-hub` als auch das ältere `g4meover-wifi-relay`
+      gleichzeitig als ESP-NOW-Broadcast-Quelle aktiv sein können. `heltec-v4-hub` und
+      `g4meover-wifi-relay` selbst gegengeprüft und als nicht betroffen bestätigt (senden
+      keinen eigenen `send_espnow_ack()` als Antwort auf einen empfangenen Frame).
+- [x] Minimal-invasiver Fix in beiden Dateien: lokale `ackMac[6]`-Kopie von
+      `enowSenderMac`, gesichert im selben Atemzug wie `frame[]`, VOR dem Freigeben der
+      Mailbox — `send_espnow_ack()` liest danach nur noch die lokale Kopie. Ein
+      zwischenzeitlich eintreffender zweiter Frame überschreibt weiterhin
+      `enowSenderMac`/`enowBuf`/`enowLen` (unverändert gewollte Mailbox-Semantik, wird in
+      der nächsten `loop()`-Iteration regulär verarbeitet), aber nicht mehr die für den
+      laufenden ACK gebrauchte MAC. Patches
+      (`app-improvements/ukfe-esp-now-mesh/espnow-ack-sender-mac-stale-after-blocking-act-fix/
+      {heltec-ukfe-rx,lilygo-ukfe-rx}_main_cpp.patch`) gegen zwei frische, unabhängige
+      Zweitkopien je per `git apply --check` UND `patch -p1` verifiziert, Ergebnis laut
+      `md5sum` in beiden Fällen und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro
+      (`app-improvements/ukfe-esp-now-mesh/repro-espnow-ack-sender-mac-stale/repro.c`):
+      Mailbox-Felder und `loop()`-Kontrollfluss beider Dateien 1:1 nachgebaut, `act()`
+      durch einen Hook ersetzt, der gezielt einen zweiten `onEspNowRecv()`-Aufruf von
+      einem anderen Absender auslöst. Drei Szenarien unter
+      `gcc -std=c11 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1` bestanden: ALT reproduziert den Fund (ACK geht an den zweiten
+      Sender), FIX behebt ihn ohne Datenverlust (zweiter Frame bleibt für die nächste
+      `loop()`-Iteration erhalten), Regression ohne zweiten Sender liefert bei ALT und FIX
+      identisches Ergebnis. ALLE CHECKS BESTANDEN, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `app-improvements/ukfe-esp-now-mesh/
+      espnow-ack-sender-mac-stale-after-blocking-act-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Fix-Skizze/Host-Repro/Risiko/Testhinweis/Offen/Quelle).
+- [ ] Lokal zu tun: beide Patches anwenden, bauen, auf Heltec V3 bzw. LilyGo T-Dongle S3
+      flashen. Funktionstest braucht zwei gleichzeitig aktive ESP-NOW-Sender auf demselben
+      Kanal (z. B. `heltec-v4-hub` + `g4meover-wifi-relay` parallel betrieben) — bisher nur
+      per Host-Repro nachvollzogen.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5 lokaler
+      Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3
+      Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst
+      zurückgestellt), ProtoViews restliche drei Protokoll-Decoder sowie die
+      Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-
+      Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, die noch nicht übernommenen `RollJam`-Patches
+      `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`, die noch nicht
+      übernommene RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), die lora-ukfe-Settings-Scene erreicht aktuell keinen
+      Menüeintrag, lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports).
