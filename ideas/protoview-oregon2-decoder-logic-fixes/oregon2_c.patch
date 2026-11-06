@@ -1,0 +1,26 @@
+--- a/protocols/oregon2.c
++++ b/protocols/oregon2.c
+@@ -28,7 +28,7 @@
+     info->pulses_count = (off+11*4*4) - info->start_off;
+ 
+     char temp[3] = {0}, hum[2] = {0};
+-    uint8_t deviceid[2];
++    uint8_t deviceid[2] = {0};
+     for (int j = 0; j < 64; j += 4) {
+         uint8_t nib[1];
+         nib[0] = (bitmap_get(buffer,8,j+0) |
+@@ -51,10 +51,10 @@
+         }
+     }
+ 
+-    float tempval = ((temp[0]-'0')*10) +
+-                     (temp[1]-'0') +
+-                    ((float)(temp[2]-'0')*0.1);
+-    int humval = (hum[0]-'0')*10 + (hum[1]-'0');
++    float tempval = (temp[0]*10) +
++                     temp[1] +
++                    ((float)temp[2]*0.1);
++    int humval = hum[0]*10 + hum[1];
+ 
+     fieldset_add_bytes(info->fieldset,"Sensor ID",deviceid,4);
+     fieldset_add_float(info->fieldset,"Temperature",tempval,1);

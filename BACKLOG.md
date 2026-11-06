@@ -11022,3 +11022,89 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
       (`lora_rx`/`wifi_ap`/`error`), lokaler Test aller bisher nicht lokal gegengeprüften
       Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## Ideen-Recherche: ProtoView — Oregon2-Dekoder, zwei Logikfehler in der Nibble-Verarbeitung
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` sowie `reports/` durchgesehen: letzte Sitzung war
+      App-Verbesserung (lora-ukfe, Settings-Scene-Back-Fix), davor Firmware-Feature-Mining
+      (FDX-B). Seit der letzten Ideen-Recherche (ProtoView-API-Kompatibilitätsfund) sechs
+      Sitzungen durchgängig App-Verbesserung/Firmware-Feature-Mining im Wechsel — diese
+      Sitzung daher Ideen-Recherche, um den seit damals unverändert offenen Rückstellpunkt
+      "ProtoViews restliche vier Protokoll-Decoder sowie die Bit-Edit-/Keyboard-Ansicht
+      selbst noch nicht auf eigene Logikfehler durchgesehen" aufzugreifen, statt ihn ein
+      weiteres Mal unverändert in die Offen-Liste zu übernehmen.
+- [x] `antirez/protoview` (Commit `fd2f6ed`, unverändert zum bereits dokumentierten
+      API-Kompatibilitätsfund) frisch geklont. Von den vier nativ unterstützten
+      Protokoll-Decodern den kleinsten zuerst genommen: `protocols/oregon2.c` (70 Zeilen),
+      zeilenweise gegen eigene Logikfehler geprüft (unabhängig vom bereits erledigten
+      API-Fund in `app_subghz.c`).
+- [x] Fund 1: `uint8_t deviceid[2];` ohne Initialisierer, obwohl die beiden
+      Nachbarvariablen in derselben Zeile (`temp[3]`/`hum[2]`) korrekt mit `= {0}`
+      initialisiert sind. Die Schleife baut jedes `deviceid[]`-Byte aus zwei Nibbln per
+      `|=` zusammen — ein Muster, das einen vorab auf 0 stehenden Ziel-Byte voraussetzt.
+      Der allererste Zugriff (`case 0`, `j=0`) liest dadurch nie initialisierten
+      Stack-Inhalt, bevor überhaupt geschrieben wird — das angezeigte "Sensor ID"-Feld
+      enthält zusätzliche, vom Stack-Vorzustand abhängige Bits.
+- [x] Fund 2: `temp[]`/`hum[]` werden mit dem rohen BCD-Ziffernwert aus `nib[0]` (0–9,
+      kein ASCII-Zeichen) belegt, die Auswerteformel `(temp[0]-'0')*10 + …` zieht aber
+      zusätzlich das Standard-ASCII-zu-Zahl-Idiom `-'0'` ab, als wäre `temp[0]` noch ein
+      unkonvertiertes ASCII-Zeichen. Jede Dezimalziffer wird dadurch um -48 verschoben —
+      bei jedem gültigen Signal, kein Rand- oder Sonderfall; macht die beiden einzigen
+      numerischen Nutzdatenfelder des Decoders (Temperatur, Feuchte) unbrauchbar.
+- [x] Minimal-invasiver Patch (`ideas/protoview-oregon2-decoder-logic-fixes/
+      oregon2_c.patch`): `deviceid[2] = {0}` ergänzt, `-'0'` aus beiden Formeln entfernt.
+      Gegen zwei frische, unabhängige Zweitkopien von `antirez/protoview`
+      (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per `git apply --check`/`git apply`
+      und per `patch -p1` verifiziert, Ergebnis laut `md5sum` in beiden Fällen
+      byte-identisch.
+- [x] Host-Repro (`ideas/repro-protoview-oregon2-decoder-logic-fixes/`): der
+      Nibble-Verarbeitungsblock aus `decode()` wörtlich in ALT/NEU extrahiert,
+      `bitmap_get()`/`bitmap_set()` wörtlich aus `signal.c` übernommen, eigene
+      `set_nibble()`-Hilfsfunktion baut daraus ein Bitmuster für vorgegebene
+      Ziffern/Byte-Werte als unabhängige Ground Truth. Drei Szenarien (23,4 °C/55 %;
+      0,0 °C/0 %; 9,9 °C/99 %) unter `gcc -std=c11 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`
+      bestanden: `21/21 Prüfungen bestanden`, `ALL CHECKS PASSED`, GCC meldet bei `-O1`
+      zusätzlich von sich aus `-Wmaybe-uninitialized` exakt an den `deviceid[]`-Stellen
+      (unabhängige Zweitbestätigung von Fund 1). Fund 1 separat mit Valgrind Memcheck
+      (`--track-origins=yes`) geprüft (Uninitialized-Value- statt Speicherfehler): meldet
+      bei ALT exakt "Uninitialised value was created by a stack allocation at
+      oregon2_extract_ALT.c:14", konkreter Fehlwert `deviceid=0x0400` statt der
+      korrekten `0x0000` für ein Nullpuffer-Szenario; eigenständiger NEU-only-Lauf
+      vollständig Valgrind-clean (`ERROR SUMMARY: 0 errors`).
+- [x] `ideas/protoview-oregon2-decoder-logic-fixes.md` angelegt (Was/Nutzen/Betroffene
+      Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/Quelle).
+      `ideas/protoview-digital-signal-tool-app-status.md` um einen Verweisabschnitt
+      ergänzt, `ideas/pentest-app-katalog.md` (ProtoView-Zeile) aktualisiert.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich
+      zum bereits vorliegenden `furi_hal_subghz_load_preset()`-Fix, ohne den die App auf
+      meiner Firmware gar nicht startet), `./fbt launch_app APPSRC=protoview` bauen.
+      Funktionstest mit einem eigenen Oregon-Scientific-Thermo-/Hygrometer (433,92 MHz,
+      Protokoll v2.1): angezeigte Temperatur/Feuchte gegen den tatsächlichen
+      Sensor-Anzeigewert vergleichen, Sensor-ID über mehrere Empfänge hinweg auf
+      Konstanz prüfen.
+- [ ] Weiterhin offen: ProtoViews restliche drei Protokoll-Decoder (TPMS-Cluster
+      Renault/Toyota/Schrader/Citroen/Ford, KeeLoq, PT2262/SC5262) sowie die
+      Bit-Edit-/Keyboard-Ansicht selbst noch nicht auf eigene Logikfehler durchgesehen.
+      Unverändert aus vorherigen Sitzungen: `texkom` Phase 5 lokaler Build-/
+      Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3
+      Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump), lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), PSA-Bruteforce-TEA-Schlüsselplan-Konstanten
+      (bewusst zurückgestellt), SignalSweep-Firmware-Quelltextsichtung für eine
+      mögliche Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel-
+      und VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-
+      Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, die noch nicht übernommenen `RollJam`-Patches
+      `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`, die noch
+      nicht übernommene RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder
+      für Implantat-Chips mit Tastverhältnis-Drift, lokaler Test aller bisher nicht lokal
+      gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports), die
+      lora-ukfe-Settings-Scene erreicht aktuell keinen Menüeintrag (Nebenbefund aus der
+      vorherigen Sitzung).

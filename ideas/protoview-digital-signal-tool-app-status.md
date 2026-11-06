@@ -135,6 +135,16 @@ kein neuer Sende-/Jamming-Mechanismus — dieselben regulatorischen Grenzen wie 
 Stock-SubGhz-App oder RollForge gelten unverändert (`furi_hal_subghz_is_frequency_valid()`/
 Regionssperre bleiben in meiner Firmware vollständig aktiv, von ProtoView nicht umgangen).
 
+## Fortsetzung: Logikprüfung der vier nativen Protokoll-Decoder
+
+Dieser Fund deckte ausschließlich die API-87-Kompatibilität ab, nicht die vier nativ
+unterstützten Protokoll-Decoder selbst (TPMS Renault/Toyota/Schrader/Citroen/Ford,
+KeeLoq, Oregon 2, PT2262/SC5262) oder die Bit-Edit-/Keyboard-Ansicht — eigener
+Rückstellpunkt für künftige Sitzungen. Oregon 2 (kleinster der vier) jetzt
+zeilenweise durchgesehen: zwei unabhängige Logikfehler inkl. Fix, Details in
+`ideas/protoview-oregon2-decoder-logic-fixes.md`. TPMS-Cluster, KeeLoq,
+PT2262/SC5262 sowie die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+
 ## Quelle
 
 `antirez/protoview`, GitHub, BSD-2-Clause, Commit `fd2f6edd43cb813c37a7d912c7dd88f9732d298f`
