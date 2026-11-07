@@ -11182,3 +11182,83 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`lora_rx`/`wifi_ap`/`error`), die lora-ukfe-Settings-Scene erreicht aktuell keinen
       Menüeintrag, lokaler Test aller bisher nicht lokal gegengeprüften
       Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## Firmware-Feature-Mining: Nearby Files — Submodul-Pin-Bump v1.5 → v1.7 (applications/external)
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` sowie `reports/` durchgesehen: letzte Sitzung war
+      App-Verbesserung (ukfe-esp-now-mesh, ACK-Absender-MAC-Fix), davor Ideen-Recherche
+      (ProtoView Oregon2), davor App-Verbesserung (lora-ukfe), davor Firmware-Feature-Mining
+      (FDX-B) — diese Sitzung daher wieder Firmware-Feature-Mining gewählt, um in die
+      Alternierung zurückzukehren. Aus der "Weiterhin offen"-Liste gezielt den seit mehreren
+      Sitzungen unverändert mitgeführten Rückstellpunkt "Nearby-Files-Versionslücke
+      v1.5→v1.7 (Submodul-Pin-Bump)" aufgegriffen (zuletzt explizit als nächster Schritt in
+      `ideas/nearby-files-gps-app-status.md` vermerkt), statt ihn ein weiteres Mal
+      unverändert weiterzureichen.
+- [x] `Next-Flip/Momentum-Apps` (`dev`-Branch, aktueller Commit `55a446b1b0`) frisch geklont,
+      `git log --oneline -- nearby_files` gegen meinen gepinnten Commit
+      (`85b0cdb4e7dec08d16db6ceea3ec3fc5078bedb4`, `fap_version="1.5"`) geprüft: genau ein
+      Merge-Commit (`f3102847c3368048b8bf969f6e880865706278a4`, 2026-06-02) bringt die App
+      direkt auf `fap_version="1.7"` — kein mehrstufiges Nachziehen nötig.
+      `git diff 85b0cdb4e..f3102847c -- nearby_files` vollständig gelesen (15 Dateien,
+      +933/−236 Zeilen): GPS-Baudraten-Auswahl mit `saved_struct`-Persistenz und sauber
+      serialisiertem Worker-Neustart, neue "Add GPS to file"-Schreibfunktion
+      (`nearby_files_update_coordinates_in_file()`), iButton-Scan-Pfad (bereits mit `v1.6`
+      eingeführt), vier neue Dateityp-Icons, zwei neue Scenes korrekt über eigene
+      Menüeinträge erreichbar (`nearby_files_scene_menu.c` verdrahtet `AddGps`/
+      `GpsBaudrate` vollständig, anders als der offene lora-ukfe-Settings-Scene-Fund).
+- [x] Eigener Review über die reine Changelog-Übernahme hinaus: Worker-Stop/-Start-Pfad in
+      `gps_reader.c` auf Races geprüft (IRQ-Callback kann nach Stop-Flag nicht mehr in einen
+      bereits freigegebenen Stream schreiben, neuer Stream erst nach vollständigem Thread-
+      Join alloziert) — kein Fund. Neue Schreibfunktion
+      `nearby_files_update_coordinates_in_file()` zeilenweise durchgesehen (CRLF-Behandlung,
+      Einfügepunkt vor `Protocol: `, Fallback-Anhängen) — kein Logikfehler gefunden. Der
+      bereits dokumentierte `&&`/`||`-Zero-Coordinate-Filter-Fund aus
+      `ideas/nearby-files-gps-app-status.md` ist in `v1.7` unverändert an derselben Stelle
+      vorhanden (nur Zeile 728 statt 490 durch Reformatierung) — per `grep` gegen den
+      frischen `v1.7`-Checkout verifiziert, kein neuer Fund. Ungeprüfter Rückgabewert von
+      `nearby_files_load_config_baudrate()` an der Aufrufstelle gezielt gegengeprüft und als
+      unkritisch bestätigt (`gps_reader_alloc()` validiert die übergebene Baudrate selbst
+      und fällt bei `0`/ungültig auf den Default zurück) — bewusst so vermerkt, um keinen
+      Phantom-Bug zu melden.
+- [x] Der bisherige Fix-Patch (`ideas/nearby-files-zero-coordinate-filter-fix/`, gegen die
+      `v1.5`-Quelle) per `git apply --check` gegen einen frischen `v1.7`-Checkout
+      gegengeprüft und bestätigt fehlgeschlagen (Reformatierung/Zeilenverschiebung durch den
+      Pin-Bump). Regenerierter Fix mit identischer Semantik
+      (`firmware-mining/nearby-files-v1.5-to-v1.7-pin-bump/
+      nearby_files_c_zero_coordinate_filter_v17.patch`) gegen zwei frische, unabhängige
+      Zweitkopien des `v1.7`-Standes je per `git apply --check`/`git apply` UND `patch -p1`
+      verifiziert, Ergebnis laut `md5sum` in beiden Fällen und beiden Prüfmethoden
+      byte-identisch. Der bereits vorhandene, dateiversionsunabhängige Host-Repro
+      (`ideas/repro-nearby-files-zero-coordinate-filter/repro.c`) erneut unter `-O0`/`-O1`
+      mit ASan/UBSan laufen lassen: weiterhin `3352 Prüfungen bestanden`, kein neuer Repro
+      nötig.
+- [x] `firmware-mining/nearby-files-v1.5-to-v1.7-pin-bump.md` angelegt (Was/Geprüft/
+      Betroffene Dateien/Risiko/Port-Skizze/Offen/Quelle).
+- [ ] Lokal zu tun: Submodul-Pin in `G4MEOVER-FW` von `85b0cdb4e` auf `f3102847c3` vorziehen,
+      `fbt`/`ufbt` neu bauen, regenerierten Patch anwenden, Funktionstest (GPS-Baudraten-
+      Wechsel inkl. Neustart-Persistenz, "Add GPS to file" an einer eigenen `.sub`-Testdatei,
+      iButton-Scan an einer eigenen `.ibtn`-Testdatei) — siehe Datei für Details.
+- [ ] Offen: Baudraten-Wechsel am GPS-Modul selbst (tatsächliche Modul-Neukonfiguration, z. B.
+      `$PMTK251`) ist nicht Teil dieser App/dieses Fundes — eigener, hier nicht
+      aufgegriffener Themenkomplex für eine künftige Sitzung.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5 lokaler Build-/
+      Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, PSA-Bruteforce-TEA-Schlüsselplan-
+      Konstanten (bewusst zurückgestellt), ProtoViews restliche drei Protokoll-Decoder sowie
+      die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine
+      mögliche Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-
+      Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, die noch nicht übernommenen `RollJam`-Patches
+      `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`, die noch nicht
+      übernommene RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), die lora-ukfe-Settings-Scene erreicht aktuell keinen
+      Menüeintrag, lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports).
