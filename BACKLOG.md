@@ -11262,3 +11262,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`lora_rx`/`wifi_ap`/`error`), die lora-ukfe-Settings-Scene erreicht aktuell keinen
       Menüeintrag, lokaler Test aller bisher nicht lokal gegengeprüften
       Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## App-Verbesserung: lora-ukfe — Settings-Scene über neuen Menüpunkt erreichbar gemacht
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` sowie `reports/` durchgesehen: letzte Sitzung war
+      Firmware-Feature-Mining (Nearby Files, Submodul-Pin-Bump v1.5→v1.7), davor
+      App-Verbesserung (ukfe-esp-now-mesh, ACK-Absender-MAC-Fix), davor Ideen-Recherche
+      (ProtoView Oregon2) — diese Sitzung daher wieder App-Verbesserung gewählt, um in die
+      Alternierung zurückzukehren. `app-improvements/`-Abdeckung je App gegengeprüft
+      (Unterordner-Anzahl als grobes Signal, dann inhaltlich bestätigt): den in
+      `scene-settings-back-navigation-fix.md` bewusst offen gelassenen Nebenbefund
+      aufgegriffen ("`UkfeSceneSettings` bleibt ohne Menüeintrag unerreichbar") statt ihn
+      ein weiteres Mal unverändert in die "Weiterhin offen"-Liste zu schreiben.
+- [x] `G4MEOVER18/lora-ukfe` frisch geklont (`main`, unverändert `0dba410a`, derselbe Stand
+      wie beim vorherigen Fund). `scenes/scene_menu.c` (Kategorie-/Funktions-Menü),
+      `scenes/scene_mode_menu.c`, `scenes/scene_settings.c`, `scenes/scenes.h`,
+      `scenes/scene_handlers.c` sowie `command_catalog.h` gelesen. Bestätigt:
+      `UkfeSceneSettings` ist im Handler-Array vollständig verdrahtet, aber
+      `scene_menu.c`s `build_menu()` fügt auf der Kategorie-Ebene nur die acht
+      `CATALOG`-Einträge plus `"Log"` hinzu — kein Eintrag zu Settings. `grep -rn
+      scene_manager_next_scene` über den gesamten Baum bestätigt erneut nur drei
+      Aufrufstellen (Start → Menu, zweimal → Log), keine zu Settings.
+- [x] Nebenbefund beim Gegenlesen von `scene_mode_menu.c`: `UkfeSceneModeMenu` ist ebenso
+      unerreichbar und funktional ein Duplikat des bereits in `scene_settings.c`
+      vorhandenen `"Modus"`-Eintrags (beide setzen `app->mode` aus derselben
+      `UkfeMode`-Auswahl, nur über unterschiedliche Widgets) — vermerkt, aber hier
+      bewusst nicht mitgefixt (eigene Entscheidung: entfernen oder umwidmen).
+- [x] Fix entworfen: neue Konstante `IDX_SETTINGS = 202` (oberhalb von
+      `CATALOG_COUNT = 8`, kollisionsfrei mit den Kategorie-Indizes), neuer
+      `"Einstellungen"`-Eintrag in `build_menu()`, neuer Dispatch-Zweig in
+      `menu_callback()` zu `UkfeSceneSettings`. Patch
+      (`app-improvements/lora-ukfe/settings-scene-menu-entry-fix/scene_menu.patch`) gegen
+      zwei frische, unabhängige Zweitkopien je per `git apply --check` UND `patch -p1`
+      verifiziert, Ergebnis laut `md5sum` in beiden Fällen und beiden Prüfmethoden
+      byte-identisch.
+- [x] Host-Repro (`app-improvements/lora-ukfe/repro-settings-scene-menu-entry/repro.c`):
+      `menu_callback()`-Dispatch mit den realen Konstanten/`CATALOG_COUNT` nachgebaut.
+      Sechs Prüfungen (ALT bleibt unerreichbar, NEU navigiert korrekt zu Settings, Log/
+      Kategorie-Auswahl/Zurück bleiben unverändert, Index-Kollisionsprüfung aller
+      Root-Menü-IDs) unter `-O0`/`-O1` mit ASan/UBSan: `6/6 Prüfungen bestanden`, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `app-improvements/lora-ukfe/settings-scene-menu-entry-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Patch/Host-Repro/Risiko/Testhinweis/Quelle/Offen).
+- [ ] Lokal zu tun: diesen Patch zusammen mit dem bereits dokumentierten
+      `scene-settings-back-navigation-fix` anwenden (sonst ist Settings zwar erreichbar,
+      Back dort aber weiterhin wirkungslos), bauen, flashen, neuen Menüeintrag
+      `"Einstellungen"` anwählen, Back-Verhalten prüfen.
+- [ ] Offen: Entscheidung über `UkfeSceneModeMenu` (entfernen oder umwidmen, da jetzt
+      reine Duplikation der erreichbaren Settings-Funktion) für eine künftige Sitzung
+      zurückgestellt.
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen): `texkom` Phase 5 lokaler Build-/
+      Funktionstest, NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, PSA-Bruteforce-TEA-Schlüsselplan-
+      Konstanten (bewusst zurückgestellt), ProtoViews restliche drei Protokoll-Decoder sowie
+      die Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine
+      mögliche Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung
+      (Security+ 2.0), das Speicherleck an den fünf `convert_to_hex_string()`-
+      Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`, die noch nicht übernommenen `RollJam`-Patches
+      `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`, die noch nicht
+      übernommene RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am GPS-Modul selbst
+      (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports).

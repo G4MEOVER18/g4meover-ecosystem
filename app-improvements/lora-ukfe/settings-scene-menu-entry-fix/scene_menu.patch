@@ -1,0 +1,32 @@
+diff --git a/scenes/scene_menu.c b/scenes/scene_menu.c
+index 0cde762..4c91032 100644
+--- a/scenes/scene_menu.c
++++ b/scenes/scene_menu.c
+@@ -7,8 +7,9 @@
+ // Kurz scrollen, OK = auswaehlen/ausfuehren, "< zurueck" oder Back = eine Ebene hoch.
+ static int s_cat = -1;
+ 
+-#define IDX_LOG  200
+-#define IDX_BACK 201
++#define IDX_LOG      200
++#define IDX_SETTINGS 202
++#define IDX_BACK     201
+ 
+ static void menu_callback(void* ctx, uint32_t index);
+ 
+@@ -19,6 +20,7 @@ static void build_menu(LораUkfeApp* app) {
+         for(int i = 0; i < CATALOG_COUNT; i++)
+             submenu_add_item(app->submenu, CATALOG[i].name, (uint32_t)i, menu_callback, app);
+         submenu_add_item(app->submenu, "Log", IDX_LOG, menu_callback, app);
++        submenu_add_item(app->submenu, "Einstellungen", IDX_SETTINGS, menu_callback, app);
+     } else {
+         submenu_set_header(app->submenu, CATALOG[s_cat].name);
+         for(uint8_t i = 0; i < CATALOG[s_cat].count; i++)
+@@ -39,6 +41,7 @@ static void send_fn(LораUkfeApp* app, const UkfeFn* fn) {
+ static void menu_callback(void* ctx, uint32_t index) {
+     LораUkfeApp* app = ctx;
+     if(index == IDX_LOG) { scene_manager_next_scene(app->scene_manager, UkfeSceneLog); return; }
++    if(index == IDX_SETTINGS) { scene_manager_next_scene(app->scene_manager, UkfeSceneSettings); return; }
+     if(index == IDX_BACK) { s_cat = -1; build_menu(app); return; }
+     if(s_cat < 0) {
+         if((int)index < CATALOG_COUNT) { s_cat = (int)index; build_menu(app); }
