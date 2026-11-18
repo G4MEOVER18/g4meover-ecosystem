@@ -1,0 +1,48 @@
+From 3e81f56a8e5f18e57a25ae4d6b1f6e7729240567 Mon Sep 17 00:00:00 2001
+From: Yanis <yanis@ameseder.com>
+Date: Wed, 18 Nov 2026 19:24:10 +0100
+Subject: [PATCH] fix(mfkey): Stack-Ueberlauf beim Nested-/Mfkey32-Recovery
+ behoben
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+App-Stack 1 KB -> 2 KB, Worker-Thread 'MFKeyWorker' 2 KB -> 4 KB.
+mfkey war mit 1 KB App-Stack die kleinste aller NFC-Apps (nfc_magic 4 KB,
+picopass/seader 5 KB); der 2-KB-Worker sprengte bei tiefen Crypto1-
+Aufrufketten + mehreren malloc-Bloecken den Stack -> harter Absturz.
+FAP baut grün (APPCHK bestanden); On-Device-Test mit echten Nonces ausstehend.
+---
+ mfkey/application.fam | 2 +-
+ mfkey/mfkey.c         | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mfkey/application.fam b/mfkey/application.fam
+index 7fba499..7e9af6f 100644
+--- a/mfkey/application.fam
++++ b/mfkey/application.fam
+@@ -8,7 +8,7 @@ App(
+         "gui",
+         "storage",
+     ],
+-    stack_size=1 * 1024,
++    stack_size=2 * 1024,
+     fap_icon="mfkey.png",
+     fap_category="NFC",
+     fap_author="@noproto",
+diff --git a/mfkey/mfkey.c b/mfkey/mfkey.c
+index 4448c88..282f39c 100644
+--- a/mfkey/mfkey.c
++++ b/mfkey/mfkey.c
+@@ -1324,7 +1324,7 @@ int32_t mfkey_main()
+ 	gui_add_view_port(gui, view_port, GuiLayerFullscreen);
+ 
+ 	program_state->mfkeythread =
+-		furi_thread_alloc_ex("MFKeyWorker", 2048, mfkey_worker_thread, program_state);
++		furi_thread_alloc_ex("MFKeyWorker", 4096, mfkey_worker_thread, program_state);
+ 
+ 	InputEvent input_event;
+ 	for (bool main_loop = true; main_loop;)
+-- 
+2.54.0.windows.1
+
