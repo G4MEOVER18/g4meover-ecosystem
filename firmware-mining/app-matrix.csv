@@ -1,0 +1,254 @@
+app_id,name,kategorie,version_lokal,version_upstream,quelle_url,status,prioritaet,notiz
+flipdeflock,FlipDeFlock,Tools,0.53,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipdeflock,aktuell,niedrig,"Dritt-App in applications_user eingebettet (nicht vom Betreiber), Upstream separat pflegen"
+jammer_suite,Jammer Suite,GPIO,1.0,1.0,https://github.com/G4MEOVER18/FlipperJammer,aktuell,niedrig,"Eigene App des Betreibers; lokaler Baum = GitHub-Repo, synchron"
+fz_nrf24_jammer,[NRF24] Jammer,GPIO,1.4.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/fz_nrf24_jammer,aktuell,niedrig,"Dritt-App in applications_user eingebettet (nicht vom Betreiber), Upstream separat pflegen"
+lora_ukfe,USB Army Knife FE,GPIO,1.0,1.0,https://github.com/G4MEOVER18/lora-ukfe,aktuell,niedrig,"Eigene App des Betreibers; lokaler Baum = GitHub-Repo, synchron"
+proto_pirate,ProtoPirate,Sub-GHz,3.1,3.1,https://github.com/G4MEOVER18/ProtoPirate,aktuell,niedrig,"Eigene App des Betreibers; lokaler Baum = GitHub-Repo, synchron"
+rollforge,RollForge,Sub-GHz,1.0,1.0,https://github.com/G4MEOVER18/RollForge,aktuell,niedrig,"Eigene App des Betreibers; lokaler Baum = GitHub-Repo, synchron"
+rolljam_research,RollJam Research,Sub-GHz,1.0,1.0,https://github.com/G4MEOVER18/RollJam,aktuell,niedrig,"Eigene App des Betreibers; lokaler Baum = GitHub-Repo, synchron"
+rolllab_research,RollLab Research,Sub-GHz,1.0,1.0,https://github.com/G4MEOVER18/RollLab,aktuell,niedrig,"Eigene App des Betreibers; lokaler Baum = GitHub-Repo, synchron"
+wendigo,[ESP32] Wendigo BT+BLE+WiFi Monitor,GPIO/ESP,0.5,,https://github.com/G4MEOVER18/G4MEOVER-FW,aktuell,niedrig,"Dritt-App in applications_user eingebettet (nicht vom Betreiber), Upstream separat pflegen"
+game_2048,2048,Games,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/2048,unklar,niedrig,Upstream nicht geprüft
+4inrow,4 in a Row,Games,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/4inrow,unklar,niedrig,Upstream nicht geprüft
+air_arkanoid,Air Arkanoid,Games,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/air_arkanoid,unklar,niedrig,Upstream nicht geprüft
+air_labyrinth,Air Labyrinth,Games,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/air_labyrinth,unklar,niedrig,Upstream nicht geprüft
+air_mouse,[BMI/LSM] Air Mouse,GPIO,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/airmouse,unklar,niedrig,Upstream nicht geprüft
+ami_tool,Amiibo Toolkit,NFC,0.2.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ami_tool,unklar,niedrig,Upstream nicht geprüft
+arkanoid,Arkanoid,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/arkanoid,unklar,niedrig,Upstream nicht geprüft
+asteroids,Asteroids,Games,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/asteroids,unklar,niedrig,Upstream nicht geprüft
+flipper_atomicdiceroller,[J305] Atomic Dice Roller,GPIO/Sensors,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/atomicdiceroller,unklar,niedrig,Upstream nicht geprüft
+avr_isp,[AVR] AVR Flasher,GPIO/Debug,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/avr_isp,unklar,niedrig,Upstream nicht geprüft
+barcode_app,Barcode,Tools,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/barcode_gen,unklar,niedrig,Upstream nicht geprüft
+blackjack,BlackJack,Games,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/blackjack,unklar,niedrig,Upstream nicht geprüft
+ble_spam,BLE Spam,Bluetooth,6.6,6.6,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ble_spam,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+bomberduck,Bomberduck,Games,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/bomberduck,unklar,niedrig,Upstream nicht geprüft
+bpm_tapper,BPM Tapper,Media,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/bpmtapper,unklar,niedrig,Upstream nicht geprüft
+bt_trigger,BT Trigger,Bluetooth,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/bt_trigger,unklar,niedrig,Upstream nicht geprüft
+caesar_cipher,Caesar Cipher,Tools,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/caesarcipher,unklar,niedrig,Upstream nicht geprüft
+calculator,Calculator,Tools,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/calculator,unklar,niedrig,Upstream nicht geprüft
+camera_suite,[ESP32CAM] Camera Suite,GPIO/ESP,1.9,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/camera_suite,unklar,niedrig,Upstream nicht geprüft
+can_tools,CAN Tools,Tools,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/can_tools,unklar,niedrig,Upstream nicht geprüft
+chess,Chess,Games,1.12,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/chess,unklar,niedrig,Upstream nicht geprüft
+chief_cooker,Chief Cooker,Sub-GHz,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/chief_cooker,unklar,niedrig,Upstream nicht geprüft
+cli_gui,CLI-GUI Bridge,Tools,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/cli_bridge,unklar,niedrig,Upstream nicht geprüft
+cntdown_tim,Count Down Timer,Tools,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/cntdown_timer,unklar,niedrig,Upstream nicht geprüft
+co2_logger,[MH-Z19] CO2 Logger,GPIO/Sensors,0.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/co2_logger,unklar,niedrig,Upstream nicht geprüft
+color_guess,Color Guess,Games,1.6,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/color_guess,unklar,niedrig,Upstream nicht geprüft
+combo_cracker,Combo Cracker,Tools,0.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/combo_cracker,unklar,niedrig,Upstream nicht geprüft
+counter,Counter,Tools,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/counter,unklar,niedrig,Upstream nicht geprüft
+xremote,Cross Remote,Infrared,3.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/cross_remote,unklar,niedrig,Upstream nicht geprüft
+cyborg_detector,Cyborg Detector,NFC,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/cyborg_detector,unklar,niedrig,Upstream nicht geprüft
+dap_link,[SWD-JTAG] DAP Link,GPIO/Debug,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/dap_link,unklar,niedrig,Upstream nicht geprüft
+doom,DOOM,Games,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/doom,unklar,niedrig,Upstream nicht geprüft
+dtmf_dolphin,DTMF Dolphin,Tools,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/dtmf_dolphin,unklar,niedrig,Upstream nicht geprüft
+em4100_generator,EM4100 Key Generator,RFID,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/em4100_generator,unklar,niedrig,Upstream nicht geprüft
+esp8266_deauther,[ESP8266] Deauther,GPIO/ESP,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/esp8266_deauth,unklar,niedrig,Upstream nicht geprüft
+esp_flasher,[ESP] ESP Flasher,GPIO/ESP,1.7,1.9,https://github.com/Next-Flip/Momentum-Apps/tree/dev/esp_flasher,veraltet,hoch,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+esubghz_chat,Enhanced Sub-Ghz Chat,Sub-GHz,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/esubghz_chat,unklar,niedrig,Upstream nicht geprüft
+etch,Etch a Sketch,Media,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/etch_a_sketch,unklar,niedrig,Upstream nicht geprüft
+eth_troubleshooter,[W5500] Ethernet,GPIO/Debug,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/eth_troubleshooter,unklar,niedrig,Upstream nicht geprüft
+evil_portal,[ESP32] Evil Portal,GPIO/ESP,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/evil_portal,unklar,niedrig,Upstream nicht geprüft
+flame_rng,Flame RNG,Infrared,0.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flame_rng,unklar,niedrig,Upstream nicht geprüft
+flappy_bird,Flappy Bird,Games,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flappy_bird,unklar,niedrig,Upstream nicht geprüft
+flashlight,[LED] Flashlight,GPIO,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flashlight,unklar,niedrig,Upstream nicht geprüft
+flip_crypt,FlipCrypt,Tools,0.6,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_crypt,unklar,niedrig,Upstream nicht geprüft
+flip_downloader,FlipDownloader,GPIO/FlipperHTTP,1.3.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_downloader,unklar,niedrig,Upstream nicht geprüft
+flip_library,FlipLibrary,GPIO/FlipperHTTP,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_library,unklar,niedrig,Upstream nicht geprüft
+flip_map,FlipMap,GPIO/FlipperHTTP,0.2.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_map,unklar,niedrig,Upstream nicht geprüft
+flip_social,FlipSocial,GPIO/FlipperHTTP,2.0.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_social,unklar,niedrig,Upstream nicht geprüft
+flip_tdi,[FTDI232H] FlipTDI,GPIO/Debug,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_tdi,unklar,niedrig,Upstream nicht geprüft
+flip_telegram,FlipTelegram,GPIO/FlipperHTTP,1.0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_telegram,unklar,niedrig,Upstream nicht geprüft
+flip_trader,FlipTrader,GPIO/FlipperHTTP,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_trader,unklar,niedrig,Upstream nicht geprüft
+flip_weather,FlipWeather,GPIO/FlipperHTTP,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_weather,unklar,niedrig,Upstream nicht geprüft
+flip_wifi,FlipWiFi,GPIO/FlipperHTTP,1.6.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_wifi,unklar,niedrig,Upstream nicht geprüft
+flip_world,FlipWorld,GPIO/FlipperHTTP,0.8.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flip_world,unklar,niedrig,Upstream nicht geprüft
+flipbip,FlipBIP Crypto Wallet,Tools,1.18,1.18,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipbip,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+flipboard_blinky,FlipBoard Blinky,GPIO/FlipBoard,3.6,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipboard_blinky,unklar,niedrig,Upstream nicht geprüft
+flipboard_keyboard,FlipBoard Keyboard,GPIO/FlipBoard,3.9,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipboard_keyboard,unklar,niedrig,Upstream nicht geprüft
+flipboard_signal,FlipBoard Signal,GPIO/FlipBoard,3.12,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipboard_signal,unklar,niedrig,Upstream nicht geprüft
+flipboard_simon,FlipBoard Simon,GPIO/FlipBoard,1.10,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipboard_simon,unklar,niedrig,Upstream nicht geprüft
+blackhat,[A33] Flipper Blackhat,GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipper_blackhat,unklar,niedrig,Upstream nicht geprüft
+flipper_share,Flipper Share,Sub-GHz,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipper_share,unklar,niedrig,Upstream nicht geprüft
+flizzer_tracker,Flizzer Tracker,Media,0.11,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flizzer_tracker,unklar,niedrig,Upstream nicht geprüft
+fm_radio,[TEA5767] FM Radio,GPIO,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/fm_radio,unklar,niedrig,Upstream nicht geprüft
+fmtx_app,[KT0803] FM Transmitter,GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/fm_transmitter,unklar,niedrig,Upstream nicht geprüft
+fmatrix,Fmatrix,Media,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/fmatrix,unklar,niedrig,Upstream nicht geprüft
+fmf_to_sub,Music to Sub-GHz Radio,Sub-GHz,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/fmf_to_sub,unklar,niedrig,Upstream nicht geprüft
+free_roam,Free Roam,GPIO/FlipperHTTP,0.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/free_roam,unklar,niedrig,Upstream nicht geprüft
+game15,Game 15,Games,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/game15,unklar,niedrig,Upstream nicht geprüft
+gameoflife,Game of Life,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/game_of_life,unklar,niedrig,Upstream nicht geprüft
+flipper_geiger,[J305] Geiger Counter,GPIO/Sensors,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/geiger,unklar,niedrig,Upstream nicht geprüft
+geometry_flip,Geometry Flip,Games,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/geometry_flip,unklar,niedrig,Upstream nicht geprüft
+ghost_esp,[ESP32] Ghost ESP,GPIO/ESP,1.6.3,1.7.0,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ghost_esp,veraltet,hoch,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+gpio_badge,[DIAG] GPIO Badge,GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/gpio_badge,unklar,niedrig,Upstream nicht geprüft
+gpio_controller,[GPIO] Controller,GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/gpio_controller,unklar,niedrig,Upstream nicht geprüft
+gpio_explorer_app,[GPIO] Explorer,GPIO,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/gpio_explorer,unklar,niedrig,Upstream nicht geprüft
+gpio_reader_a,[GPIO] Reader (aureli1c),GPIO,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/gpio_reader_a,unklar,niedrig,Upstream nicht geprüft
+gpio_reader_b,[GPIO] Reader (biotinker),GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/gpio_reader_b,unklar,niedrig,Upstream nicht geprüft
+gps_nmea,[NMEA] GPS,GPIO/GPS,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/gps_nmea,unklar,niedrig,Upstream nicht geprüft
+hc11_modem,HC-11 Modem,Sub-GHz,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/hc11_modem,unklar,niedrig,Upstream nicht geprüft
+hc_sr04,[HC-SR] Dist. Sensor,GPIO/Sensors,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/hc_sr04,unklar,niedrig,Upstream nicht geprüft
+heap_defence,Heap Defence,Games,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/heap_defence,unklar,niedrig,Upstream nicht geprüft
+hex_editor,HEX Editor,Tools,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/hex_editor,unklar,niedrig,Upstream nicht geprüft
+hex_viewer,HEX Viewer,Tools,2.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/hex_viewer,unklar,niedrig,Upstream nicht geprüft
+hitachi_ac_remote,Hitachi AC Remote,Infrared,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/hitachi_ac_remote,unklar,niedrig,Upstream nicht geprüft
+i2ctools,[I2C] i2c Tools,GPIO/Debug,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/i2ctools,unklar,niedrig,Upstream nicht geprüft
+ibutton_converter,iButton Converter,iButton,1.1,1.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ibutton_converter,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+iconedit,IconEdit,Tools,0.6,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/iconedit,unklar,niedrig,Upstream nicht geprüft
+esp8266_ifttt_virtual_button,[ESP8266] IFTTT Btn,GPIO/ESP,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ifttt,unklar,niedrig,Upstream nicht geprüft
+image_viewer,Image Viewer,Media,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/image_viewer,unklar,niedrig,Upstream nicht geprüft
+ina_meter,[INA2xx] INA Meter,GPIO/Debug,0.7,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ina_meter,unklar,niedrig,Upstream nicht geprüft
+ir_intervalometer,IR Intervalometer,Infrared,2.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ir_intervalometer,unklar,niedrig,Upstream nicht geprüft
+ir_remote,IR Remote,Infrared,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ir_remote,unklar,niedrig,Upstream nicht geprüft
+ir_scope,IR Scope,Infrared,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ir_scope,unklar,niedrig,Upstream nicht geprüft
+jetpack_joyride,Jetpack Joyride,Games,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/jetpack_joyride,unklar,niedrig,Upstream nicht geprüft
+key_copier,Key Copier,Tools,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/key_copier,unklar,niedrig,Upstream nicht geprüft
+laser_tag,Laser Tag,Games,2.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/laser_tag,unklar,niedrig,Upstream nicht geprüft
+ldtoypad,LEGO Dimensions Toy Pad,USB,0.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ldtoypad,unklar,niedrig,Upstream nicht geprüft
+lidar_emulator,LIDAR Emulator,Infrared,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/lidar_emulator,unklar,niedrig,Upstream nicht geprüft
+lightmeter,[BH1750] Lightmeter,GPIO/Sensors,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/lightmeter,unklar,niedrig,Upstream nicht geprüft
+longwave_clock,[GPIO] Longwave Clock,GPIO,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/longwave_clock,unklar,niedrig,Upstream nicht geprüft
+magspoof,[MAG] MagSpoof,GPIO,0.10,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/magspoof,unklar,niedrig,Upstream nicht geprüft
+malveke_gb_cartridge,[GB/GBC] Cartridge,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_gb_cartridge,unklar,niedrig,Upstream nicht geprüft
+malveke_gb_emulator,[GB] Emulator,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_gb_emulator,unklar,niedrig,Upstream nicht geprüft
+malveke_gb_link_camera,[GB] Link-Camera,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_gb_link_camera,unklar,niedrig,Upstream nicht geprüft
+malveke_gb_live_camera,[GB] Live Camera,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_gb_live_camera,unklar,niedrig,Upstream nicht geprüft
+malveke_gb_photo,[GB] Photo,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_gb_photo,unklar,niedrig,Upstream nicht geprüft
+malveke_gba_cartridge,[GBA] Cartridge,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_gba_cartridge,unklar,niedrig,Upstream nicht geprüft
+malveke_pin_test,[GB] PIN Test,GPIO/MALVEKE,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/malveke_pin_test,unklar,niedrig,Upstream nicht geprüft
+mass_storage,Mass Storage,USB,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mass_storage,unklar,niedrig,Upstream nicht geprüft
+mayhem_camera,[MAYHEM] Camera,GPIO/MAYHEM,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mayhem_camera,unklar,niedrig,Upstream nicht geprüft
+mayhem_marauder,[MAYHEM] Marauder,GPIO/MAYHEM,7.2,7.2,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mayhem_marauder,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+mayhem_morseflash,[MAYHEM] Morse Flash,GPIO/MAYHEM,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mayhem_morseflash,unklar,niedrig,Upstream nicht geprüft
+mayhem_motion,[MAYHEM] Motion Detection,GPIO/MAYHEM,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mayhem_motion,unklar,niedrig,Upstream nicht geprüft
+mayhem_nannycam,[MAYHEM] Nanny Cam,GPIO/MAYHEM,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mayhem_nannycam,unklar,niedrig,Upstream nicht geprüft
+mayhem_qrcode,[MAYHEM] QR Code,GPIO/MAYHEM,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mayhem_qrcode,unklar,niedrig,Upstream nicht geprüft
+meal_pager,Restaurant Pager,Sub-GHz,1.7,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/meal_pager,unklar,niedrig,Upstream nicht geprüft
+metroflip,Metroflip,NFC,0.9,1.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/metroflip,veraltet,hoch,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+metronome,Metronome,Media,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/metronome,unklar,niedrig,Upstream nicht geprüft
+mfc_editor,MIFARE Classic Editor,NFC,1.0,1.0,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mfc_editor,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+mfkey,MFKey,NFC,4.0,4.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mfkey,veraltet,mittel,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+midea_ac_remote,Midea AC Remote,Infrared,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/midea_ac_remote,unklar,niedrig,Upstream nicht geprüft
+mifare_fuzzer,Mifare Fuzzer,NFC,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mifare_fuzzer,unklar,niedrig,Upstream nicht geprüft
+minesweeper_redux,Mine Sweeper,Games,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/minesweeper,unklar,niedrig,Upstream nicht geprüft
+mitsubishi_ac_remote,Mitsubishi AC Remote,Infrared,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mitsubishi_ac_remote,unklar,niedrig,Upstream nicht geprüft
+morse_code,Morse Code,Media,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/morse_code,unklar,niedrig,Upstream nicht geprüft
+upython,uPython,Tools,1.8,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mp_flipper,unklar,niedrig,Upstream nicht geprüft
+f0_mtp,MTP,USB,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/mtp,unklar,niedrig,Upstream nicht geprüft
+multi_converter,Multi Converter,Tools,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/multi_converter,unklar,niedrig,Upstream nicht geprüft
+multi_dice,Multi-Dice,Games,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/multi_dice,unklar,niedrig,Upstream nicht geprüft
+fuzzer_ibtn,iButton Fuzzer,iButton,1.7,1.7,https://github.com/Next-Flip/Momentum-Apps/tree/dev/multi_fuzzer,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+music_player,Music Player,Media,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/music_player,unklar,niedrig,Upstream nicht geprüft
+nearby_files,[NMEA] Nearby Files,GPIO/GPS,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nearby_files,unklar,niedrig,Upstream nicht geprüft
+nfc_apdu_runner,NFC APDU Runner,NFC,0.3,0.3,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_apdu_runner,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+nfc_eink,NFC-Eink,NFC,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_eink,unklar,niedrig,Upstream nicht geprüft
+nfc_login,NFC PC Login,NFC,1.1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_login,unklar,niedrig,Upstream nicht geprüft
+nfc_magic,NFC Magic,NFC,1.14,1.15,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_magic,veraltet,mittel,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+nfc_maker,NFC Maker,NFC,2.1,2.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_maker,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+nfc_playlist,NFC Playlist,NFC,3.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_playlist,unklar,niedrig,Upstream nicht geprüft
+nfc_rfid_detector,NFC/RFID Detector,Tools,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nfc_rfid_detector,unklar,niedrig,Upstream nicht geprüft
+nightstand,Nightstand Clock,Tools,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nightstand_clock,unklar,niedrig,Upstream nicht geprüft
+nrf24batch,[NRF24] Batch,GPIO/NRF24,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nrf24batch,unklar,niedrig,Upstream nicht geprüft
+nrf24channelscanner,[NRF24] Channel Scan,GPIO/NRF24,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nrf24channelscanner,unklar,niedrig,Upstream nicht geprüft
+nrf24mousejacker,[NRF24] Mouse Jacker,GPIO/NRF24,1.2,1.2,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nrf24mousejacker,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+nrf24scan,[NRF24] Scanner,GPIO/NRF24,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nrf24scan,unklar,niedrig,Upstream nicht geprüft
+nrf24sniff,[NRF24] Sniffer,GPIO/NRF24,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/nrf24sniff,unklar,niedrig,Upstream nicht geprüft
+flipperscope,[GPIO] Oscilloscope,GPIO,0.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/oscilloscope,unklar,niedrig,Upstream nicht geprüft
+paint,Paint,Media,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/paint,unklar,niedrig,Upstream nicht geprüft
+passgen,Password Generator,Tools,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/passgen,unklar,niedrig,Upstream nicht geprüft
+passy,Passport Reader,NFC,1.4,1.5,https://github.com/Next-Flip/Momentum-Apps/tree/dev/passy,veraltet,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+pc_monitor,PC Monitor,Bluetooth,1.1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/pc_monitor,unklar,niedrig,Upstream nicht geprüft
+picopass,HID iClass (PicoPass),NFC,1.21,1.22,https://github.com/Next-Flip/Momentum-Apps/tree/dev/picopass,veraltet,mittel,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+pinball0,Pinball0,Games,0.5.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/pinball0,unklar,niedrig,Upstream nicht geprüft
+pocsag_pager,POCSAG Pager,Sub-GHz,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/pocsag_pager,unklar,niedrig,Upstream nicht geprüft
+pokemon,[GB] Pokemon Trading,GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/pokemon_trading,unklar,niedrig,Upstream nicht geprüft
+flipp_pomodoro,Flipp Pomodoro,Tools,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/pomodoro,unklar,niedrig,Upstream nicht geprüft
+flipper_pong,Pong,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/pong,unklar,niedrig,Upstream nicht geprüft
+portal_of_flipper,Portal Of Flipper,USB,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/portal_of_flipper,unklar,niedrig,Upstream nicht geprüft
+programmercalc,Programmer Calculator,Tools,0.9.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/programmer_calculator,unklar,niedrig,Upstream nicht geprüft
+protoview,ProtoView,Sub-GHz,1.2,1.2,https://github.com/Next-Flip/Momentum-Apps/tree/dev/protoview,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+qrcode,QR Code,Tools,2.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/qrcode,unklar,niedrig,Upstream nicht geprüft
+quac,Quac!,Tools,0.9.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/quac,unklar,niedrig,Upstream nicht geprüft
+quadrastic,Quadrastic,Games,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/quadrastic,unklar,niedrig,Upstream nicht geprüft
+radar_scanner,[RCWL0516] Radar Scan,GPIO/Sensors,2.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/radar_scanner,unklar,niedrig,Upstream nicht geprüft
+radio_scanner,Radio Scanner,Sub-GHz,0.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/radio_scanner,unklar,niedrig,Upstream nicht geprüft
+coleco,[RC2014] ColecoVision,GPIO,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/rc2014_coleco,unklar,niedrig,Upstream nicht geprüft
+resistors,Resistance Calculator,Tools,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/resistance_calculator,unklar,niedrig,Upstream nicht geprüft
+reversi,Reversi,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/reversi,unklar,niedrig,Upstream nicht geprüft
+rolling_flaws,Rolling Flaws,Sub-GHz,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/rolling_flaws,unklar,niedrig,Upstream nicht geprüft
+roots_of_life,Roots of Life,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/rootoflife,unklar,niedrig,Upstream nicht geprüft
+rubiks_cube_scrambler,Rubik's Cube Scrambler,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/rubiks_cube_scrambler,unklar,niedrig,Upstream nicht geprüft
+saflip,SaFlip,NFC,0.1,0.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/saflip,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+scorched_tanks,Scorched Tanks,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/scorched_tanks,unklar,niedrig,Upstream nicht geprüft
+seader,Seader,NFC,3.4,4.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/seader,veraltet,hoch,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+gpio_sentry_safe,[GPIO] Sentry Safe,GPIO,2.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/sentry_safe,unklar,niedrig,Upstream nicht geprüft
+seos,Seos Compatible,NFC,1.2,1.3,https://github.com/Next-Flip/Momentum-Apps/tree/dev/seos,veraltet,mittel,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+signal_generator,[GPIO] Signal Generator,GPIO,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/signal_generator,unklar,niedrig,Upstream nicht geprüft
+simon_says,Simon Says,Games,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/simonsays,unklar,niedrig,Upstream nicht geprüft
+simultaneous_rfid_reader,Simultaneous UHF RFID Reader,RFID,1.1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/simultaneous_rfid_reader,unklar,niedrig,Upstream nicht geprüft
+slotmachine,Slot Machine,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/slots,unklar,niedrig,Upstream nicht geprüft
+snake20,Snake 2.0,Games,2.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/snake_2,unklar,niedrig,Upstream nicht geprüft
+solitaire,Solitaire,Games,2.0.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/solitaire,unklar,niedrig,Upstream nicht geprüft
+fzspground,Space Playground,Media,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/space_playground,unklar,niedrig,Upstream nicht geprüft
+spectrum_analyzer,Spectrum Analyzer,Sub-GHz,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/spectrum_analyzer,unklar,niedrig,Upstream nicht geprüft
+spi_mem_manager,[SPI] SPI Mem Manager,GPIO/Debug,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/spi_mem_manager,unklar,niedrig,Upstream nicht geprüft
+flipper_spi_terminal,[SPI] Terminal,GPIO,0.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/spi_terminal,unklar,niedrig,Upstream nicht geprüft
+sub_analyzer,Sub Analyzer,Sub-GHz,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/sub_analyzer,unklar,niedrig,Upstream nicht geprüft
+subghz_bruteforcer,Sub-GHz Bruteforcer,Sub-GHz,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/subghz_bruteforcer,unklar,niedrig,Upstream nicht geprüft
+subghz_playlist,Sub-GHz Playlist,Sub-GHz,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/subghz_playlist,unklar,niedrig,Upstream nicht geprüft
+subghz_playlist_creator,Sub-GHz Playlist Creator,Sub-GHz,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/subghz_playlist_creator,unklar,niedrig,Upstream nicht geprüft
+subghz_remote_ofw,Sub-GHz Remote,Sub-GHz,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/subghz_remote,unklar,niedrig,Upstream nicht geprüft
+subghz_scheduler,Sub-GHz Scheduler,Sub-GHz,2.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/subghz_scheduler,unklar,niedrig,Upstream nicht geprüft
+swd_probe,[SWD] SWD Probe,GPIO/Debug,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/swd_probe,unklar,niedrig,Upstream nicht geprüft
+t5577_multiwriter,T5577 Multiwriter,RFID,0.2,0.2,https://github.com/Next-Flip/Momentum-Apps/tree/dev/t5577_multiwriter,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+t5577_writer,T5577 Raw Writer,RFID,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/t5577_raw_writer,unklar,niedrig,Upstream nicht geprüft
+t_rex_runner,T-Rex Runner,Games,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/t_rex_runner,unklar,niedrig,Upstream nicht geprüft
+tama_p1,Tamagotchi,Games,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tama_p1,unklar,niedrig,Upstream nicht geprüft
+tanks,Tanks,Games,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tanks,unklar,niedrig,Upstream nicht geprüft
+tasks,Tasks,Tools,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tasks,unklar,niedrig,Upstream nicht geprüft
+tetris,Tetris,Games,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tetris,unklar,niedrig,Upstream nicht geprüft
+text2sam,Text to SAM,Media,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/text2sam,unklar,niedrig,Upstream nicht geprüft
+text_viewer,Text Viewer,Tools,1.7,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/text_viewer,unklar,niedrig,Upstream nicht geprüft
+tictactoe,Tic Tac Toe,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tictactoe,unklar,niedrig,Upstream nicht geprüft
+timelapse,[GPIO] Timelapse,GPIO,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/timelapse,unklar,niedrig,Upstream nicht geprüft
+tone_gen,Tone Generator,Tools,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tone_gen,unklar,niedrig,Upstream nicht geprüft
+totp,Authenticator,Tools,5.190,5.190,https://github.com/Next-Flip/Momentum-Apps/tree/dev/totp,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+tpms,TPMS Reader,Sub-GHz,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tpms_reader,unklar,niedrig,Upstream nicht geprüft
+tuning_fork,Tuning Fork,Media,2.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/tuning_fork,unklar,niedrig,Upstream nicht geprüft
+uart_terminal,[UART] UART Terminal,GPIO,1.6,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/uart_terminal,unklar,niedrig,Upstream nicht geprüft
+uhf_rfid,YRM100 UHF RFID,RFID,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/uhf_rfid,unklar,niedrig,Upstream nicht geprüft
+umpire_indicator,Umpire Indicator,Games,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/umpire_indicator,unklar,niedrig,Upstream nicht geprüft
+unitemp,[GPIO] Unitemp,GPIO/Sensors,1.6,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/unitemp,unklar,niedrig,Upstream nicht geprüft
+usb_ccb,USB Consumer Control,USB,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/usb_consumer_control,unklar,niedrig,Upstream nicht geprüft
+usb_midi,USB-MIDI,Media,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/usb_midi,unklar,niedrig,Upstream nicht geprüft
+uv_meter_as7331,[AS7331] UV Meter,GPIO/Sensors,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/uv_meter_as7331,unklar,niedrig,Upstream nicht geprüft
+vgm_air_mouse,[VGM] Air Mouse,GPIO/VGM,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/vgm_air_mouse,unklar,niedrig,Upstream nicht geprüft
+video_game_module_tool,[VGM] Video Game Module Tool,GPIO/VGM,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/video_game_module_tool,unklar,niedrig,Upstream nicht geprüft
+video_player,Video Player,Media,0.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/video_player,unklar,niedrig,Upstream nicht geprüft
+videopoker,Video Poker,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/videopoker,unklar,niedrig,Upstream nicht geprüft
+voltcalc_app,Voltage Calculator,Tools,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/voltage_calculator,unklar,niedrig,Upstream nicht geprüft
+wardriver,[ESP32GPS] Wardriver,GPIO/ESP,1.0,1.0,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wardriver,aktuell,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+wav_player,WAV Player,Media,1.4,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wav_player,unklar,niedrig,Upstream nicht geprüft
+weather_station,Weather Station,Sub-GHz,1.8,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/weather_station,unklar,niedrig,Upstream nicht geprüft
+web_crawler,Web Crawler,GPIO/FlipperHTTP,1.0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/web_crawler,unklar,niedrig,Upstream nicht geprüft
+weebo,Weebo,NFC,0.4,0.5,https://github.com/Next-Flip/Momentum-Apps/tree/dev/weebo,veraltet,niedrig,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+esp8266_wifi_deauther_v2,[ESP8266] Deauther v2,GPIO/ESP,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wifi_deauther,unklar,niedrig,Upstream nicht geprüft
+esp32_wifi_marauder,[ESP32] WiFi Marauder,GPIO/ESP,7.6,7.8,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wifi_marauder_companion,veraltet,hoch,Upstream Momentum-Apps dev gegen lokalen Submodul-Snapshot (Aug 2026)
+wifi_scanner,[ESP] WiFi Scanner,GPIO/ESP,1.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wifi_scanner,unklar,niedrig,Upstream nicht geprüft
+wii_ec_anal,[WII] EC Analyser,GPIO,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wiiec,unklar,niedrig,Upstream nicht geprüft
+wire_tester,[GPIO] Wire Tester,GPIO,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/wire_tester,unklar,niedrig,Upstream nicht geprüft
+xbox_controller,Xbox Controller,Infrared,1.5,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/xbox_controller,unklar,niedrig,Upstream nicht geprüft
+xinput_controller,USB Game Controller,USB,0.1,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/xinput,unklar,niedrig,Upstream nicht geprüft
+flipper_xremote,XRemote,Infrared,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/xremote,unklar,niedrig,Upstream nicht geprüft
+yapinvaders,Yappy Invaders,Games,1.0,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/yappy_invaders,unklar,niedrig,Upstream nicht geprüft
+yatzee,Yatzee,Games,1.2,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/yatzee,unklar,niedrig,Upstream nicht geprüft
+zombiez,Zombiez,Games,1.3,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/zombiez,unklar,niedrig,Upstream nicht geprüft
+ulc_brute,Ultralight-C Brute,NFC,,1.0,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ulc_brute,fehlt,hoch,Neu im Momentum-Katalog seit Snapshot: Bruteforce des MIFARE-Ultralight-C-3DES-Schlüssels; erweitert die NFC-Angriffsfläche
+ulc_relay,Ultralight-C Relay,NFC,,1.0,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ulc_relay,fehlt,hoch,Neu im Katalog: Relay-Angriff gegen Ultralight-C-Auth; Research/PoC
+ulcfkey,Ultralight-C Key,NFC,,1.0,https://github.com/Next-Flip/Momentum-Apps/tree/dev/ulcfkey,fehlt,mittel,Neu im Katalog: abgeleitete Ultralight-C-Schlüssel verwalten/prüfen
+iso15693_nfc_writer,ISO15693 NFC Writer,NFC,,,https://github.com/Next-Flip/Momentum-Apps/tree/dev/iso15693_nfc_writer,fehlt,hoch,"Neu im Katalog: beschreibt ISO15693-Vicinity-Tags (NFC-V, 13,56 MHz); schließt Lücke"
+can_commander,CAN Commander,GPIO,,2.3,https://github.com/Next-Flip/Momentum-Apps/tree/dev/can_commander,fehlt,mittel,Neu im Katalog: interaktiver CAN-Bus (Automotive); ergänzt vorhandenes can_tools
+flipper_wedge,Flipper Wedge,Tools,,1.1,https://github.com/Next-Flip/Momentum-Apps/tree/dev/flipper_wedge,fehlt,niedrig,Neu im Katalog: sendet Text als USB-HID-Tastenanschläge (Wedge)
+flipper_nested,MFC Nested (FlipperNested),NFC,,,https://github.com/AloneLiberty/FlipperNested,fehlt,hoch,"Nested-, Static- und Hard-Nested-Schlüsselrückgewinnung; starke Ergänzung zu mfkey. ACHTUNG: NFC-Stack-/Firmware-Kompatibilität vor Integration prüfen"
+flipper_kdf,KDF-Plugins (flipper_kdf),NFC,,,https://github.com/noproto/flipper_kdf,fehlt,hoch,Community-KDF-Plugins (.fal) für sofortige Schlüsselableitung bei vielen Marken (z. B. Saflok); ergänzt mfkey; nach /apps_data/nfc/plugins/ kopieren
+logic_analyzer,Logic Analyzer,GPIO/Debug,,,https://github.com/ElectronicCats/flipper-LogicAnalyzer,fehlt,mittel,"Mehrkanal-Digitalmitschnitt, Export nach sigrok/PulseView; HW-/Protokoll-Recon; fehlt im Baum"
