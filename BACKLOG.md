@@ -11332,3 +11332,73 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am GPS-Modul selbst
       (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal gegengeprüften
       Override-Anschlüsse/Fixe (siehe vorherige Reports).
+
+## App-Verbesserung (Ideen-Recherche-Nachzug): Simultaneous UHF RFID Reader — Speicherleck an den vier `convert_to_hex_string()`-Aufrufstellen plus toter `strncpy()`-Nebenfund behoben
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` sowie `reports/` durchgesehen: letzte dokumentierte Sitzungen
+      waren Firmware-Feature-Mining (App-Matrix-Inventar) und davor ein Programm-Planungs-Beitrag
+      mit beigelegtem mfkey-Stack-Fix-Patch — diese Sitzung daher gezielt einen seit mehreren
+      Sitzungen unverändert in der "Weiterhin offen"-Liste mitgeführten Rückstellpunkt
+      aufgegriffen ("das Speicherleck an den fünf `convert_to_hex_string()`-Aufrufstellen sowie
+      der tote `strncpy()`-Nebenfund in `view_config.c:731–735` von
+      `simultaneous_rfid_reader`"), statt ihn ein weiteres Mal unverändert weiterzureichen.
+- [x] `haffnerriley/Simultaneous-UHF-RFID-FlipperZero` (`main`, Commit `1dfefed1c67078da8c416b7b93c02eaa25e220fa`,
+      unverändert zum in `ideas/simultaneous-rfid-reader-app-status.md` dokumentierten Stand)
+      frisch geklont, `simultaneous_rfid_reader/views/view_config.c`, `view_kill.c`, `view_lock.c`
+      gelesen: alle vier echten `snprintf(tempBuffer, N, "%s", convert_to_hex_string(...))`-
+      Aufrufstellen (`view_config.c:397`, `view_kill.c:107`, `view_kill.c:215`, `view_lock.c:59`)
+      sowie der tote `strncpy()`-Block in `view_config.c:728–739` exakt wie in
+      `simultaneous-rfid-reader-convert-to-hex-string-no-terminator-fix.md` beschrieben
+      bestätigt.
+- [x] Fix: an den vier Aufrufstellen Rückgabewert von `convert_to_hex_string()` in eine lokale
+      Variable übernommen und nach dem `snprintf()` per `free()` freigegeben (gleiches additives
+      Muster an allen vier Stellen). Toten `strncpy()`-Block in `view_config.c` ersatzlos
+      entfernt (Ziel war ein frischer, nirgends gespeicherter Rückgabewert — Leck ohne jeden
+      Effekt auf `App->ApTempBuffer`, dessen tatsächliche Aktualisierung ausschließlich über den
+      separat registrierten `byte_input_set_result_callback()` läuft).
+- [x] Patch (`ideas/simultaneous-rfid-reader-convert-to-hex-string-callsite-leak-fix/views.patch`)
+      gegen zwei frische, unabhängige Zweitkopien je per `git apply --check`/real UND
+      `patch -p1 --dry-run`/real verifiziert, Ergebnis laut `md5sum` je Datei in beiden Fällen
+      und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro (`ideas/repro-simultaneous-rfid-reader-convert-to-hex-string-callsite-leak/repro.c`):
+      alle vier realen Aufrufstellen mit ihren realen Zielpuffergrößen (24/12/9/8 Byte) sowie der
+      tote `strncpy()`-Block nachgebaut, unter Verwendung der bereits vorgeschlagenen
+      Terminator-Fix-Version von `convert_to_hex_string()` (isoliert das hier geprüfte
+      Leck-Verhalten vom separat dokumentierten Overflow-Read). Zehn Prüfungen unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: alle vier ALT-Aufrufstellen melden unter LeakSanitizer ein Leck, alle vier
+      NEU-Aufrufstellen laufen lecksauber durch; ALT-Set-AP-Block meldet ebenfalls ein Leck, NEU
+      (Block entfernt) nicht; `App->ApTempBuffer` nach ALT und NEU byteidentisch bestätigt.
+      `10/10 Prüfungen bestanden`, identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen außer der bei `-Wextra` erwarteten, zur realen Aufrufstelle identischen
+      `-Wstringop-truncation`-Warnung in der ALT-Nachbildung selbst.
+- [x] `ideas/simultaneous-rfid-reader-convert-to-hex-string-callsite-leak-fix.md` angelegt
+      (Was/Nutzen/Betroffene Dateien/Patch/Testhinweis/Risiko/Quelle). `ideas/
+      simultaneous-rfid-reader-app-status.md` aktualisiert: "Nächster Schritt"-Abschnitt auf den
+      jetzt behobenen Stand gebracht, Verweis auf die neue Datei ergänzt.
+- [ ] Lokal zu tun: diesen Patch zusammen mit dem bereits dokumentierten `view_read_c.patch`
+      (Terminator-Fix) anwenden, `fbt`/`ufbt` bauen, auf YRM100-Hardware flashen, "Set AP"/
+      "Set Kill Pwd"/Kill-Bestätigung/Access-Passwort-Eingabe mehrfach öffnen und aktualisieren,
+      Anzeige/Navigation/gespeicherten Wert prüfen (siehe Datei für Details).
+- [ ] Weiterhin offen (unverändert aus vorherigen Sitzungen, abzüglich des jetzt behobenen
+      Punktes): `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-Nebenfund,
+      neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-
+      Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an
+      fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status, PromptZero-
+      Installationsskript-Sichtprüfung vor lokalem Einsatz, PSA-Bruteforce-TEA-Schlüsselplan-
+      Konstanten (bewusst zurückgestellt), ProtoViews restliche drei Protokoll-Decoder sowie die
+      Bit-Edit-/Keyboard-Ansicht, SignalSweep-Firmware-Quelltextsichtung für eine mögliche
+      Flipper-UART-Anbindung, veraltete `README.md`, AUT64-Rundenschlüssel- und
+      VAG-Dispatch-Typ-1-4-Kryptoverifikation in ProtoPirate (fehlender externer
+      Referenz-Testvektor), die in `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0),
+      die noch nicht übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
+      `exit-button-left-key-unhandled-fix`, die noch nicht übernommene
+      RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für Implantat-Chips mit
+      Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`),
+      Baudraten-Wechsel am GPS-Modul selbst (`nearby_files`, `$PMTK251`), lokaler Test aller
+      bisher nicht lokal gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports),
+      Nearby-Files-Submodul-Pin-Bump v1.5→v1.7 lokale Umsetzung, lora-ukfe-Settings-Scene-
+      Menüeintrag lokale Umsetzung, Programm-Plan 2026-11-18 (siehe
+      `PROGRAMM-PLAN-2026-11-18.md`) sowie der mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-
+      Submodul-Bump auf Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).

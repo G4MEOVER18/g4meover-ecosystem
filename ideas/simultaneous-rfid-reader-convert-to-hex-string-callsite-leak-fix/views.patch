@@ -1,0 +1,81 @@
+diff --git a/simultaneous_rfid_reader/views/view_config.c b/simultaneous_rfid_reader/views/view_config.c
+index 9f4c305..a83b8a6 100644
+--- a/simultaneous_rfid_reader/views/view_config.c
++++ b/simultaneous_rfid_reader/views/view_config.c
+@@ -394,9 +394,11 @@ void uhf_reader_setting_6_text_updated(void* context) {
+     
+     // Temporary buffer to hold the converted string
+     char* tempBuffer = (char*)malloc(24);
+-    snprintf(tempBuffer, 24, "%s", convert_to_hex_string(App->ApTempBuffer, 4));
+-    
+-    
++    char* HexStr = convert_to_hex_string(App->ApTempBuffer, 4);
++    snprintf(tempBuffer, 24, "%s", HexStr);
++    free(HexStr);
++
++
+     if(App->UHFModuleType != YRM100X_MODULE) {
+         
+         
+@@ -723,20 +725,6 @@ void uhf_reader_setting_item_clicked(void* context, uint32_t index) {
+         }
+         byte_input_set_header_text(App->ApInput, App->AccessPasswordPlaceHolder);
+ 
+-        //Modify the value of the AP for the read and write models
+-        bool Redraw = false;
+-        with_view_model(
+-            App->ViewRead,
+-            UHFReaderConfigModel * Model,
+-            {
+-                strncpy(
+-                    convert_to_hex_string(App->ApTempBuffer, 4),
+-                    furi_string_get_cstr(Model->SettingReadAp),
+-                    App->ApInputBufferSize);
+-            },
+-            Redraw);
+-        
+-
+         //Setting the AP text input callback function
+         byte_input_set_result_callback(
+             App->ApInput,
+diff --git a/simultaneous_rfid_reader/views/view_kill.c b/simultaneous_rfid_reader/views/view_kill.c
+index 06265ea..32dea39 100644
+--- a/simultaneous_rfid_reader/views/view_kill.c
++++ b/simultaneous_rfid_reader/views/view_kill.c
+@@ -104,7 +104,9 @@ void uhf_reader_kill_password_updated(void* context) {
+     // Temporary buffer to hold the converted string
+     char* tempBuffer = (char*)malloc(12);
+ 
+-    snprintf(tempBuffer, 12, "%s", convert_to_hex_string(App->KillPwdTempBuffer, 4));
++    char* HexStr = convert_to_hex_string(App->KillPwdTempBuffer, 4);
++    snprintf(tempBuffer, 12, "%s", HexStr);
++    free(HexStr);
+ 
+     //Changing the read screen's power value to the one set in the configuration menu
+     if(App->UHFModuleType != YRM100X_MODULE) {
+@@ -212,7 +214,9 @@ void uhf_reader_kill_confirm_password_updated(void* context) {
+     // Temporary buffer to hold the converted string
+     char* tempBuffer = (char*)malloc(9);
+ 
+-    snprintf(tempBuffer, 9, "%s", convert_to_hex_string(App->KillConfirmPwdTempBuffer, 4));
++    char* HexStr = convert_to_hex_string(App->KillConfirmPwdTempBuffer, 4);
++    snprintf(tempBuffer, 9, "%s", HexStr);
++    free(HexStr);
+ 
+     //Changing the read screen's power value to the one set in the configuration menu
+     if(App->UHFModuleType != YRM100X_MODULE) {
+diff --git a/simultaneous_rfid_reader/views/view_lock.c b/simultaneous_rfid_reader/views/view_lock.c
+index ac20c8c..6e02a24 100644
+--- a/simultaneous_rfid_reader/views/view_lock.c
++++ b/simultaneous_rfid_reader/views/view_lock.c
+@@ -56,7 +56,9 @@ void uhf_reader_access_password_updated(void* context) {
+     // Temporary buffer to hold the converted string
+     char* tempBuffer = (char*)malloc(8);
+ 
+-    snprintf(tempBuffer, 8, "%s", convert_to_hex_string(App->SetPwdTempBuffer, 4));
++    char* HexStr = convert_to_hex_string(App->SetPwdTempBuffer, 4);
++    snprintf(tempBuffer, 8, "%s", HexStr);
++    free(HexStr);
+ 
+     if(App->UHFModuleType != YRM100X_MODULE) {
+         //TODO: ADD SUPPORT FOR M6E and M7E

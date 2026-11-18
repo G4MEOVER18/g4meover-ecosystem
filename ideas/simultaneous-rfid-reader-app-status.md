@@ -360,8 +360,10 @@ Funktions-Fix, saubere Kombination aus Fix + `free()` an der Aufrufstelle) in
 
 ## Nächster Schritt (aktualisiert)
 YRM100-Kern und alle zwölf UI-`views/*.c`-Dateien dieses Forks jetzt vollständig gelesen, kein
-offener Erstprüfungs-Rückstand mehr. Weiterhin offen: lokaler Build-/Funktionstest aller drei
-bisher gelieferten Fixes (`ring_buffer_extract_line()`, `uhf_tag_set_tid()`/`_set_user()`,
-`convert_to_hex_string()`); das in Fund 3 benannte, bewusst nicht mitgezogene Speicherleck an den
-fünf Aufrufstellen sowie der tote `strncpy()`-Nebenfund in `view_config.c:731–735` als
-eigenständige Nacharbeit für eine künftige Sitzung.
+offener Erstprüfungs-Rückstand mehr. Das in Fund 3 benannte, bewusst nicht mitgezogene
+Speicherleck an den vier echten `snprintf()`-Aufrufstellen sowie der tote `strncpy()`-Nebenfund in
+`view_config.c:728–739` sind jetzt behoben, siehe
+`simultaneous-rfid-reader-convert-to-hex-string-callsite-leak-fix.md`. Weiterhin offen: lokaler
+Build-/Funktionstest aller vier bisher gelieferten Fixes (`ring_buffer_extract_line()`,
+`uhf_tag_set_tid()`/`_set_user()`, `convert_to_hex_string()`-Terminator, Aufrufstellen-Leck/toter
+`strncpy()`-Block).
