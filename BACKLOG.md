@@ -11567,3 +11567,113 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       öffentlich sichtbar. Eine Korrektur ist nur per Force-Push (Umschreiben
       veröffentlichter Historie) möglich — bewusst nicht ungefragt ausgeführt.
       Entscheidung weiterhin offen.
+
+## Ideen-Recherche: ProtoView — Citroen-TPMS-Dekoder, Längen-Vorab-Check um Faktor 2 zu klein und am falschen Zeitpunkt ausgewertet
+
+- [x] Vom seit der KeeLoq-Sitzung offenen TPMS-Cluster
+      (`ideas/protoview-digital-signal-tool-app-status.md`, Abschnitt "Fortsetzung") die
+      kleinste der sechs Dateien (`protocols/tpms/citroen.c`, 64 Zeilen) genommen,
+      zeilenweise auf eigene Logikfehler geprüft. `antirez/protoview` (Commit `fd2f6ed`,
+      zugleich aktueller `HEAD` des Repositorys, keine neueren Commits seit dem bereits
+      dokumentierten Stand) frisch geklont.
+- [x] Fund: `if (numbits-sync_len < 8*10) return false;` hat zwei sich verstärkende
+      Mängel. (1) Falsche Größenordnung: `8*10` (=80) ist die Anzahl *dekodierter*
+      Datenbits, aber die Nutzdaten sind Manchester-kodiert und `convert_from_line_code()`
+      konsumiert dafür tatsächlich `8*10*2` (=160) *Roh*-Bitmap-Bits — der Check ist exakt
+      um die Hälfte zu klein. (2) Falscher Zeitpunkt: der Check läuft vor
+      `bitmap_seek_bits()`, kennt also die tatsächliche Sync-Trefferposition noch nicht und
+      prüft nur die Gesamtlänge unter der impliziten Annahme, der Treffer liege bei
+      Offset 0. Unabhängige Zweitbestätigung in derselben Datei: `info->pulses_count =
+      (off+8*10*2) - info->start_off;` sechs Zeilen weiter unten verwendet bereits korrekt
+      den Faktor `8*10*2` für dieselbe Rohbit-Menge. Gegenprobe im selben Quellbaum:
+      `protocols/tpms/ford.c` (`numbits-sync_len < 8*8` vs. eigene `pulses_count`-Zeile
+      `off+8*8*2`), `protocols/tpms/renault.c` (`numbits-12 < 9*8` vs. `off+8*9*2`) und
+      `protocols/tpms/schrader_eg53ma4.c` (`numbits-sync_len+8 < 8*10` vs. `off+10*8*2`)
+      zeigen alle dasselbe Faktor-2-Muster — mindestens drei weitere betroffene Dateien,
+      bleiben als eigener Rückstellpunkt offen.
+- [x] Fund eingeordnet: dieselbe bereits dokumentierte Ursache (`decode_signal()` reicht
+      den vollen, fest 4096 Byte großen Scratch-Puffer als Längenschranke durch, nicht die
+      tatsächlich abgetastete Bit-Anzahl `numbits`), aber ein strukturell anderer,
+      unabhängig entstandener Fehler als beim bereits dokumentierten KeeLoq-No-Op — hier
+      wird `sync_len` korrekt verwendet, nur der Nutzdaten-Term ist falsch bemessen und zur
+      falschen Zeit ausgewertet. Mit einer Aufnahme von `numbits=129` (17 Sync-Bits + 112
+      reale Rohbits, 7 von 10 Bytes) lässt der bestehende Check (`112 < 80` → `false`) die
+      Dekodierung durch, obwohl 160 Rohbits nötig wären — die fehlenden 3 Bytes werden aus
+      dem Scratch-Puffer-Rest ergänzt, inklusive eines dafür zufällig passenden
+      XOR-Checksummenbytes. Betrifft auch den Normalfall (Sync-Treffer bei Offset 0), nicht
+      nur einen Rand-/Sonderfall.
+- [x] Minimal-invasiver Patch (`ideas/protoview-citroen-tpms-decoder-length-check-fix/
+      citroen_c.patch`, zwei Stellen): neue Prüfung `if (off + 8*10*2 > numbits) return
+      false;` nach `off += sync_len;` eingefügt (ausgewertet an der echten
+      Sync-Trefferposition, mit korrektem Rohbit-Faktor); zusätzlich kosmetischer
+      Copy-Paste-Rest aus `renault.c` behoben (`FURI_LOG_E(TAG, "Renault TPMS
+      preamble+sync found");` → `"Citroen TPMS preamble+sync found"`). Gegen zwei frische,
+      unabhängige Zweitkopien von `antirez/protoview`
+      (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per `git apply --check`/`git apply` UND
+      per `patch -p1 --dry-run`/`patch -p1` verifiziert, Ergebnis laut `md5sum` in beiden
+      Kopien und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro (`ideas/repro-protoview-citroen-tpms-decoder-length-check-fix/repro.c`):
+      alle von `decode()` genutzten Bitmap-Primitiven wörtlich aus `signal.c` übernommen,
+      `decode()` selbst in drei Varianten transkribiert: ALT (Original), MID (nur
+      Faktor korrigiert, weiterhin vor der Sync-Suche ausgewertet) und NEU (tatsächlicher
+      Fix: nach der Sync-Suche, mit korrektem Faktor). Vier Szenarien: (1) Sync-Treffer bei
+      Offset 0, Abbruch nach 7 von 10 realen Bytes, Rest mit `0xDE`/`0xAD`-Marker aus dem
+      Scratch-Bereich — ALT meldet fälschlich Erfolg mit dem Marker in `raw[7]`/`raw[8]`,
+      MID und NEU lehnen beide korrekt ab (bei Offset 0 reicht die reine
+      Faktor-Korrektur); (2) identischer Bytes-Schnitt, aber Sync-Treffer erst bei
+      Offset 250 bei insgesamt ausreichend langem `numbits` — ALT **und MID** melden beide
+      fälschlich Erfolg mit demselben Marker (Beleg: Faktor-Korrektur allein reicht nicht,
+      die Verschiebung des Checks hinter die Sync-Suche ist notwendig), nur NEU lehnt
+      korrekt ab; (3) vollständige echte Aufnahme ohne Kontamination — ALT, MID und NEU
+      dekodieren alle identisch und korrekt (Regressionsprobe); (4) grob zu kurze Aufnahme
+      — alle drei lehnen ab. Unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`:
+      `20/20 Prüfungen bestanden`, `ALL CHECKS PASSED`, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `ideas/protoview-citroen-tpms-decoder-length-check-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/Quelle).
+      `ideas/protoview-digital-signal-tool-app-status.md` (Abschnitt "Fortsetzung") um den
+      neuen Fund ergänzt.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich
+      zu den bereits vorliegenden `furi_hal_subghz_load_preset()`-, B4B1- und
+      KeeLoq-Fixes, ohne die die App auf meiner Firmware gar nicht startet bzw.
+      funktioniert), `./fbt launch_app APPSRC=protoview` bauen. Funktionstest mit einem
+      eigenen Citroen-TPMS-Reifendrucksensor (433,92 MHz FSK): "Tire ID"/"Pressure kpa"/
+      "Temperature C"/"Battery"/"Repeat" müssen über mehrere Empfänge desselben Sensors
+      konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand vor
+      dem Fix dekodiert werden (Regressionsprobe).
+- [ ] Weiterhin offen: dieselbe Faktor-2-Vorab-Check-Schwäche in `protocols/tpms/ford.c`,
+      `protocols/tpms/renault.c` und `protocols/tpms/schrader_eg53ma4.c` (siehe Fund oben),
+      sowie die noch nicht logikgeprüften `protocols/tpms/toyota.c`/
+      `protocols/tpms/schrader.c` (andere Sync-Strategie) und die Bit-Edit-/
+      Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:
+      `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), die noch nicht
+      übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
+      `exit-button-left-key-unhandled-fix`, die noch nicht übernommene
+      RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am GPS-Modul selbst
+      (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports), Nearby-Files-Submodul-Pin-Bump
+      v1.5→v1.7 lokale Umsetzung, lora-ukfe-Settings-Scene-Menüeintrag lokale Umsetzung,
+      Programm-Plan 2026-11-18 (siehe `PROGRAMM-PLAN-2026-11-18.md`) sowie der
+      mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-Submodul-Bump auf
+      Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).
+- [ ] **Dringend, unverändert aus den letzten Sitzungen zu entscheiden:** zwei bereits auf
+      `origin/main` liegende Commits vom 18.11. (Programm-Plan + mfkey-Patch,
+      App-Matrix-Inventar) tragen eine fremde Autor-Identität (Name + private
+      E-Mail-Adresse, dazu eine Werkzeug-Versionszeile im Patch-Header) — das verstößt
+      gegen die eigene Vorgabe (nur `G4MEOVER18`/`g4me.over.18@gmail.com`, keine
+      Werkzeug-/Fremd-Meta-Angaben) und ist bereits öffentlich sichtbar. Eine Korrektur ist
+      nur per Force-Push (Umschreiben veröffentlichter Historie) möglich — bewusst nicht
+      ungefragt ausgeführt. Entscheidung weiterhin offen.

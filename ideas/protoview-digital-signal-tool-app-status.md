@@ -150,7 +150,13 @@ vier nativ unterstützten Decoder) jetzt ebenfalls durchgesehen: Längen-Vorab-C
 durch sich aufhebende Addition/Subtraktion ein No-Op, wodurch Nachrichten teilweise aus
 Speicher jenseits des tatsächlich empfangenen Signals zusammengesetzt werden können,
 Details und Fix in `ideas/protoview-keeloq-decoder-length-check-bypass-fix.md`.
-TPMS-Cluster sowie die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+Vom TPMS-Cluster jetzt die kleinste Datei (Citroen) durchgesehen: eigener,
+unabhängiger Fund derselben Fehlerklasse (Vorab-Check um Faktor 2 zu klein und am
+falschen Zeitpunkt ausgewertet), nachweislich auch in Ford/Renault/
+Schrader-EG53MA4 vorhanden, Details und Fix in
+`ideas/protoview-citroen-tpms-decoder-length-check-fix.md`. Restlicher
+TPMS-Cluster (Ford/Renault/Schrader/Schrader-EG53MA4/Toyota) sowie die
+Bit-Edit-/Keyboard-Ansicht weiterhin offen.
 
 ## Quelle
 
