@@ -11466,8 +11466,75 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Empfänge beim Rohpuls-Bildschirm stehen, nach dem Fix muss jeder vollständige Empfang
       zuverlässig decodiert werden; bereits vorher funktionierende Fälle (Index 0–2) müssen
       unverändert dieselben "id"/"button"-Werte liefern.
-- [ ] Weiterhin offen: ProtoViews restliche zwei Protokoll-Decoder (TPMS-Cluster
-      Renault/Toyota/Schrader/Citroen/Ford, KeeLoq) sowie die Bit-Edit-/Keyboard-Ansicht
+
+## Ideen-Recherche: ProtoView — KeeLoq-Dekoder, Längen-Check ist durch sich aufhebende Addition/Subtraktion ein No-Op
+
+- [x] Von den seit der B4B1-Sitzung offenen zwei restlichen ProtoView-Protokoll-Decodern
+      (`ideas/protoview-digital-signal-tool-app-status.md`, Abschnitt "Fortsetzung") den
+      KeeLoq-Dekoder (`protocols/keeloq.c`, 128 Zeilen, vierter und letzter der vier nativ
+      unterstützten Decoder) genommen, zeilenweise auf eigene Logikfehler geprüft.
+      `antirez/protoview` (Commit `fd2f6ed`, zugleich aktueller `HEAD` des Repositorys,
+      keine neueren Commits seit dem bereits dokumentierten Stand) frisch geklont.
+- [x] Fund: `if (numbits-sync_len+sync_len < 3*66) return false;` — die Subtraktion und
+      Addition von `sync_len` heben sich für jeden Wert von `numbits`/`sync_len`
+      algebraisch auf, die Zeile prüft faktisch nur `numbits < 198` und ignoriert
+      `sync_len` komplett, obwohl sie sichtbar verwendet wird. Gegenprobe im selben
+      Quellbaum: sieben Geschwister-Dekoder (`b4b1.c`, `oregon2.c`, `pvchat.c`,
+      `tpms/citroen.c`, `tpms/ford.c`, `tpms/renault.c`, `tpms/schrader_eg53ma4.c`,
+      `tpms/toyota.c`) lösen dasselbe Problem (Sync-Länge korrekt von der
+      Gesamtbit-Anzahl abziehen) alle nach demselben Muster `numbits - <Abzug> <
+      <Nutzdaten-Bits>` korrekt. Per `git log --follow -p -- protocols/keeloq.c` bestätigt:
+      die fehlerhafte Zeile ist unverändert seit dem allerersten Commit, der die Datei
+      einführt (`ea48c7f`, "Microchip HCS series, Keeloq protocol.", 2023-01-15),
+      vorhanden — ein Tippfehler von Anfang an.
+- [x] Fund eingeordnet: `decode_signal()` in `signal.c` reicht an jeden Decoder den
+      vollen, per bloßem `malloc()` (ohne `memset`) angelegten 4096-Byte-Scratch-Puffer als
+      Längenschranke durch, nicht die tatsächlich abgetastete Bit-Anzahl `numbits` — diese
+      dient in `decode()` nur für die (hier wirkungslose) Vorab-Prüfung und die
+      Sync-Suchgrenze. Ohne wirksamen Check kann der KeeLoq-Dekoder deshalb eine
+      vollständige 66-Bit-Nachricht melden, bei der ein Teil der Bits nachweislich aus
+      Speicher jenseits des echten Signals stammt (beim wiederholten `malloc`/`free`
+      desselben Puffergrößen-Zyklus in der Praxis oft Leftover-Inhalt eines vorherigen,
+      unverwandten Dekodiervorgangs, nicht zufälliges Rauschen) — kein konstruierter
+      Rand-/Sonderfall, sondern jede zu kurz/abgeschnitten empfangene Übertragung, deren
+      Sync nahe genug am Ende des echten Signals gefunden wird.
+- [x] Minimal-invasiver Patch (`ideas/protoview-keeloq-decoder-length-check-bypass-fix/
+      keeloq_c.patch`, eine Zeile): `numbits-sync_len+sync_len < 3*66` →
+      `numbits-sync_len < 3*66`. Gegen drei frische, unabhängige Zweitkopien von
+      `antirez/protoview` (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per
+      `git apply --check`/`git apply` UND per `patch -p1 --dry-run`/`patch -p1`
+      verifiziert, Ergebnis laut `md5sum` in allen drei Kopien und beiden Prüfmethoden
+      byte-identisch.
+- [x] Host-Repro (`ideas/repro-protoview-keeloq-decoder-length-check-bypass/repro.c`):
+      alle von `decode()` genutzten Bitmap-Primitiven wörtlich aus `signal.c`
+      übernommen, `decode()` selbst als ALT (Original)/NEU (Fix) transkribiert, sonst
+      identisch. Vier Szenarien: (1) abgeschnittene Aufnahme (`numbits=198`, exakt an
+      ALT's wirkungsloser Schwelle) mit Speicherinhalt einer zweiten, klar
+      unterscheidbaren Nachricht B jenseits von `numbits` — ALT meldet `true`,
+      `decoded==66`, das gemeldete Tasten-/ID-Byte (`raw[7]`) entspricht exakt B's Byte
+      statt A's (Finding reproduziert), NEU lehnt denselben Puffer korrekt ab; (2)
+      Gegenprobe mit nullgefülltem statt RF-förmigem Speicher jenseits von `numbits` —
+      ALT lehnt ab (kein Zufallstreffer-Artefakt); (3) vollständige echte Aufnahme
+      (`numbits=231`) — ALT und NEU dekodieren beide korrekt und identisch
+      (Regressionsprobe); (4) grob zu kurze Aufnahme (`numbits=40`) — beide lehnen ab.
+      Unter `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: `11/11 Prüfungen bestanden`,
+      `ALL CHECKS PASSED`, identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `ideas/protoview-keeloq-decoder-length-check-bypass-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/Quelle).
+      `ideas/protoview-digital-signal-tool-app-status.md` (Abschnitt "Fortsetzung") um den
+      neuen Fund ergänzt — damit sind alle vier nativ unterstützten Protokoll-Decoder von
+      ProtoView mindestens einmal zeilenweise geprüft.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich
+      zum bereits vorliegenden `furi_hal_subghz_load_preset()`-Fix, ohne den die App auf
+      meiner Firmware gar nicht startet), `./fbt launch_app APPSRC=protoview` bauen.
+      Funktionstest mit einer eigenen KeeLoq-Fernbedienung (HCS200/300/301,
+      433,92 MHz OOK): vollständigen Empfang wiederholt prüfen, dekodierte Feldwerte
+      müssen bei jedem vollständigen Empfang eines selbst gedrückten Tasters konsistent
+      zum erwarteten eigenen Remote-ID bleiben (Regressionsprobe).
+- [ ] Weiterhin offen: ProtoViews letzter verbleibender Protokoll-Decoder-Cluster
+      (TPMS Renault/Toyota/Schrader/Citroen/Ford) sowie die Bit-Edit-/Keyboard-Ansicht
       selbst noch nicht auf eigene Logikfehler durchgesehen. Unverändert aus vorherigen
       Sitzungen: `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
       MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-

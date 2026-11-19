@@ -145,8 +145,12 @@ zeilenweise durchgesehen: zwei unabhängige Logikfehler inkl. Fix, Details in
 `ideas/protoview-oregon2-decoder-logic-fixes.md`. B4B1 (PT2262/SC5262) jetzt
 ebenfalls durchgesehen: Sync-Suche durchläuft durch eine zu niedrige Schleifengrenze
 nur drei der sechs deklarierten Präambel-Muster, Details und Fix in
-`ideas/protoview-b4b1-decoder-sync-loop-bound-fix.md`. TPMS-Cluster, KeeLoq sowie
-die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+`ideas/protoview-b4b1-decoder-sync-loop-bound-fix.md`. KeeLoq (vierter und letzter der
+vier nativ unterstützten Decoder) jetzt ebenfalls durchgesehen: Längen-Vorab-Check ist
+durch sich aufhebende Addition/Subtraktion ein No-Op, wodurch Nachrichten teilweise aus
+Speicher jenseits des tatsächlich empfangenen Signals zusammengesetzt werden können,
+Details und Fix in `ideas/protoview-keeloq-decoder-length-check-bypass-fix.md`.
+TPMS-Cluster sowie die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
 
 ## Quelle
 
