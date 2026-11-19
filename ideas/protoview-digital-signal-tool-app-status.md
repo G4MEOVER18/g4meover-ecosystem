@@ -154,8 +154,11 @@ Vom TPMS-Cluster jetzt die kleinste Datei (Citroen) durchgesehen: eigener,
 unabhängiger Fund derselben Fehlerklasse (Vorab-Check um Faktor 2 zu klein und am
 falschen Zeitpunkt ausgewertet), nachweislich auch in Ford/Renault/
 Schrader-EG53MA4 vorhanden, Details und Fix in
-`ideas/protoview-citroen-tpms-decoder-length-check-fix.md`. Restlicher
-TPMS-Cluster (Ford/Renault/Schrader/Schrader-EG53MA4/Toyota) sowie die
+`ideas/protoview-citroen-tpms-decoder-length-check-fix.md`. Jetzt Ford behoben
+(zweite der drei vorab identifizierten Geschwisterdateien, inkl. eines eigenen
+kosmetischen Tippfehler-Nebenfunds "Fort" statt "Ford" im Debug-Log), Details
+und Fix in `ideas/protoview-ford-tpms-decoder-length-check-fix.md`. Restlicher
+TPMS-Cluster (Renault/Schrader/Schrader-EG53MA4/Toyota) sowie die
 Bit-Edit-/Keyboard-Ansicht weiterhin offen.
 
 ## Quelle

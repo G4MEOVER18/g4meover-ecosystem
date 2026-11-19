@@ -11642,11 +11642,120 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       "Temperature C"/"Battery"/"Repeat" müssen über mehrere Empfänge desselben Sensors
       konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand vor
       dem Fix dekodiert werden (Regressionsprobe).
-- [ ] Weiterhin offen: dieselbe Faktor-2-Vorab-Check-Schwäche in `protocols/tpms/ford.c`,
+- [x] Ford behoben, siehe neuer Abschnitt unten.
+- [ ] Weiterhin offen: dieselbe Faktor-2-Vorab-Check-Schwäche in
       `protocols/tpms/renault.c` und `protocols/tpms/schrader_eg53ma4.c` (siehe Fund oben),
       sowie die noch nicht logikgeprüften `protocols/tpms/toyota.c`/
       `protocols/tpms/schrader.c` (andere Sync-Strategie) und die Bit-Edit-/
       Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:
+      `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), die noch nicht
+      übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
+      `exit-button-left-key-unhandled-fix`, die noch nicht übernommene
+      RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am GPS-Modul selbst
+      (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports), Nearby-Files-Submodul-Pin-Bump
+      v1.5→v1.7 lokale Umsetzung, lora-ukfe-Settings-Scene-Menüeintrag lokale Umsetzung,
+      Programm-Plan 2026-11-18 (siehe `PROGRAMM-PLAN-2026-11-18.md`) sowie der
+      mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-Submodul-Bump auf
+      Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).
+- [ ] **Dringend, unverändert aus den letzten Sitzungen zu entscheiden:** zwei bereits auf
+      `origin/main` liegende Commits vom 18.11. (Programm-Plan + mfkey-Patch,
+      App-Matrix-Inventar) tragen eine fremde Autor-Identität (Name + private
+      E-Mail-Adresse, dazu eine Werkzeug-Versionszeile im Patch-Header) — das verstößt
+      gegen die eigene Vorgabe (nur `G4MEOVER18`/`g4me.over.18@gmail.com`, keine
+      Werkzeug-/Fremd-Meta-Angaben) und ist bereits öffentlich sichtbar. Eine Korrektur ist
+      nur per Force-Push (Umschreiben veröffentlichter Historie) möglich — bewusst nicht
+      ungefragt ausgeführt. Entscheidung weiterhin offen.
+
+## Ideen-Recherche: ProtoView — Ford-TPMS-Dekoder, Längen-Vorab-Check um Faktor 2 zu klein und am falschen Zeitpunkt ausgewertet
+
+- [x] Von den in der Citroen-Sitzung vorab identifizierten drei Geschwisterdateien mit
+      demselben Fehlermuster (`ideas/protoview-citroen-tpms-decoder-length-check-fix.md`,
+      Abschnitt "Betroffene Dateien") `protocols/tpms/ford.c` (66 Zeilen) genommen,
+      eigenständig zeilenweise auf eigene Logikfehler geprüft. `antirez/protoview` (Commit
+      `fd2f6ed`, zugleich aktueller `HEAD` des Repositorys) frisch geklont.
+- [x] Fund bestätigt und verifiziert: `if (numbits-sync_len < 8*8) return false;` hat
+      dieselben zwei sich verstärkenden Mängel wie beim Citroen-Fund. (1) Falsche
+      Größenordnung: `8*8` (=64) ist die Anzahl *dekodierter* Datenbits, aber die Nutzdaten
+      sind Manchester-kodiert und `convert_from_line_code()` konsumiert dafür tatsächlich
+      `8*8*2` (=128) *Roh*-Bitmap-Bits — der Check ist exakt um die Hälfte zu klein. (2)
+      Falscher Zeitpunkt: der Check läuft vor `bitmap_seek_bits()`, kennt also die
+      tatsächliche Sync-Trefferposition noch nicht und prüft nur die Gesamtlänge unter der
+      impliziten Annahme, der Treffer liege bei Offset 0. Unabhängige Zweitbestätigung in
+      derselben Datei: `info->pulses_count = (off+8*8*2) - info->start_off;` wenige Zeilen
+      weiter unten verwendet bereits korrekt den Faktor `8*8*2` für dieselbe Rohbit-Menge.
+- [x] Nebenfund in derselben Zeile wie der Sync-Treffer-Log: `FURI_LOG_E(TAG, "Fort TPMS
+      preamble+sync found");` — Tippfehler ("Fort" statt "Ford"), auffällig auch dadurch,
+      dass dieselbe Datei zwei Zeilen später den Namen korrekt schreibt
+      (`"Ford TPMS decoded bits: %lu"`). Anders als beim Citroen-Fund (dort eindeutig
+      Copy-Paste aus `renault.c`) vermutlich ein einfacher Tippfehler statt
+      Querkontamination.
+- [x] Fund eingeordnet: dieselbe bereits dokumentierte Ursache (`decode_signal()` reicht den
+      vollen, fest 4096 Byte großen Scratch-Puffer als Längenschranke durch, nicht die
+      tatsächlich abgetastete Bit-Anzahl `numbits`). Mit einer Aufnahme von `numbits=96`
+      (16 Sync-Bits + 80 reale Rohbits, 5 von 8 Bytes) lässt der bestehende Check
+      (`80 < 64` → `false`) die Dekodierung durch, obwohl 128 Rohbits nötig wären — die
+      fehlenden 3 Bytes werden aus dem Scratch-Puffer-Rest ergänzt, inklusive eines dafür
+      zufällig passenden additiven CRC-Bytes. Betrifft auch den Normalfall (Sync-Treffer
+      bei Offset 0), nicht nur einen Rand-/Sonderfall.
+- [x] Minimal-invasiver Patch (`ideas/protoview-ford-tpms-decoder-length-check-fix/
+      ford_c.patch`, zwei Stellen): neue Prüfung `if (off + 8*8*2 > numbits) return false;`
+      nach `off += sync_len;` eingefügt (ausgewertet an der echten Sync-Trefferposition, mit
+      korrektem Rohbit-Faktor); zusätzlich Tippfehler-Nebenfund behoben (`"Fort TPMS
+      preamble+sync found"` → `"Ford TPMS preamble+sync found"`). Gegen zwei frische,
+      unabhängige Zweitkopien von `antirez/protoview`
+      (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per `git apply --check`/`git apply` UND
+      per `patch -p1 --dry-run`/`patch -p1` verifiziert, Ergebnis laut `md5sum` in beiden
+      Kopien und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro (`ideas/repro-protoview-ford-tpms-decoder-length-check-fix/repro.c`): alle
+      von `decode()` genutzten Bitmap-Primitiven wörtlich aus `signal.c` übernommen,
+      `decode()` selbst in drei Varianten transkribiert: ALT (Original), MID (nur Faktor
+      korrigiert, weiterhin vor der Sync-Suche ausgewertet) und NEU (tatsächlicher Fix: nach
+      der Sync-Suche, mit korrektem Faktor); anders als bei Citroen (XOR-Checksumme)
+      verwendet Ford eine additive Summe der ersten 7 Bytes modulo 256, die
+      Hybrid-/Kontaminations-Konstruktion entsprechend angepasst. Vier Szenarien: (1)
+      Sync-Treffer bei Offset 0, Abbruch nach 5 von 8 realen Bytes, Rest mit
+      `0xDE`/`0xAD`-Marker aus dem Scratch-Bereich — ALT meldet fälschlich Erfolg mit dem
+      Marker in `raw[5]`/`raw[6]`, MID und NEU lehnen beide korrekt ab (bei Offset 0 reicht
+      die reine Faktor-Korrektur); (2) identischer Bytes-Schnitt, aber Sync-Treffer erst bei
+      Offset 250 bei insgesamt ausreichend langem `numbits` — ALT **und MID** melden beide
+      fälschlich Erfolg mit demselben Marker (Beleg: Faktor-Korrektur allein reicht nicht,
+      die Verschiebung des Checks hinter die Sync-Suche ist notwendig), nur NEU lehnt
+      korrekt ab; (3) vollständige echte Aufnahme ohne Kontamination — ALT, MID und NEU
+      dekodieren alle identisch und korrekt (Regressionsprobe); (4) grob zu kurze Aufnahme
+      — alle drei lehnen ab. Unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`:
+      `20/20 Prüfungen bestanden`, `ALL CHECKS PASSED`, identischer Output beider
+      Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `ideas/protoview-ford-tpms-decoder-length-check-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/Quelle).
+      `ideas/protoview-digital-signal-tool-app-status.md` (Abschnitt "Fortsetzung") um den
+      neuen Fund ergänzt; den jetzt behobenen Punkt (Ford) im Citroen-Abschnitt oben als
+      erledigt markiert.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich zu
+      den bereits vorliegenden `furi_hal_subghz_load_preset()`-, B4B1-, KeeLoq- und
+      Citroen-Fixes), `./fbt launch_app APPSRC=protoview` bauen. Funktionstest mit einem
+      eigenen Ford-TPMS-Reifendrucksensor (443,92 MHz FSK): "Tire ID"/"Pressure psi"/
+      "Temperature C"/"Flags"/"Moving" müssen über mehrere Empfänge desselben Sensors
+      konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand vor dem
+      Fix dekodiert werden (Regressionsprobe).
+- [ ] Weiterhin offen (unverändert aus der vorherigen Sitzung, abzüglich des jetzt behobenen
+      Ford-Punkts): dieselbe Faktor-2-Vorab-Check-Schwäche in `protocols/tpms/renault.c` und
+      `protocols/tpms/schrader_eg53ma4.c`, sowie die noch nicht logikgeprüften
+      `protocols/tpms/toyota.c`/`protocols/tpms/schrader.c` (andere Sync-Strategie) und die
+      Bit-Edit-/Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:
       `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
       MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
       Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
