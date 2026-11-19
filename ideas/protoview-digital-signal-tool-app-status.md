@@ -142,8 +142,11 @@ unterstützten Protokoll-Decoder selbst (TPMS Renault/Toyota/Schrader/Citroen/Fo
 KeeLoq, Oregon 2, PT2262/SC5262) oder die Bit-Edit-/Keyboard-Ansicht — eigener
 Rückstellpunkt für künftige Sitzungen. Oregon 2 (kleinster der vier) jetzt
 zeilenweise durchgesehen: zwei unabhängige Logikfehler inkl. Fix, Details in
-`ideas/protoview-oregon2-decoder-logic-fixes.md`. TPMS-Cluster, KeeLoq,
-PT2262/SC5262 sowie die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+`ideas/protoview-oregon2-decoder-logic-fixes.md`. B4B1 (PT2262/SC5262) jetzt
+ebenfalls durchgesehen: Sync-Suche durchläuft durch eine zu niedrige Schleifengrenze
+nur drei der sechs deklarierten Präambel-Muster, Details und Fix in
+`ideas/protoview-b4b1-decoder-sync-loop-bound-fix.md`. TPMS-Cluster, KeeLoq sowie
+die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
 
 ## Quelle
 

@@ -11402,3 +11402,101 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Menüeintrag lokale Umsetzung, Programm-Plan 2026-11-18 (siehe
       `PROGRAMM-PLAN-2026-11-18.md`) sowie der mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-
       Submodul-Bump auf Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).
+
+## Ideen-Recherche: ProtoView — B4B1-Dekoder (PT2262/SC5262), Sync-Suche durchläuft nur die Hälfte der deklarierten Muster
+
+- [x] `WORKFLOW.md`/`CONSTRAINTS.md` sowie `reports/` durchgesehen: letzte Sitzung war
+      Ideen-Recherche-Nachzug (Simultaneous UHF RFID Reader, Speicherleck-Fix) — davor
+      Firmware-Feature-Mining (App-Matrix) und ein Programm-Planungs-Beitrag. Repo-Hygiene
+      vorab hergestellt: `HEAD` stand losgelöst vier Commits vor dem lokalen `main`-Zeiger
+      (identische, bereits auf `origin/main` liegende Commits ohne lokalen Fast-Forward) —
+      `main` per Fast-Forward auf den bereits öffentlichen Stand nachgezogen, kein neuer
+      Push nötig (`git push` meldete bereits aktuell). Git-Identität vor dem eigenen Commit
+      erneut auf `G4MEOVER18 <g4me.over.18@gmail.com>` gesetzt. Von den seit der
+      Oregon-2-Sitzung offenen drei restlichen ProtoView-Protokoll-Decodern
+      (`ideas/protoview-digital-signal-tool-app-status.md`, Abschnitt "Fortsetzung") den
+      B4B1-Dekoder (PT2262/SC5262, 96 Zeilen) genommen, zeilenweise auf eigene Logikfehler
+      geprüft.
+- [x] `antirez/protoview` (Commit `fd2f6ed`, zugleich aktueller `HEAD` des Repositorys —
+      keine neueren Commits seit dem bereits dokumentierten Stand) frisch geklont,
+      `protocols/b4b1.c` gelesen. Fund: `sync_patterns[]` deklariert sechs
+      Präambel-Muster (30/31/32-`te`-Gap, je mit folgendem Datenbit 0 oder 1), die
+      Such-Schleife läuft aber nur `for (j = 0; j < 3; j++)` — die Indizes 3–5 (31-Gap+Bit0,
+      32-Gap+Bit1, 32-Gap+Bit0) werden nie geprüft, toter Code. Per
+      `git log -p -- protocols/b4b1.c` (Commit `cc32c5e`, "b4b1: more robust message
+      detection") bestätigt: das Array wurde bewusst von drei auf sechs Einträge erweitert,
+      um zusätzlich das erste Datenbit ins Sync-Muster aufzunehmen — die Schleifengrenze
+      wurde dabei nicht mitgezogen. Gegenprobe im selben Quellbaum:
+      `protocols/tpms/toyota.c` löst dasselbe Muster (mehrere Präambel-Varianten mit/ohne
+      folgendem Datenbit) korrekt über eine NULL-terminierte Liste plus
+      `for (j = 0; sync[j]; j++)`.
+- [x] Fund eingeordnet: Sync-Gap-Länge (Timing-Jitter, laut eigenem Drei-Varianten-Ansatz
+      bereits als normal vorausgesetzt) und Wert des ersten Datenbits (höchstwertiges Bit
+      der 24-Bit-ID, bei beliebigem Fernbedienungscode ~50 % 0 statt 1) variieren
+      unabhängig vom eigentlichen Nachrichteninhalt — der Fund trifft im Mittel rund die
+      Hälfte aller realistischen PT2262/SC5262-Empfangsfälle, kein konstruierter
+      Rand-/Sonderfall.
+- [x] Minimal-invasiver Patch (`ideas/protoview-b4b1-decoder-sync-loop-bound-fix/
+      b4b1_c.patch`, eine Zeile): Schleifengrenze `j < 3` → `j < 6`. Gegen zwei frische,
+      unabhängige Zweitkopien von `antirez/protoview`
+      (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per `git apply --check`/`git apply` UND
+      per `patch -p1 --dry-run`/`patch -p1` verifiziert, Ergebnis laut `md5sum` in beiden
+      Fällen und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro (`ideas/repro-protoview-b4b1-decoder-sync-loop-bound-fix/`): die
+      Sync-Suche aus `decode()` wörtlich in ALT (`j < 3`)/NEU (`j < 6`) extrahiert, gegen
+      eine wörtliche Kopie der von `decode()` genutzten Bitmap-Primitiven aus `signal.c`
+      (`bitmap_set`/`bitmap_get`/`bitmap_set_pattern`/`bitmap_match_bits`/
+      `bitmap_seek_bits`). Für jedes der sechs deklarierten Muster eine eigene Bitmap mit
+      exakt diesem Muster gebaut: ALT findet nur Index 0–2 (Finding reproduziert), NEU
+      findet alle sechs mit korrektem Offset/Index; Gegenprobe mit nullgefülltem Puffer
+      (kein Muster enthalten) wird von ALT UND NEU abgelehnt (kein Falsch-Positiv-Risiko
+      durch den Fix); `numbits < 30`-Wächter bleibt für beide Varianten wirksam. Unter
+      `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=undefined`
+      bei `-O0`/`-O1`: `34/34 Prüfungen bestanden`, `ALL CHECKS PASSED`, identischer Output
+      beider Optimierungsstufen, keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `ideas/protoview-b4b1-decoder-sync-loop-bound-fix.md` angelegt (Was/Nutzen/Betroffene
+      Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/Quelle).
+      `ideas/protoview-digital-signal-tool-app-status.md` (Abschnitt "Fortsetzung") um den
+      neuen Fund ergänzt.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich
+      zum bereits vorliegenden `furi_hal_subghz_load_preset()`-Fix, ohne den die App auf
+      meiner Firmware gar nicht startet), `./fbt launch_app APPSRC=protoview` bauen.
+      Funktionstest mit einer eigenen PT2262/SC5262-basierten Fernbedienung (Garagentor/
+      Torantrieb/Funksteckdose): mehrfach senden/empfangen, vor dem Fix bleibt ein Teil der
+      Empfänge beim Rohpuls-Bildschirm stehen, nach dem Fix muss jeder vollständige Empfang
+      zuverlässig decodiert werden; bereits vorher funktionierende Fälle (Index 0–2) müssen
+      unverändert dieselben "id"/"button"-Werte liefern.
+- [ ] Weiterhin offen: ProtoViews restliche zwei Protokoll-Decoder (TPMS-Cluster
+      Renault/Toyota/Schrader/Citroen/Ford, KeeLoq) sowie die Bit-Edit-/Keyboard-Ansicht
+      selbst noch nicht auf eigene Logikfehler durchgesehen. Unverändert aus vorherigen
+      Sitzungen: `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), die noch nicht
+      übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
+      `exit-button-left-key-unhandled-fix`, die noch nicht übernommene
+      RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am GPS-Modul selbst
+      (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports), Nearby-Files-Submodul-Pin-Bump
+      v1.5→v1.7 lokale Umsetzung, lora-ukfe-Settings-Scene-Menüeintrag lokale Umsetzung,
+      Programm-Plan 2026-11-18 (siehe `PROGRAMM-PLAN-2026-11-18.md`) sowie der
+      mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-Submodul-Bump auf
+      Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).
+- [ ] **Dringend, vor dem nächsten Beitrag zu entscheiden (unverändert aus der vorherigen
+      Sitzung):** zwei bereits auf `origin/main` liegende Commits vom 18.11.
+      (Programm-Plan + mfkey-Patch, App-Matrix-Inventar) tragen eine fremde
+      Autor-Identität (Name + private E-Mail-Adresse, dazu eine Werkzeug-Versionszeile im
+      Patch-Header) — das verstößt gegen die eigene Vorgabe (nur `G4MEOVER18`/
+      `g4me.over.18@gmail.com`, keine Werkzeug-/Fremd-Meta-Angaben) und ist bereits
+      öffentlich sichtbar. Eine Korrektur ist nur per Force-Push (Umschreiben
+      veröffentlichter Historie) möglich — bewusst nicht ungefragt ausgeführt.
+      Entscheidung weiterhin offen.
