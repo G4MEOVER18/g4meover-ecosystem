@@ -11849,11 +11849,13 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       "Temperature C"/"Flags"/"Unknown1"/"Unknown2" müssen über mehrere Empfänge desselben
       Sensors konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand
       vor dem Fix dekodiert werden (Regressionsprobe).
-- [ ] Weiterhin offen (unverändert aus der vorherigen Sitzung, abzüglich des jetzt behobenen
-      Renault-Punkts): dieselbe Faktor-2-Vorab-Check-Schwäche in
-      `protocols/tpms/schrader_eg53ma4.c`, sowie die noch nicht logikgeprüften
-      `protocols/tpms/toyota.c`/`protocols/tpms/schrader.c` (andere Sync-Strategie) und die
-      Bit-Edit-/Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:
+- [x] Weiterhin offen war hier `protocols/tpms/schrader_eg53ma4.c` (dieselbe
+      Faktor-2-Vorab-Check-Schwäche) — jetzt in einer eigenen späteren Sitzung behoben, siehe
+      Abschnitt "ProtoView — Schrader-EG53MA4-TPMS-Dekoder" weiter unten.
+- [ ] Weiterhin offen (TPMS-Vorab-Check-Cluster jetzt vollständig abgearbeitet): die noch nicht
+      logikgeprüften `protocols/tpms/toyota.c`/`protocols/tpms/schrader.c` (andere
+      Sync-Strategie) und die Bit-Edit-/Keyboard-Ansicht von ProtoView selbst. Unverändert aus
+      vorherigen Sitzungen:
       `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
       MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
       Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
@@ -11876,6 +11878,95 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       Programm-Plan 2026-11-18 (siehe `PROGRAMM-PLAN-2026-11-18.md`) sowie der
       mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-Submodul-Bump auf
       Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).
+- [ ] **Dringend, unverändert aus den letzten Sitzungen zu entscheiden:** zwei bereits auf
+      `origin/main` liegende Commits vom 18.11. (Programm-Plan + mfkey-Patch,
+      App-Matrix-Inventar) tragen eine fremde Autor-Identität (Name + private
+      E-Mail-Adresse, dazu eine Werkzeug-Versionszeile im Patch-Header) — das verstößt
+      gegen die eigene Vorgabe (nur `G4MEOVER18`/`g4me.over.18@gmail.com`, keine
+      Werkzeug-/Fremd-Meta-Angaben) und ist bereits öffentlich sichtbar. Eine Korrektur ist
+      nur per Force-Push (Umschreiben veröffentlichter Historie) möglich — bewusst nicht
+      ungefragt ausgeführt. Entscheidung weiterhin offen.
+
+## Ideen-Recherche: ProtoView — Schrader-EG53MA4-TPMS-Dekoder, Längen-Vorab-Check um Faktor 2 zu klein und am falschen Zeitpunkt ausgewertet
+
+- [x] Von den in der Citroen-Sitzung vorab identifizierten drei Geschwisterdateien mit
+      demselben Fehlermuster (`ideas/protoview-citroen-tpms-decoder-length-check-fix.md`,
+      Abschnitt "Betroffene Dateien") nach Ford und Renault jetzt die letzte,
+      `protocols/tpms/schrader_eg53ma4.c` (67 Zeilen), genommen, eigenständig zeilenweise auf
+      eigene Logikfehler geprüft. `antirez/protoview` (Commit `fd2f6ed`, zugleich aktueller
+      `HEAD` des Repositorys) frisch in zwei unabhängige Zweitkopien geklont.
+- [x] Fund bestätigt: `if (numbits-sync_len+8 < 8*10) return false;` hat dieselben zwei sich
+      verstärkenden Mängel wie bei Citroen/Ford/Renault (falsche Größenordnung: `8*10`=80 statt
+      der tatsächlich benötigten `10*8*2`=160 Roh-Manchester-Bits; falscher Zeitpunkt: Check
+      läuft vor `bitmap_seek_bits()`). Anders als bei Renault ist die subtrahierte Konstante
+      (`sync_len-8`=12) hier konsistent mit der real verwendeten Sprungweite
+      (`off += sync_len-8;`) — kein dritter, Renault-spezifischer Mangel. Unabhängige
+      Zweitbestätigung in derselben Datei: `info->pulses_count = (off+10*8*2) -
+      info->start_off;` wenige Zeilen weiter unten verwendet bereits korrekt den Faktor
+      `10*8*2` für dieselbe Rohbit-Menge. Damit sind alle vier in der Citroen-Sitzung
+      identifizierten Geschwisterdateien eigenständig geprüft und gefixt.
+- [x] Minimal-invasiver Patch
+      (`ideas/protoview-schrader-eg53ma4-tpms-decoder-length-check-fix/
+      schrader_eg53ma4_c.patch`): neue Prüfung `if (off + 10*8*2 > numbits) return false;` nach
+      `off += sync_len-8;` eingefügt (ausgewertet an der echten Sync-Trefferposition, mit
+      korrektem Rohbit-Faktor). Gegen zwei frische, unabhängige Zweitkopien von
+      `antirez/protoview` (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per `git apply
+      --check`/`git apply` UND per `patch -p1 --dry-run`/`patch -p1` verifiziert, Ergebnis
+      laut `md5sum` in beiden Kopien und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro
+      (`ideas/repro-protoview-schrader-eg53ma4-tpms-decoder-length-check-fix/repro.c`): alle
+      Bitmap-Primitiven sowie `decode()` wörtlich/transkribiert aus `signal.c`/
+      `schrader_eg53ma4.c` übernommen, `decode()` in drei Varianten (ALT/MID/NEU). Wie Ford
+      verwendet Schrader-EG53MA4 eine additive Summe (hier 9 Bytes) modulo 256 statt einer
+      echten CRC; Kontamination diesmal gezielt auf die beiden angezeigten Messwert-Bytes
+      (`raw[7]` Pressure, `raw[8]` Temperature) statt Flags/Moving. Vier Szenarien: Sync-Treffer
+      bei Offset 0 mit 7-von-10-Bytes-Abbruch (ALT meldet fälschlich Erfolg mit
+      `0xDE`/`0xAD`-Marker in Pressure/Temperature, Tire-ID bleibt echt; MID und NEU lehnen hier
+      beide korrekt ab); identischer Schnitt bei Sync-Treffer Offset 250 (ALT **und MID** melden
+      beide fälschlich Erfolg — Beleg, dass Faktor-Korrektur allein nicht reicht); vollständige
+      echte Aufnahme (alle drei dekodieren identisch und korrekt, Regressionsprobe); grob zu
+      kurze Aufnahme (alle drei lehnen ab). Unter `gcc -std=c17 -Wall -Wextra
+      -fsanitize=address,undefined -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: `20/20
+      Prüfungen bestanden`, `ALL CHECKS PASSED`, identischer Output beider Optimierungsstufen,
+      keine Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `ideas/protoview-schrader-eg53ma4-tpms-decoder-length-check-fix.md` angelegt
+      (Was/Nutzen/Betroffene Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/
+      Quelle). `ideas/protoview-digital-signal-tool-app-status.md` (Abschnitt "Fortsetzung")
+      aktualisiert: Vierer-Geschwisterkreis (Citroen/Ford/Renault/Schrader-EG53MA4) jetzt
+      vollständig abgearbeitet.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich zu den
+      bereits dokumentierten `furi_hal_subghz_load_preset()`-, B4B1-, KeeLoq-, Citroen-, Ford-
+      und Renault-Fixes), `./fbt launch_app APPSRC=protoview` bauen. Funktionstest mit einem
+      eigenen Schrader-EG53MA4-TPMS-Reifendrucksensor (443,92 MHz OOK, 100µs Pulslänge): "Tire
+      ID"/"Pressure kpa"/"Temperature C" müssen über mehrere Empfänge desselben Sensors konstant
+      bleiben; ein vollständig empfangenes Signal muss identisch zum Stand vor dem Fix dekodiert
+      werden (Regressionsprobe).
+- [ ] Weiterhin offen (TPMS-Vorab-Check-Cluster jetzt vollständig abgearbeitet): die noch nicht
+      logikgeprüften `protocols/tpms/toyota.c`/`protocols/tpms/schrader.c` (Basis-Schrader,
+      andere Sync-Strategie) sowie die Bit-Edit-/Keyboard-Ansicht von ProtoView selbst.
+      Unverändert aus vorherigen Sitzungen: `texkom` Phase 5 lokaler Build-/Funktionstest,
+      NFC/RFID-Parser-Teilaspekt, MIFARE-Plus-/Ultralight-AES Phase 3 Rest,
+      `sanitize_filename()`-Zeichenbereichs-Nebenfund, neun verbleibende
+      FeliCa-Multisystem-Teilfixe aus PR #4465, LFRFID-Hitag-S-Dispatch-Integration
+      (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-Integration (blockiert an fehlender
+      Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-Auto-Hit-Status,
+      PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), die noch nicht übernommenen
+      `RollJam`-Patches `abort-right-key-quits-app-fix`/`exit-button-left-key-unhandled-fix`,
+      die noch nicht übernommene RollLab-`capture-timeout-not-wired-fix`, der
+      FDX-B-Periodendecoder für Implantat-Chips mit Tastverhältnis-Drift,
+      lora-ukfe-Protokollerweiterung (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am
+      GPS-Modul selbst (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal
+      gegengeprüften Override-Anschlüsse/Fixe (siehe vorherige Reports),
+      Nearby-Files-Submodul-Pin-Bump v1.5→v1.7 lokale Umsetzung,
+      lora-ukfe-Settings-Scene-Menüeintrag lokale Umsetzung, Programm-Plan 2026-11-18 (siehe
+      `PROGRAMM-PLAN-2026-11-18.md`) sowie der mfkey-Stack-Fix-Patch lokale Umsetzung,
+      App-Matrix-Submodul-Bump auf Momentum-Apps-dev (siehe
+      `firmware-mining/app-matrix-REPORT.md`).
 - [ ] **Dringend, unverändert aus den letzten Sitzungen zu entscheiden:** zwei bereits auf
       `origin/main` liegende Commits vom 18.11. (Programm-Plan + mfkey-Patch,
       App-Matrix-Inventar) tragen eine fremde Autor-Identität (Name + private

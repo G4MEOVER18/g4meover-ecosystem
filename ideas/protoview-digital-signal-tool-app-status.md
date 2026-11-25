@@ -162,8 +162,15 @@ behoben (dritte und letzte der drei vorab identifizierten Geschwisterdateien) �
 einem eigenständigen, Renault-spezifischen dritten Mangel: der Vorab-Check subtrahiert
 `12`, obwohl die tatsächliche Präambel-/Sync-Sprungweite `20` ist (`strlen(sync_pattern)`),
 unabhängig vom bereits bekannten Faktor-2-Fehler, Details und Fix in
-`ideas/protoview-renault-tpms-decoder-length-check-fix.md`. Restlicher TPMS-Cluster
-(Schrader-EG53MA4/Schrader/Toyota) sowie die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+`ideas/protoview-renault-tpms-decoder-length-check-fix.md`. Jetzt auch Schrader-EG53MA4 behoben
+(vierte und letzte der vier in der Citroen-Sitzung identifizierten Geschwisterdateien) — anders
+als Renault ist die hier subtrahierte Konstante bereits konsistent mit der real verwendeten
+Sprungweite, also nur die beiden Citroen/Ford-Mängel (Faktor, Zeitpunkt), kein dritter
+Renault-spezifischer Mangel, Details und Fix in
+`ideas/protoview-schrader-eg53ma4-tpms-decoder-length-check-fix.md`. Damit ist der
+Vierer-Geschwisterkreis (Citroen/Ford/Renault/Schrader-EG53MA4) vollständig abgearbeitet.
+Restlicher TPMS-Cluster (Schrader-Basisvariante/Toyota, anderer Sync-Mechanismus) sowie die
+Bit-Edit-/Keyboard-Ansicht weiterhin offen.
 
 ## Quelle
 
