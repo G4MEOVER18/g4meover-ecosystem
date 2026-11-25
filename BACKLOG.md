@@ -11643,8 +11643,9 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand vor
       dem Fix dekodiert werden (Regressionsprobe).
 - [x] Ford behoben, siehe neuer Abschnitt unten.
+- [x] Renault behoben, siehe neuer Abschnitt unten.
 - [ ] Weiterhin offen: dieselbe Faktor-2-Vorab-Check-Schwäche in
-      `protocols/tpms/renault.c` und `protocols/tpms/schrader_eg53ma4.c` (siehe Fund oben),
+      `protocols/tpms/schrader_eg53ma4.c` (siehe Fund oben),
       sowie die noch nicht logikgeprüften `protocols/tpms/toyota.c`/
       `protocols/tpms/schrader.c` (andere Sync-Strategie) und die Bit-Edit-/
       Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:
@@ -11751,8 +11752,105 @@ Stand: initial. Wird laufend abgehakt und ergänzt; lokal wird gemerged/gebaut/g
       "Temperature C"/"Flags"/"Moving" müssen über mehrere Empfänge desselben Sensors
       konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand vor dem
       Fix dekodiert werden (Regressionsprobe).
+- [ ] Weiterhin offen (unverändert aus der vorherigen Sitzung, abzüglich der jetzt behobenen
+      Ford- und Renault-Punkte): dieselbe Faktor-2-Vorab-Check-Schwäche in
+      `protocols/tpms/schrader_eg53ma4.c`, sowie die noch nicht logikgeprüften
+      `protocols/tpms/toyota.c`/`protocols/tpms/schrader.c` (andere Sync-Strategie) und die
+      Bit-Edit-/Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:
+      `texkom` Phase 5 lokaler Build-/Funktionstest, NFC/RFID-Parser-Teilaspekt,
+      MIFARE-Plus-/Ultralight-AES Phase 3 Rest, `sanitize_filename()`-Zeichenbereichs-
+      Nebenfund, neun verbleibende FeliCa-Multisystem-Teilfixe aus PR #4465,
+      LFRFID-Hitag-S-Dispatch-Integration (Hardware-Test), `hitagmicro.c`/`.h`-Dispatch-
+      Integration (blockiert an fehlender Config-Bitwert-Quelle), GlitchTrigger-Sweep-UI-
+      Auto-Hit-Status, PromptZero-Installationsskript-Sichtprüfung vor lokalem Einsatz,
+      PSA-Bruteforce-TEA-Schlüsselplan-Konstanten (bewusst zurückgestellt),
+      SignalSweep-Firmware-Quelltextsichtung für eine mögliche Flipper-UART-Anbindung,
+      veraltete `README.md`, AUT64-Rundenschlüssel- und VAG-Dispatch-Typ-1-4-
+      Kryptoverifikation in ProtoPirate (fehlender externer Referenz-Testvektor), die in
+      `BACKLOG.md` fehlende Phase-12-Eintragung (Security+ 2.0), die noch nicht
+      übernommenen `RollJam`-Patches `abort-right-key-quits-app-fix`/
+      `exit-button-left-key-unhandled-fix`, die noch nicht übernommene
+      RollLab-`capture-timeout-not-wired-fix`, der FDX-B-Periodendecoder für
+      Implantat-Chips mit Tastverhältnis-Drift, lora-ukfe-Protokollerweiterung
+      (`lora_rx`/`wifi_ap`/`error`), Baudraten-Wechsel am GPS-Modul selbst
+      (`nearby_files`, `$PMTK251`), lokaler Test aller bisher nicht lokal gegengeprüften
+      Override-Anschlüsse/Fixe (siehe vorherige Reports), Nearby-Files-Submodul-Pin-Bump
+      v1.5→v1.7 lokale Umsetzung, lora-ukfe-Settings-Scene-Menüeintrag lokale Umsetzung,
+      Programm-Plan 2026-11-18 (siehe `PROGRAMM-PLAN-2026-11-18.md`) sowie der
+      mfkey-Stack-Fix-Patch lokale Umsetzung, App-Matrix-Submodul-Bump auf
+      Momentum-Apps-dev (siehe `firmware-mining/app-matrix-REPORT.md`).
+- [ ] **Dringend, unverändert aus den letzten Sitzungen zu entscheiden:** zwei bereits auf
+      `origin/main` liegende Commits vom 18.11. (Programm-Plan + mfkey-Patch,
+      App-Matrix-Inventar) tragen eine fremde Autor-Identität (Name + private
+      E-Mail-Adresse, dazu eine Werkzeug-Versionszeile im Patch-Header) — das verstößt
+      gegen die eigene Vorgabe (nur `G4MEOVER18`/`g4me.over.18@gmail.com`, keine
+      Werkzeug-/Fremd-Meta-Angaben) und ist bereits öffentlich sichtbar. Eine Korrektur ist
+      nur per Force-Push (Umschreiben veröffentlichter Historie) möglich — bewusst nicht
+      ungefragt ausgeführt. Entscheidung weiterhin offen.
+
+## Ideen-Recherche: ProtoView — Renault-TPMS-Dekoder, Längen-Vorab-Check um Faktor 2 zu klein, am falschen Zeitpunkt ausgewertet und mit zur Sync-Länge inkonsistenter Konstante
+
+- [x] Von den in der Citroen-Sitzung vorab identifizierten drei Geschwisterdateien mit
+      demselben Fehlermuster (`ideas/protoview-citroen-tpms-decoder-length-check-fix.md`,
+      Abschnitt "Betroffene Dateien") nach Ford jetzt `protocols/tpms/renault.c` (123 Zeilen)
+      genommen, eigenständig zeilenweise auf eigene Logikfehler geprüft. `antirez/protoview`
+      (Commit `fd2f6ed`, zugleich aktueller `HEAD` des Repositorys) frisch in drei unabhängige
+      Zweitkopien geklont.
+- [x] Fund bestätigt und um einen eigenständigen, Renault-spezifischen dritten Mangel
+      erweitert: `if (numbits-12 < 9*8) return false;` hat dieselben zwei sich
+      verstärkenden Mängel wie bei Citroen/Ford (falsche Größenordnung: `9*8`=72 statt der
+      tatsächlich benötigten `9*8*2`=144 Roh-Manchester-Bits; falscher Zeitpunkt: Check läuft
+      vor `bitmap_seek_bits()`), plus einen dritten, unabhängigen Mangel: die subtrahierte
+      Konstante `12` stimmt mit keiner tatsächlich relevanten Größe überein — weder mit
+      `strlen(sync_pattern)` (=20) noch mit der zwei Zeilen später real verwendeten
+      Sprungweite (`off += 20; /* Skip preamble. */`). Selbst ein Fix, der nur den Faktor
+      korrigiert, aber die `12` beließe, verlangt noch 8 Roh-Bits weniger als nötig.
+      Unabhängige Zweitbestätigung in derselben Datei: `info->pulses_count = (off+8*9*2) -
+      info->start_off;` wenige Zeilen weiter unten verwendet bereits korrekt den Faktor
+      `8*9*2` für dieselbe Rohbit-Menge.
+- [x] Minimal-invasiver Patch (`ideas/protoview-renault-tpms-decoder-length-check-fix/
+      renault_c.patch`): neue Prüfung `if (off + 9*8*2 > numbits) return false;` nach
+      `off += 20; /* Skip preamble. */` eingefügt (ausgewertet an der echten
+      Sync-Trefferposition, mit korrektem Rohbit-Faktor, unabhängig von der inkonsistenten
+      `12`-Konstante des bestehenden Vorab-Checks). Gegen zwei frische, unabhängige
+      Zweitkopien von `antirez/protoview` (`fd2f6edd43cb813c37a7d912c7dd88f9732d298f`) per
+      `git apply --check`/`git apply` UND per `patch -p1 --dry-run`/`patch -p1` verifiziert,
+      Ergebnis laut `md5sum` in beiden Kopien und beiden Prüfmethoden byte-identisch.
+- [x] Host-Repro (`ideas/repro-protoview-renault-tpms-decoder-length-check-fix/repro.c`):
+      alle von `decode()` genutzten Bitmap-Primitiven sowie `crc8()` wörtlich aus
+      `signal.c`/`crc.c` übernommen, `decode()` selbst in drei Varianten transkribiert: ALT
+      (Original, `12`-Konstante), MID (Faktor UND Konstante korrigiert — `9*8*2` statt `9*8`,
+      `20` statt `12` — weiterhin vor der Sync-Suche) und NEU (tatsächlicher Fix: nach der
+      Sync-Suche, korrekter Faktor). Anders als Citroen (XOR) und Ford (additive Summe)
+      verwendet Renault eine echte CRC8 (Polynom 7, Init 0); die Hybrid-/
+      Kontaminations-Konstruktion entsprechend angepasst. Vier Szenarien: (1) Sync-Treffer bei
+      Offset 0, Abbruch nach 6 von 9 realen Bytes — ALT meldet fälschlich Erfolg mit
+      `0xDE`/`0xAD`-Marker in `raw[6]`/`raw[7]`, MID und NEU lehnen beide korrekt ab (bei
+      Offset 0 reicht die kombinierte Faktor-/Konstanten-Korrektur bereits aus); (2)
+      identischer Bytes-Schnitt, aber Sync-Treffer erst bei Offset 250 bei insgesamt
+      ausreichend langem `numbits` — ALT **und MID** melden beide fälschlich Erfolg mit
+      demselben Marker (Beleg: Faktor- und Konstanten-Korrektur allein reichen nicht, die
+      Verschiebung des Checks hinter die Sync-Suche ist notwendig), nur NEU lehnt korrekt ab;
+      (3) vollständige echte Aufnahme ohne Kontamination — ALT, MID und NEU dekodieren alle
+      identisch und korrekt (Regressionsprobe); (4) grob zu kurze Aufnahme — alle drei lehnen
+      ab. Unter `gcc -std=c17 -Wall -Wextra -fsanitize=address,undefined
+      -fno-sanitize-recover=undefined` bei `-O0`/`-O1`: `20/20 Prüfungen bestanden`,
+      `ALL CHECKS PASSED`, identischer Output beider Optimierungsstufen, keine
+      Compiler-Warnungen, keine Sanitizer-Befunde.
+- [x] `ideas/protoview-renault-tpms-decoder-length-check-fix.md` angelegt (Was/Nutzen/
+      Betroffene Dateien/Fund im Detail/Fix/Host-Repro/Testhinweis/Risiko/Offen/Quelle).
+      `ideas/protoview-digital-signal-tool-app-status.md` (Abschnitt "Fortsetzung") um den
+      neuen Fund ergänzt; den jetzt behobenen Punkt (Renault) im Ford-Abschnitt oben als
+      erledigt markiert.
+- [ ] Lokal zu tun: Patch gegen die eigene `antirez/protoview`-Kopie anwenden (zusätzlich zu
+      den bereits vorliegenden `furi_hal_subghz_load_preset()`-, B4B1-, KeeLoq-, Citroen- und
+      Ford-Fixes), `./fbt launch_app APPSRC=protoview` bauen. Funktionstest mit einem eigenen
+      Renault-TPMS-Reifendrucksensor (443,92 MHz FSK): "Tire ID"/"Pressure kpa"/
+      "Temperature C"/"Flags"/"Unknown1"/"Unknown2" müssen über mehrere Empfänge desselben
+      Sensors konstant bleiben; ein vollständig empfangenes Signal muss identisch zum Stand
+      vor dem Fix dekodiert werden (Regressionsprobe).
 - [ ] Weiterhin offen (unverändert aus der vorherigen Sitzung, abzüglich des jetzt behobenen
-      Ford-Punkts): dieselbe Faktor-2-Vorab-Check-Schwäche in `protocols/tpms/renault.c` und
+      Renault-Punkts): dieselbe Faktor-2-Vorab-Check-Schwäche in
       `protocols/tpms/schrader_eg53ma4.c`, sowie die noch nicht logikgeprüften
       `protocols/tpms/toyota.c`/`protocols/tpms/schrader.c` (andere Sync-Strategie) und die
       Bit-Edit-/Keyboard-Ansicht von ProtoView selbst. Unverändert aus vorherigen Sitzungen:

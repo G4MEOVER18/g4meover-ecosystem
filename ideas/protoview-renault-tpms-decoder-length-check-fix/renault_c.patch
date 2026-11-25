@@ -1,0 +1,16 @@
+--- a/protocols/tpms/renault.c
++++ b/protocols/tpms/renault.c
+@@ -42,6 +42,13 @@
+     info->start_off = off;
+     off += 20; /* Skip preamble. */
+ 
++    /* Require the full 9 bytes (9*8*2 raw Manchester bits) to actually
++     * remain after the real sync match, not just somewhere in the whole
++     * capture (the stale pre-check six lines above this one compares
++     * against the wrong magnitude *and* the wrong point in time -- see
++     * ideas/protoview-renault-tpms-decoder-length-check-fix.md). */
++    if (off + 9*8*2 > numbits) return false;
++
+     uint8_t raw[9];
+     uint32_t decoded =
+         convert_from_line_code(raw,sizeof(raw),bits,numbytes,off,

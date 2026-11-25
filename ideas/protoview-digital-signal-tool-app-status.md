@@ -157,9 +157,13 @@ Schrader-EG53MA4 vorhanden, Details und Fix in
 `ideas/protoview-citroen-tpms-decoder-length-check-fix.md`. Jetzt Ford behoben
 (zweite der drei vorab identifizierten Geschwisterdateien, inkl. eines eigenen
 kosmetischen Tippfehler-Nebenfunds "Fort" statt "Ford" im Debug-Log), Details
-und Fix in `ideas/protoview-ford-tpms-decoder-length-check-fix.md`. Restlicher
-TPMS-Cluster (Renault/Schrader/Schrader-EG53MA4/Toyota) sowie die
-Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+und Fix in `ideas/protoview-ford-tpms-decoder-length-check-fix.md`. Jetzt auch Renault
+behoben (dritte und letzte der drei vorab identifizierten Geschwisterdateien) — mit
+einem eigenständigen, Renault-spezifischen dritten Mangel: der Vorab-Check subtrahiert
+`12`, obwohl die tatsächliche Präambel-/Sync-Sprungweite `20` ist (`strlen(sync_pattern)`),
+unabhängig vom bereits bekannten Faktor-2-Fehler, Details und Fix in
+`ideas/protoview-renault-tpms-decoder-length-check-fix.md`. Restlicher TPMS-Cluster
+(Schrader-EG53MA4/Schrader/Toyota) sowie die Bit-Edit-/Keyboard-Ansicht weiterhin offen.
 
 ## Quelle
 
