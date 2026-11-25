@@ -1,0 +1,19 @@
+diff --git a/protocols/tpms/toyota.c b/protocols/tpms/toyota.c
+index 6a7e79a..a169e0e 100644
+--- a/protocols/tpms/toyota.c
++++ b/protocols/tpms/toyota.c
+@@ -52,6 +52,14 @@ static bool decode(uint8_t *bits, uint32_t numbytes, uint32_t numbits, ProtoView
+     }
+     if (off == BITMAP_SEEK_NOT_FOUND) return false;
+ 
++    /* The check above ("numbits-6 < 64*2") runs before this offset is known
++     * and, on top of that, compares against a stale "64 bits of data"
++     * constant left over from an earlier, shorter format revision (the
++     * actual payload is the 9-byte raw[9] below, i.e. 72 decoded bits /
++     * 144 raw bits, not 64/128). Re-check here, at the real match offset,
++     * with the correct magnitude, before decoding. */
++    if (off + 8*9*2 > numbits) return false;
++
+     FURI_LOG_E(TAG, "Toyota TPMS sync[%s] found", sync[j]);
+ 
+     uint8_t raw[9];

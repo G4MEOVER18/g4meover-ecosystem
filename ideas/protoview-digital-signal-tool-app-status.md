@@ -169,8 +169,14 @@ Sprungweite, also nur die beiden Citroen/Ford-Mängel (Faktor, Zeitpunkt), kein 
 Renault-spezifischer Mangel, Details und Fix in
 `ideas/protoview-schrader-eg53ma4-tpms-decoder-length-check-fix.md`. Damit ist der
 Vierer-Geschwisterkreis (Citroen/Ford/Renault/Schrader-EG53MA4) vollständig abgearbeitet.
-Restlicher TPMS-Cluster (Schrader-Basisvariante/Toyota, anderer Sync-Mechanismus) sowie die
-Bit-Edit-/Keyboard-Ansicht weiterhin offen.
+Jetzt auch Toyota durchgesehen (anderer Sync-Mechanismus: differenzielles Manchester statt
+normales Manchester, mehrere Sync-Kandidaten) — eigenständige Fehler-Unterart derselben
+Fehlerfamilie: kein fehlender Faktor 2 (der ist hier schon korrekt angewendet), sondern eine
+veraltete Basiskonstante (`64` statt `72` dekodierte Bits, passend zum überholten
+Dateikopf-Kommentar statt zur tatsächlichen 9-Byte-Nutzlast), Details und Fix in
+`ideas/protoview-toyota-tpms-decoder-length-check-fix.md`. Restlicher TPMS-Cluster
+(Schrader-Basisvariante, andere Sync-/Präambel-Strategie) sowie die Bit-Edit-/Keyboard-Ansicht
+weiterhin offen.
 
 ## Quelle
 
